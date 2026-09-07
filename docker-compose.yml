@@ -54,12 +54,14 @@ services:
       NOMINATIM_COUNTRY_CODES: th
       GEOCODING_CACHE_TTL: 720h
       EXTERNAL_USER_AGENT: RBC-EV-Station-MVP/0.1
-      EXTERNAL_HTTP_TIMEOUT: 20s
+      EXTERNAL_HTTP_TIMEOUT: 45s
       WORLDPOP_API_URL: https://api.worldpop.org/v2
       WORLDPOP_YEAR: 2025
       WORLDPOP_RESOLUTION: 100m
       WORLDPOP_CACHE_TTL: 720h
       GISTDA_API_KEY: ${GISTDA_API_KEY:-}
+      GISTDA_ELEVATION_URL: ${GISTDA_ELEVATION_URL:-https://api.sphere.gistda.or.th/services/geo/elevation}
+      GISTDA_ELEVATION_CACHE_TTL: ${GISTDA_ELEVATION_CACHE_TTL:-24h}
       GISTDA_FLOOD_RISK_URL: ${GISTDA_FLOOD_RISK_URL:-https://gistdaportal.gistda.or.th/arcgis/rest/services/app/GISTDA_flood/MapServer/1/query}
       GISTDA_FLOOD_CACHE_TTL: ${GISTDA_FLOOD_CACHE_TTL:-24h}
       DOH_AADT_CSV_URL: ${DOH_AADT_CSV_URL:-https://opendata.doh.go.th/dataset/ed101df4-f0a1-4d7f-b9d9-76859b2ca73e/resource/f88f9c4e-b32e-4cd1-bf51-4e1f84ba7b16/download/aadt-68.csv}
@@ -82,12 +84,14 @@ services:
       PEA_POWER_MAP_URL: ${PEA_POWER_MAP_URL:-https://ppmload.pea.co.th/}
       PEA_GRID_STATION_URL: ${PEA_GRID_STATION_URL:-https://gisportal.pea.co.th/arcgis/rest/services/PEA_PAPD/PAPD_T_Station/FeatureServer/0/query}
       PEA_GRID_CONDUCTOR_URL: ${PEA_GRID_CONDUCTOR_URL:-https://gisportal.pea.co.th/arcgis/rest/services/PEA_PAPD/PAPD_T_Station/FeatureServer/1/query}
-      PEA_GRID_SEARCH_RADIUS_METERS: ${PEA_GRID_SEARCH_RADIUS_METERS:-5000}
+      PEA_GRID_SEARCH_RADIUS_METERS: ${PEA_GRID_SEARCH_RADIUS_METERS:-25000}
       PEA_GRID_CACHE_TTL: ${PEA_GRID_CACHE_TTL:-24h}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
       GEMINI_TIMEOUT: ${GEMINI_TIMEOUT:-20s}
+      JWT_SECRET: ${JWT_SECRET:-change-this-before-production}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
       CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:8081
     ports:
       - "8080:8080"

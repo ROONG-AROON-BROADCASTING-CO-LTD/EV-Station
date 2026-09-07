@@ -1,4 +1,8 @@
 export type DataStatus = 'verified' | 'estimated' | 'preliminary' | 'missing'
+export type UserRole = 'owner' | 'sales' | 'viewer'
+export interface User { id: string; email: string; displayName: string; role: UserRole; isActive: boolean; createdAt: string }
+export interface SiteAccess { siteId: string; userId: string; role: UserRole }
+export interface AuthSession { user: User; token: string }
 
 export interface Site {
   id: string
@@ -10,6 +14,11 @@ export interface Site {
   landSizeUnit: 'sqm' | 'rai' | 'ngan' | 'sqwah'
   googleMapsUrl?: string
   notes?: string
+  internetAvailable?: boolean
+  internetSupports24GHz?: boolean
+  landLevelingRequired?: boolean
+  frontageMeters?: number
+  electricalExtensionKm?: number
   inputStatus: DataStatus
   createdAt: string
   updatedAt: string
@@ -24,6 +33,11 @@ export interface CreateSiteInput {
   landSizeUnit: Site['landSizeUnit']
   googleMapsUrl?: string
   notes?: string
+  internetAvailable?: boolean
+  internetSupports24GHz?: boolean
+  landLevelingRequired?: boolean
+  frontageMeters?: number
+  electricalExtensionKm?: number
 }
 
 export interface DataSource {
@@ -67,6 +81,8 @@ export interface FranchisePlan {
   code: 'S' | 'M' | 'L'
   name: string
   recommendedAreaSqWah: number
+  minimumAreaSqWah: number
+  maximumAreaSqWah?: number
   evChargingStations: number
   investmentMinThb: number
   investmentMaxThb?: number
@@ -107,6 +123,7 @@ export interface AnalysisRun {
 
 export interface AIAssessment {
   summary: string
+  decision: 'invest' | 'not_recommended'
   recommendation: string
   strengths: string[]
   risks: string[]

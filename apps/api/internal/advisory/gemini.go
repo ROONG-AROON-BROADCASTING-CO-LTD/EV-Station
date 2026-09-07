@@ -3,6 +3,7 @@ package advisory
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
@@ -60,6 +62,7 @@ type geminiResponse struct {
 
 type generatedAssessment struct {
 	Summary        string   `json:"summary"`
+	Decision       string   `json:"decision"`
 	Recommendation string   `json:"recommendation"`
 	Strengths      []string `json:"strengths"`
 	Risks          []string `json:"risks"`
@@ -76,6 +79,16 @@ type generatedScoring struct {
 type generatedMetricScore struct {
 	MetricType string  `json:"metricType"`
 	Score      float64 `json:"score"`
+}
+
+type generatedSiteSurface struct {
+	Summary                 string   `json:"summary"`
+	Suitability             string   `json:"suitability"`
+	Score                   float64  `json:"score"`
+	SurfaceTypes            []string `json:"surfaceTypes"`
+	ObservedRisks           []string `json:"observedRisks"`
+	RecommendedImprovements []string `json:"recommendedImprovements"`
+	Disclaimer              string   `json:"disclaimer"`
 }
 
 func NewGeminiService(config GeminiConfig, client *http.Client) *Service {
@@ -133,10 +146,10 @@ func (s *Service) Generate(ctx context.Context, run domain.AnalysisRun, language
 		return domain.AIAssessment{}, ErrInvalidOutput
 	}
 	var result generatedAssessment
-	if err = json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result); err != nil || !validResult(result) {
+	if err = json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result); err != nil || !validResult(result) || !assessmentMatchesLanguage(result, language) {
 		return domain.AIAssessment{}, ErrInvalidOutput
 	}
-	return domain.AIAssessment{Summary: result.Summary, Recommendation: result.Recommendation, Strengths: result.Strengths, Risks: result.Risks, RequiredChecks: result.RequiredChecks, Disclaimer: result.Disclaimer, Language: language, Model: s.config.Model, GeneratedAt: time.Now().UTC()}, nil
+	return domain.AIAssessment{Summary: result.Summary, Decision: domain.InvestmentDecisionForScore(run.OverallScore), Recommendation: result.Recommendation, Strengths: result.Strengths, Risks: result.Risks, RequiredChecks: result.RequiredChecks, Disclaimer: result.Disclaimer, Language: language, Model: s.config.Model, GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion}, nil
 }
 
 // Score asks Gemini to assess only the evidence that the backend has already
@@ -191,17 +204,74 @@ func (s *Service) Score(ctx context.Context, run domain.AnalysisRun, language st
 	return domain.AIScoring{MetricScores: metricScores, Recommendation: result.Recommendation, Disclaimer: result.Disclaimer, Language: language, Model: s.config.Model, GeneratedAt: time.Now().UTC()}, nil
 }
 
+// AnalyzeSiteSurface assesses only visible ground conditions in customer-supplied
+// images. The returned score is intentionally separate from the location score.
+func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteImage, language string) (domain.SiteSurfaceAssessment, error) {
+	if strings.TrimSpace(s.config.APIKey) == "" {
+		return domain.SiteSurfaceAssessment{}, ErrNotConfigured
+	}
+	if len(images) == 0 || len(images) > 10 {
+		return domain.SiteSurfaceAssessment{}, ErrInvalidOutput
+	}
+	if language != "th" && language != "en" {
+		language = "th"
+	}
+	languageName := map[string]string{"th": "Thai", "en": "English"}[language]
+	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze ONLY the visible ground surface in the supplied site photos: surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. Do NOT assess or mention electricity, traffic, road access, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
+	parts := make([]map[string]any, 0, len(images)+1)
+	parts = append(parts, map[string]any{"text": prompt})
+	for _, image := range images {
+		parts = append(parts, map[string]any{"inline_data": map[string]string{"mime_type": image.MIMEType, "data": base64.StdEncoding.EncodeToString(image.Data)}})
+	}
+	payload := map[string]any{
+		"contents":         []map[string]any{{"role": "user", "parts": parts}},
+		"generationConfig": map[string]any{"temperature": 0, "maxOutputTokens": 900, "responseMimeType": "application/json", "responseJsonSchema": siteSurfaceSchema()},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return domain.SiteSurfaceAssessment{}, err
+	}
+	endpoint := strings.TrimRight(s.config.BaseURL, "/") + "/models/" + url.PathEscape(s.config.Model) + ":generateContent"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return domain.SiteSurfaceAssessment{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", s.config.APIKey)
+	response, err := s.client.Do(req)
+	if err != nil {
+		return domain.SiteSurfaceAssessment{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	defer response.Body.Close()
+	responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if readErr != nil {
+		return domain.SiteSurfaceAssessment{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return domain.SiteSurfaceAssessment{}, fmt.Errorf("%w: Gemini returned HTTP %d", ErrUnavailable, response.StatusCode)
+	}
+	var generated geminiResponse
+	if err = json.Unmarshal(responseBody, &generated); err != nil || len(generated.Candidates) == 0 || len(generated.Candidates[0].Content.Parts) == 0 {
+		return domain.SiteSurfaceAssessment{}, ErrInvalidOutput
+	}
+	var result generatedSiteSurface
+	if err = json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result); err != nil || !validSiteSurface(result) {
+		return domain.SiteSurfaceAssessment{}, ErrInvalidOutput
+	}
+	return domain.SiteSurfaceAssessment{Summary: result.Summary, Suitability: result.Suitability, Score: result.Score, SurfaceTypes: result.SurfaceTypes, ObservedRisks: result.ObservedRisks, RecommendedImprovements: result.RecommendedImprovements, Disclaimer: result.Disclaimer, Model: s.config.Model}, nil
+}
+
 func (s *Service) buildRequest(run domain.AnalysisRun, language string) (geminiRequest, error) {
 	facts, err := compactRunFacts(run)
 	if err != nil {
 		return geminiRequest{}, err
 	}
+	facts["systemDecision"] = domain.InvestmentDecisionForScore(run.OverallScore)
 	factJSON, err := json.Marshal(facts)
 	if err != nil {
 		return geminiRequest{}, err
 	}
-	languageName := map[string]string{"th": "Thai", "en": "English"}[language]
-	prompt := "You are an evidence-bound EV-station analyst. Write in " + languageName + ". Use ONLY the supplied facts. Do not invent location data, demand, traffic, grid capacity, ROI, payback, scores, competitors, or source claims. Do not calculate, alter, or propose numeric scores or ROI. Explain that the result is preliminary where evidence is estimated, preliminary, or missing. Return concise JSON matching the schema.\n\nFACTS:\n" + string(factJSON)
+	prompt := assessmentPrompt(language, string(factJSON))
 	var request geminiRequest
 	request.Contents = append(request.Contents, struct {
 		Role  string `json:"role"`
@@ -270,12 +340,21 @@ func compactRunFacts(run domain.AnalysisRun) (map[string]any, error) {
 		}
 		metrics = append(metrics, item)
 	}
-	return map[string]any{"assessmentStatus": run.AssessmentStatus, "analysisRadiusMeters": run.AnalysisRadiusMeters, "overallScore": run.OverallScore, "metrics": metrics, "financialAvailable": run.Financial != nil}, nil
+	facts := map[string]any{"assessmentStatus": run.AssessmentStatus, "analysisRadiusMeters": run.AnalysisRadiusMeters, "overallScore": run.OverallScore, "metrics": metrics, "financialAvailable": run.Financial != nil}
+	if run.Financial != nil {
+		facts["financialEstimate"] = map[string]any{
+			"initialInvestment": run.Financial.InitialInvestment, "monthlyRevenue": run.Financial.MonthlyRevenue,
+			"monthlyOperatingCost": run.Financial.MonthlyOperatingCost, "monthlyProfit": run.Financial.MonthlyProfit,
+			"annualProfit": run.Financial.AnnualProfit, "roiPercentage": run.Financial.ROIPercentage,
+			"paybackMonths": run.Financial.PaybackMonths, "assumptions": run.Financial.Assumptions,
+		}
+	}
+	return facts, nil
 }
 
 func assessmentSchema() map[string]any {
 	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 5}
-	return map[string]any{"type": "object", "properties": map[string]any{"summary": map[string]any{"type": "string"}, "recommendation": map[string]any{"type": "string"}, "strengths": stringArray, "risks": stringArray, "requiredChecks": stringArray, "disclaimer": map[string]any{"type": "string"}}, "required": []string{"summary", "recommendation", "strengths", "risks", "requiredChecks", "disclaimer"}, "additionalProperties": false}
+	return map[string]any{"type": "object", "properties": map[string]any{"summary": map[string]any{"type": "string"}, "decision": map[string]any{"type": "string", "enum": []string{"invest", "not_recommended"}}, "recommendation": map[string]any{"type": "string"}, "strengths": stringArray, "risks": stringArray, "requiredChecks": stringArray, "disclaimer": map[string]any{"type": "string"}}, "required": []string{"summary", "decision", "recommendation", "strengths", "risks", "requiredChecks", "disclaimer"}, "additionalProperties": false}
 }
 
 func scoringSchema() map[string]any {
@@ -286,8 +365,57 @@ func scoringSchema() map[string]any {
 	}, "required": []string{"metricScores", "recommendation", "disclaimer"}, "additionalProperties": false}
 }
 
+func siteSurfaceSchema() map[string]any {
+	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 8}
+	return map[string]any{"type": "object", "properties": map[string]any{
+		"summary":      map[string]any{"type": "string"},
+		"suitability":  map[string]any{"type": "string", "enum": []string{"low", "moderate", "high"}},
+		"score":        map[string]any{"type": "number", "minimum": 0, "maximum": 100},
+		"surfaceTypes": stringArray, "observedRisks": stringArray, "recommendedImprovements": stringArray,
+		"disclaimer": map[string]any{"type": "string"},
+	}, "required": []string{"summary", "suitability", "score", "surfaceTypes", "observedRisks", "recommendedImprovements", "disclaimer"}, "additionalProperties": false}
+}
+
 func validResult(value generatedAssessment) bool {
-	return strings.TrimSpace(value.Summary) != "" && strings.TrimSpace(value.Recommendation) != "" && strings.TrimSpace(value.Disclaimer) != ""
+	return strings.TrimSpace(value.Summary) != "" && (value.Decision == "invest" || value.Decision == "not_recommended") && strings.TrimSpace(value.Recommendation) != "" && strings.TrimSpace(value.Disclaimer) != ""
+}
+
+func assessmentPrompt(language, facts string) string {
+	if language == "th" {
+		return "คุณเป็นนักวิเคราะห์คัดกรองทำเลสถานีชาร์จ EV ที่ยึดหลักฐานเป็นหลัก\n" +
+			"ข้อกำหนดด้านภาษา: ตอบเป็นภาษาไทยเท่านั้น ทุกข้อความที่แสดงต่อผู้ใช้ในฟิลด์ summary, recommendation, strengths, risks, requiredChecks และ disclaimer ต้องเป็นภาษาไทย ห้ามเขียนประโยคภาษาอังกฤษ ยกเว้นชื่อเฉพาะ คำย่อ รหัสถนน หน่วยวัด หรือชื่อแหล่งข้อมูลที่จำเป็น\n" +
+			"ใช้เฉพาะข้อเท็จจริงที่ให้มาเท่านั้น ห้ามสร้างข้อมูลทำเล ความต้องการใช้ EV ปริมาณจราจร กำลังไฟฟ้า ROI ระยะคืนทุน คะแนน คู่แข่ง หรือการอ้างอิงแหล่งข้อมูลขึ้นเอง ห้ามคำนวณ เปลี่ยนแปลง หรือเสนอคะแนนตัวเลขหรือ ROI\n" +
+			"ค่า systemDecision ในข้อเท็จจริงเป็นผลตัดสินที่ระบบคำนวณจากคะแนนคัดกรองแล้ว ต้องส่งค่า decision ให้ตรงกับ systemDecision ทุกครั้ง ห้ามเปลี่ยนสถานะเอง; recommendation อธิบายหลักฐานที่สนับสนุนสถานะนี้เท่านั้น ห้ามวิเคราะห์ผลกระทบต่อการลงทุนหรือการคืนทุน\n" +
+			"ให้พิจารณา metric ชนิด electrical เป็นพิเศษ: หาก observedValues มีระยะ nearestHighVoltageLineMeters หรือ nearestStationMeters ให้ระบุตัวเลขระยะนั้นตามข้อมูลจริง พร้อมชื่อสถานี/ระดับแรงดันเมื่อมี; หากไม่มีหลักฐาน ให้ระบุขอบเขตรัศมีค้นหาตาม searchRadiusMeters และบอกเพียงว่าไม่พบในชั้นข้อมูลสาธารณะ ห้ามสรุปว่าไม่มีไฟฟ้า, ต้องลากสาย, หรือต้องติดตั้งหม้อแปลงแน่นอน\n" +
+			"เมื่อความพร้อมไฟฟ้ายังไม่ยืนยัน ให้ระบุว่าค่าใช้จ่ายที่ต้องขอประเมินจากการไฟฟ้าอาจครอบคลุมค่าคำขอและสำรวจ, ค่ามิเตอร์หรือค่าธรรมเนียมเชื่อมต่อ, งานขยายเขตหรือสายไฟ, หม้อแปลงและตู้สวิตช์/ระบบป้องกัน, งานโยธาแนวร้อยสาย และงานติดตั้งตู้ชาร์จ/ใบอนุญาต โดยห้ามใส่ราคา และต้องชี้ชัดว่าแต่ละรายการจะเกิดขึ้นหรือไม่ขึ้นกับผลสำรวจจริง\n" +
+			"ห้ามวิเคราะห์หรือสรุป ROI ระยะคืนทุน หรือผลตอบแทน แม้มี financialEstimate อยู่ในข้อมูล ใน risks ให้เขียนความเสี่ยงจากข้อเท็จจริง และใน requiredChecks ให้เขียนรายการขอข้อมูล/ดำเนินการที่ทำได้จริง อธิบายว่าเป็นผลเบื้องต้นเมื่อข้อมูลเป็นข้อมูลประมาณการ ข้อมูลเบื้องต้น หรือไม่มีข้อมูล ตอบ JSON แบบกระชับให้ตรงตาม schema เท่านั้น\n\nข้อเท็จจริง:\n" + facts
+	}
+	return "You are an evidence-bound EV-station analyst. Write every user-facing value in English. Use ONLY the supplied facts. The systemDecision field is already determined by the screening-score rule: return that exact value in decision and do not change the status yourself. Recommendation must explain only the evidence supporting that system decision. Do not invent location data, demand, traffic, grid capacity, ROI, payback, scores, competitors, or source claims. Do not calculate, alter, or propose numeric scores or ROI. Explain that the result is preliminary where evidence is estimated, preliminary, or missing. Return concise JSON matching the schema.\n\nFACTS:\n" + facts
+}
+
+func assessmentMatchesLanguage(value generatedAssessment, language string) bool {
+	if language != "th" {
+		return true
+	}
+	texts := []string{value.Summary, value.Recommendation, value.Disclaimer}
+	texts = append(texts, value.Strengths...)
+	texts = append(texts, value.Risks...)
+	texts = append(texts, value.RequiredChecks...)
+	for _, text := range texts {
+		if strings.TrimSpace(text) != "" && !containsThai(text) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsThai(text string) bool {
+	for _, character := range text {
+		if unicode.Is(unicode.Thai, character) {
+			return true
+		}
+	}
+	return false
 }
 
 func validScoringResult(value generatedScoring) bool {
@@ -302,4 +430,8 @@ func validScoringResult(value generatedScoring) bool {
 		seen[item.MetricType] = true
 	}
 	return true
+}
+
+func validSiteSurface(value generatedSiteSurface) bool {
+	return strings.TrimSpace(value.Summary) != "" && (value.Suitability == "low" || value.Suitability == "moderate" || value.Suitability == "high") && value.Score >= 0 && value.Score <= 100 && strings.TrimSpace(value.Disclaimer) != ""
 }

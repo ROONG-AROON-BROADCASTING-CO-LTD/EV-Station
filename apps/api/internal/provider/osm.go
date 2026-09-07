@@ -63,11 +63,14 @@ type osmPlace struct {
 }
 
 type osmMetricValue struct {
-	Count                    int        `json:"count"`
-	RadiusMeters             int        `json:"radiusMeters"`
-	Places                   []osmPlace `json:"places"`
-	ResidentialBuildingCount int        `json:"residentialBuildingCount,omitempty"`
-	CommunityAreaCount       int        `json:"communityAreaCount,omitempty"`
+	Count                        int            `json:"count"`
+	RadiusMeters                 int            `json:"radiusMeters"`
+	CoverageComplete             bool           `json:"coverageComplete"`
+	Places                       []osmPlace     `json:"places"`
+	CategoryCounts               map[string]int `json:"categoryCounts,omitempty"`
+	ExcludedChargingStationCount int            `json:"excludedChargingStationCount"`
+	ResidentialBuildingCount     int            `json:"residentialBuildingCount,omitempty"`
+	CommunityAreaCount           int            `json:"communityAreaCount,omitempty"`
 }
 
 type osmRoadMetricValue struct {
@@ -163,15 +166,23 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		observations[positions["poi"]] = osmObservation("poi", poi, radius, source, []string{
 			"Coverage depends on voluntary OpenStreetMap contributions and may be incomplete.",
 			"This is a factual count of returned tagged elements, not a normalized suitability score.",
-		}, communities)
-		competition := osmObservation("competition", chargers, radius, source, []string{
+		}, communities, len(chargers))
+		competitionRadius := 1000
+		nearbyChargers := make([]osmPlace, 0, len(chargers))
+		for _, charger := range chargers {
+			if haversineMeters(*site.Latitude, *site.Longitude, charger.Latitude, charger.Longitude) <= float64(competitionRadius) {
+				nearbyChargers = append(nearbyChargers, charger)
+			}
+		}
+		competition := osmObservation("competition", nearbyChargers, competitionRadius, source, []string{
 			"Only charging stations mapped in OpenStreetMap are included; unmapped operators may be missing.",
+			"Competition is counted only within 1 kilometre of the submitted coordinates.",
 			"Connector availability, power, pricing, and operational status are not verified by this query.",
 			"The provider supplies evidence only; deterministic preliminary-v1 scoring is applied separately by backend logic.",
-		}, osmCommunityEvidence{})
+		}, osmCommunityEvidence{}, 0)
 		// OSM can provide evidence of mapped competitors, but an empty OSM
 		// result cannot establish that a province has no competitors.
-		if len(chargers) == 0 {
+		if len(nearbyChargers) == 0 {
 			competition.Status = domain.DataPreliminary
 		}
 		observations[positions["competition"]] = competition
@@ -236,6 +247,8 @@ func buildOverpassContextQuery(latitude, longitude float64, radius int) string {
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["shop"];` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["tourism"];` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["leisure"];` +
+		`nwr(around:` + r + `,` + lat + `,` + lon + `)["office"];` +
+		`nwr(around:` + r + `,` + lat + `,` + lon + `)["building"~"^(commercial|office|apartments|dormitory|condominium|hotel)$"];` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["building"="residential"];` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["landuse"="residential"];` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["place"~"^(neighbourhood|suburb|quarter|village|town)$"];` +
@@ -274,6 +287,14 @@ func classifyOSMElements(elements []osmElement) (poi []osmPlace, chargers []osmP
 			continue
 		}
 		category := osmCategory(element.Tags)
+		if building := element.Tags["building"]; building != "" && building != "yes" {
+			for _, buildingType := range strings.Split(building, ";") {
+				if isDetailedBuildingType(buildingType) {
+					category = "building:" + buildingType
+					break
+				}
+			}
+		}
 		place := osmPlace{OSMType: element.Type, OSMID: element.ID, Name: element.Tags["name"], Category: category, Latitude: element.Lat, Longitude: element.Lon}
 		if element.Center != nil {
 			place.Latitude, place.Longitude = element.Center.Lat, element.Center.Lon
@@ -285,6 +306,15 @@ func classifyOSMElements(elements []osmElement) (poi []osmPlace, chargers []osmP
 		poi = append(poi, place)
 	}
 	return poi, chargers, communities
+}
+
+func isDetailedBuildingType(building string) bool {
+	switch building {
+	case "commercial", "office", "apartments", "dormitory", "condominium", "hotel":
+		return true
+	default:
+		return false
+	}
 }
 
 func classifyOSMRoads(elements []osmElement) []osmElement {
@@ -339,7 +369,7 @@ func haversineMeters(latitude1, longitude1, latitude2, longitude2 float64) float
 }
 
 func osmCategory(tags map[string]string) string {
-	for _, key := range []string{"amenity", "shop", "tourism", "leisure"} {
+	for _, key := range []string{"amenity", "shop", "tourism", "leisure", "office"} {
 		if value := tags[key]; value != "" {
 			return key + ":" + value
 		}
@@ -347,14 +377,28 @@ func osmCategory(tags map[string]string) string {
 	return "other"
 }
 
-func osmObservation(metricType string, places []osmPlace, radius int, source domain.DataSource, assumptions []string, communities osmCommunityEvidence) Observation {
+func osmObservation(metricType string, places []osmPlace, radius int, source domain.DataSource, assumptions []string, communities osmCommunityEvidence, excludedChargingStationCount int) Observation {
 	count := len(places)
+	coverageComplete := true
+	status := domain.DataVerified
+	if metricType == "poi" && count == 0 {
+		// An empty community-maintained map response is not enough evidence to
+		// conclude that there are no places around a Thai site. Keep the count
+		// visible, but exclude it from the screening score until it is rerun.
+		coverageComplete = false
+		status = domain.DataPreliminary
+		assumptions = append(assumptions, "The place query returned zero mapped records. This is treated as incomplete map coverage, not evidence that no important places exist, and is excluded from scoring.")
+	}
+	categoryCounts := make(map[string]int)
+	for _, place := range places {
+		categoryCounts[place.Category]++
+	}
 	if len(places) > 100 {
 		places = places[:100]
 		assumptions = append(assumptions, "The response preserves at most 100 example places; count remains the full deduplicated total.")
 	}
-	raw, _ := json.Marshal(osmMetricValue{Count: count, RadiusMeters: radius, Places: places, ResidentialBuildingCount: communities.ResidentialBuildingCount, CommunityAreaCount: communities.CommunityAreaCount})
-	return Observation{MetricType: metricType, RawValue: raw, Status: domain.DataVerified, Source: source, Assumptions: assumptions}
+	raw, _ := json.Marshal(osmMetricValue{Count: count, RadiusMeters: radius, CoverageComplete: coverageComplete, Places: places, CategoryCounts: categoryCounts, ExcludedChargingStationCount: excludedChargingStationCount, ResidentialBuildingCount: communities.ResidentialBuildingCount, CommunityAreaCount: communities.CommunityAreaCount})
+	return Observation{MetricType: metricType, RawValue: raw, Status: status, Source: source, Assumptions: assumptions}
 }
 
 func unavailableObservations() ([]Observation, map[string]int) {

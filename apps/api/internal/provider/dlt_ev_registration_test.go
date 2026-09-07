@@ -47,3 +47,9 @@ func TestParseDLTIntegerRecoversLargeXLSNumberRenderedAsDate(t *testing.T) {
 		t.Fatalf("parsed value = %d, want 160284", value)
 	}
 }
+
+func TestNormalizeDLTProvinceSupportsHistoricalAyutthayaSheetName(t *testing.T) {
+	if got := normalizeDLTProvince("อยุธยา "); got != "พระนครศรีอยุธยา" {
+		t.Fatalf("normalizeDLTProvince = %q, want พระนครศรีอยุธยา", got)
+	}
+}

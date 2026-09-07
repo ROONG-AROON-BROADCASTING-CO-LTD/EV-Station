@@ -11,14 +11,18 @@ var (
 )
 
 var DefaultWeights = map[string]float64{
-	"traffic":            0.20,
-	"road_accessibility": 0.05,
-	"ev_demand":          0.20,
-	"population":         0.15,
-	"poi":                0.15,
-	"competition":        0.15,
-	"flood":              0.05,
-	"electrical":         0.05,
+	// Customer-supplied ground-surface assessment is deliberately not a score
+	// component. Electrical readiness uses only public-grid proximity evidence,
+	// never published capacity or a claim of confirmed connection availability.
+	"traffic":            4.0 / 24.0,
+	"road_accessibility": 1.0 / 24.0,
+	"ev_demand":          4.0 / 24.0,
+	"population":         3.0 / 24.0,
+	"poi":                3.0 / 24.0,
+	"competition":        3.0 / 24.0,
+	"flood":              1.0 / 24.0,
+	"electrical":         3.0 / 24.0,
+	"site_requirements":  2.0 / 24.0,
 }
 
 type Engine struct{ Weights map[string]float64 }

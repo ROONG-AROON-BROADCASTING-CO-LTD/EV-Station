@@ -24,6 +24,40 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .language-switcher { @apply inline-flex items-center rounded-xl border border-line bg-slate-100 p-1; }
   .language-switcher button { @apply min-w-9 rounded-md px-2 py-1 text-xs font-bold text-muted transition hover:text-ink; }
   .language-switcher button.active { @apply bg-white text-brand shadow-sm; }
+  .input { @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100; }
 }
 
 .map-grid { background-image: linear-gradient(rgba(135,151,170,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(135,151,170,.22) 1px, transparent 1px); background-size: 44px 44px; transform: rotate(-7deg) scale(1.15); }
+.print-site-location, .print-company-header { display: none; }
+
+@media print {
+  @page { size: A4; margin: 12mm 10mm; }
+  html, body { background: #fff !important; }
+  aside, header, .print-hide, .screen-map { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  .analysis-print-report { color: #10254a; }
+  .analysis-print-report .print-company-header { display: flex !important; align-items: center; gap: 12px; margin: 0 0 18px; padding: 0 0 12px; border-bottom: 2px solid #009b4c; color: #334155; font-size: 9pt; line-height: 1.55; }
+  .analysis-print-report .print-company-logo { display: block; width: 48px; height: 48px; flex: 0 0 48px; object-fit: contain; border-radius: 50%; }
+  .analysis-print-report .print-company-name { margin: 0 0 2px; color: #10254a; font-size: 12pt; font-weight: 800; }
+  .analysis-print-report .print-company-header p { margin: 0; }
+  .analysis-print-report .page-title { font-size: 24pt; }
+  .analysis-print-report .print-site-location { display: block; }
+  .analysis-print-report .print-location-map { margin: 0; overflow: hidden; border: 1px solid #d9e2ec; border-radius: 10px; background: #f8fafc; }
+  .analysis-print-report .print-location-map-tiles { position: relative; overflow: hidden; aspect-ratio: 3 / 2; background: #eef3f7; }
+  .analysis-print-report .print-location-map-canvas { position: absolute; width: calc(100% * 5 / 3); height: calc(100% * 2); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(4, 1fr); }
+  .analysis-print-report .print-location-map-canvas img { display: block; width: 100%; height: 100%; }
+  .analysis-print-report .print-location-pin { position: absolute; z-index: 1; display: grid; place-items: center; color: white; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 2px rgba(15, 23, 42, .42)); }
+  .analysis-print-report .print-location-map figcaption { padding: 8px 10px; font-size: 9pt; color: #475569; }
+  .analysis-print-report section { break-inside: avoid; box-shadow: none !important; }
+  .analysis-print-report .overflow-x-auto { overflow: visible !important; }
+  .analysis-print-report table { min-width: 0 !important; font-size: 9pt; }
+  .analysis-print-report th, .analysis-print-report td { padding: 8px 10px !important; }
+  .analysis-print-report .text-6xl { font-size: 48pt; }
+  .analysis-print-report .mt-8 { margin-top: 18px; }
+  .analysis-print-report .mt-6 { margin-top: 14px; }
+  .analysis-print-report .mt-5 { margin-top: 12px; }
+  .analysis-print-report .min-h-\[350px\] { min-height: 220px !important; }
+  .analysis-print-report iframe { height: 260px !important; min-height: 0 !important; overflow: hidden !important; }
+  .analysis-print-report .flex-1 { flex: none !important; }
+  .analysis-print-report .map-grid { transform: none; }
+}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -53,6 +54,18 @@ type worldPopMetricValue struct {
 	RadiusMeters      int     `json:"radiusMeters"`
 	DataYear          int     `json:"dataYear"`
 	Resolution        string  `json:"resolution"`
+}
+
+type worldPopHTTPError struct {
+	statusCode int
+}
+
+func (e worldPopHTTPError) Error() string {
+	return fmt.Sprintf("worldpop returned status %d", e.statusCode)
+}
+
+func (e worldPopHTTPError) retryable() bool {
+	return e.statusCode == http.StatusTooManyRequests || e.statusCode >= 500
 }
 
 func NewWorldPopProvider(config WorldPopConfig, client *http.Client, externalCache cache.Cache) *WorldPopProvider {
@@ -124,37 +137,53 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 		}
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.config.Endpoint, "/")+"/population", bytes.NewReader(encoded))
-	if err != nil {
-		return worldPopResult{}, err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", p.config.UserAgent)
-	response, err := p.client.Do(request)
-	if err != nil {
-		return worldPopResult{}, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-		return worldPopResult{}, fmt.Errorf("worldpop submit returned status %d", response.StatusCode)
-	}
 	var task worldPopTaskResponse
-	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&task); err != nil || task.TaskID == "" {
-		return worldPopResult{}, fmt.Errorf("invalid worldpop task response")
+	for attempt := 0; attempt < 3; attempt++ {
+		request, requestErr := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.config.Endpoint, "/")+"/population", bytes.NewReader(encoded))
+		if requestErr != nil {
+			return worldPopResult{}, requestErr
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json")
+		request.Header.Set("User-Agent", p.config.UserAgent)
+		response, requestErr := p.client.Do(request)
+		if requestErr != nil {
+			if attempt < 2 && waitWorldPopRetry(ctx, attempt) == nil {
+				continue
+			}
+			return worldPopResult{}, requestErr
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+			_ = response.Body.Close()
+			httpErr := worldPopHTTPError{statusCode: response.StatusCode}
+			if !httpErr.retryable() || attempt == 2 || waitWorldPopRetry(ctx, attempt) != nil {
+				return worldPopResult{}, httpErr
+			}
+			continue
+		}
+		decodeErr := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&task)
+		_ = response.Body.Close()
+		if decodeErr != nil || task.TaskID == "" {
+			return worldPopResult{}, fmt.Errorf("invalid worldpop task response")
+		}
+		break
 	}
 
-	for attempt := 0; attempt < 20; attempt++ {
+	for attempt := 0; attempt < 60; attempt++ {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
 				return worldPopResult{}, ctx.Err()
-			case <-time.After(300 * time.Millisecond):
+			case <-time.After(worldPopPollDelay(attempt)):
 			}
 		}
 		result, done, pollErr := p.poll(ctx, task.TaskID)
 		if pollErr != nil {
+			var httpErr worldPopHTTPError
+			if errors.As(pollErr, &httpErr) && httpErr.retryable() {
+				continue
+			}
 			return worldPopResult{}, pollErr
 		}
 		if done {
@@ -164,6 +193,26 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 		}
 	}
 	return worldPopResult{}, fmt.Errorf("worldpop task timed out")
+}
+
+func waitWorldPopRetry(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt+1) * 500 * time.Millisecond
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
+}
+
+func worldPopPollDelay(attempt int) time.Duration {
+	if attempt < 5 {
+		return 500 * time.Millisecond
+	}
+	if attempt < 15 {
+		return time.Second
+	}
+	return 2 * time.Second
 }
 
 func (p *WorldPopProvider) poll(ctx context.Context, taskID string) (worldPopResult, bool, error) {
@@ -179,7 +228,8 @@ func (p *WorldPopProvider) poll(ctx context.Context, taskID string) (worldPopRes
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return worldPopResult{}, false, fmt.Errorf("worldpop task returned status %d", response.StatusCode)
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		return worldPopResult{}, false, worldPopHTTPError{statusCode: response.StatusCode}
 	}
 	var task worldPopTaskResponse
 	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&task); err != nil {

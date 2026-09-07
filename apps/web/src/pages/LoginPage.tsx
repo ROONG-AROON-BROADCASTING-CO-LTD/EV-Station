@@ -1,0 +1,17 @@
+import { useState, type FormEvent } from 'react'
+import { LogIn, UserPlus } from 'lucide-react'
+import { api } from '../services/api'
+import { useI18n } from '../i18n/I18nProvider'
+import type { AuthSession } from '../types/domain'
+
+export function LoginPage({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+	const { t } = useI18n()
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+	const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { if (mode === 'register') await api.register(email, name, password); const session = await api.login(email, password); onAuthenticated(session) } catch { setError(t(mode === 'login' ? 'Email or password is incorrect.' : 'Unable to create the account. Please check the details or use another email.')) } finally { setBusy(false) } }
+	return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="w-full max-w-md rounded-3xl border border-line bg-white p-7 shadow-panel"><div className="flex items-center gap-3"><img className="h-14 w-14 rounded-full border border-brand object-contain" src="/rbc-group-logo.jpg" alt="RBC Group" /><div><h1 className="text-2xl font-extrabold text-ink">RBC EV STATION</h1><p className="text-sm font-semibold text-brand">{t('EV charging-site assessment system')}</p></div></div><div className="mt-7 grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button className={`rounded-lg px-3 py-2 text-sm font-bold ${mode === 'login' ? 'bg-white text-ink shadow-sm' : 'text-muted'}`} onClick={() => setMode('login')}>{t('Sign in')}</button><button className={`rounded-lg px-3 py-2 text-sm font-bold ${mode === 'register' ? 'bg-white text-ink shadow-sm' : 'text-muted'}`} onClick={() => setMode('register')}>{t('Sign up')}</button></div><form className="mt-6 space-y-4" onSubmit={submit}>{mode === 'register' && <label className="block text-sm font-semibold text-ink">{t('Display name')}<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5" /></label>}<label className="block text-sm font-semibold text-ink">{t('Email')}<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5" /></label><label className="block text-sm font-semibold text-ink">{t('Password')}<input required minLength={8} type="password" value={password} onChange={e=>setPassword(e.target.value)} className="mt-1.5 w-full rounded-xl border border-line px-3 py-2.5" /></label>{error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}<button disabled={busy} className="button-primary w-full justify-center">{mode === 'login' ? <LogIn size={18}/> : <UserPlus size={18}/>} {busy ? t('Continue') : mode === 'login' ? t('Sign in') : t('Create account and sign in')}</button></form><p className="mt-5 text-xs leading-5 text-muted">{t('Customer accounts can view only the sites assigned to them. The owner manages team access.')}</p></section></main>
+}

@@ -84,7 +84,7 @@ func NewPEAGridProvider(config PEAGridConfig, client *http.Client, externalCache
 		externalCache = cache.Noop{}
 	}
 	if config.SearchRadiusMeters <= 0 {
-		config.SearchRadiusMeters = 5000
+		config.SearchRadiusMeters = 25000
 	}
 	if config.CacheTTL <= 0 {
 		config.CacheTTL = 24 * time.Hour
@@ -110,6 +110,7 @@ func (p *PEAGridProvider) Collect(ctx context.Context, site domain.Site, _ int) 
 	}
 
 	value := peaGridValue{AssessmentType: "pea_public_grid_evidence", SearchRadiusMeters: p.config.SearchRadiusMeters}
+	hasEvidence := false
 	if lineErr == nil {
 		var response peaConductorResponse
 		if err := json.Unmarshal(linePayload, &response); err == nil {
@@ -134,6 +135,7 @@ func (p *PEAGridProvider) Collect(ctx context.Context, site domain.Site, _ int) 
 			}
 			if !math.IsInf(minimum, 1) {
 				value.NearestHighVoltageLineMeters = &minimum
+				hasEvidence = true
 			}
 		}
 	}
@@ -153,8 +155,15 @@ func (p *PEAGridProvider) Collect(ctx context.Context, site domain.Site, _ int) 
 			}
 			if !math.IsInf(minimum, 1) {
 				value.NearestStationMeters = &minimum
+				hasEvidence = true
 			}
 		}
+	}
+	if !hasEvidence {
+		// An empty successful GIS response is not useful electrical evidence.
+		// Let CompositeProvider select the official PEA Power Map fallback.
+		observations[positions["electrical"]] = p.missing("ไม่พบแนวสายไฟฟ้าแรงสูงหรือสถานีไฟฟ้า PEA ในชั้นข้อมูลสาธารณะภายในรัศมีค้นหา")
+		return observations, nil
 	}
 
 	raw, _ := json.Marshal(value)

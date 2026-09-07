@@ -23,8 +23,8 @@ func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write([]byte(`{"version":0.6,"generator":"Overpass API","elements":[
 			{"type":"node","id":1,"lat":13.1,"lon":100.1,"tags":{"amenity":"restaurant","name":"A"}},
-			{"type":"node","id":2,"lat":13.2,"lon":100.2,"tags":{"amenity":"charging_station","name":"B"}},
-			{"type":"node","id":2,"lat":13.2,"lon":100.2,"tags":{"amenity":"charging_station","name":"B"}},
+			{"type":"node","id":2,"lat":13.101,"lon":100.101,"tags":{"amenity":"charging_station","name":"B"}},
+			{"type":"node","id":2,"lat":13.101,"lon":100.101,"tags":{"amenity":"charging_station","name":"B"}},
 			{"type":"way","id":3,"tags":{"highway":"primary","name":"Main Road"},"geometry":[{"lat":13.1,"lon":100.1},{"lat":13.11,"lon":100.11}]}
 		]}`))
 	}))
@@ -59,6 +59,13 @@ func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T
 	if !strings.Contains(string(byType["road_accessibility"].RawValue), `"mappedMajorRoadCount":1`) {
 		t.Fatalf("expected one mapped major road, got %s", byType["road_accessibility"].RawValue)
 	}
+	poiRaw := string(byType["poi"].RawValue)
+	if !strings.Contains(poiRaw, `"categoryCounts":{"amenity:restaurant":1}`) {
+		t.Fatalf("expected exact POI category totals, got %s", poiRaw)
+	}
+	if !strings.Contains(poiRaw, `"excludedChargingStationCount":1`) {
+		t.Fatalf("expected charging station to be excluded from POI total, got %s", poiRaw)
+	}
 }
 
 func TestOSMProviderRequiresCoordinates(t *testing.T) {
@@ -71,5 +78,32 @@ func TestOSMProviderRequiresCoordinates(t *testing.T) {
 		if observation.NormalizedScore != nil {
 			t.Fatalf("metric %s unexpectedly received a score", observation.MetricType)
 		}
+	}
+}
+
+func TestClassifyOSMElementsSeparatesRequestedBuildingCategories(t *testing.T) {
+	elements := []osmElement{
+		{Type: "way", ID: 1, Tags: map[string]string{"amenity": "hospital"}},
+		{Type: "way", ID: 2, Tags: map[string]string{"building": "commercial"}},
+		{Type: "way", ID: 3, Tags: map[string]string{"tourism": "hotel"}},
+		{Type: "way", ID: 4, Tags: map[string]string{"building": "apartments"}},
+		{Type: "way", ID: 5, Tags: map[string]string{"building": "dormitory"}},
+		{Type: "way", ID: 6, Tags: map[string]string{"building": "condominium"}},
+		{Type: "way", ID: 7, Tags: map[string]string{"tourism": "attraction"}},
+		{Type: "way", ID: 8, Tags: map[string]string{"building": "office"}},
+		{Type: "node", ID: 9, Tags: map[string]string{"amenity": "charging_station"}},
+	}
+	places, chargers, _ := classifyOSMElements(elements)
+	counts := make(map[string]int)
+	for _, place := range places {
+		counts[place.Category]++
+	}
+	for _, category := range []string{"amenity:hospital", "building:commercial", "tourism:hotel", "building:apartments", "building:dormitory", "building:condominium", "tourism:attraction", "building:office"} {
+		if counts[category] != 1 {
+			t.Fatalf("expected one %s, got %d (%+v)", category, counts[category], counts)
+		}
+	}
+	if len(chargers) != 1 || len(places) != 8 {
+		t.Fatalf("expected EV station to be separated from 8 POIs: places=%d chargers=%d", len(places), len(chargers))
 	}
 }

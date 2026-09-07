@@ -1,14 +1,19 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/rbc/ev-station/apps/api/internal/advisory"
 	"github.com/rbc/ev-station/apps/api/internal/analysis"
+	"github.com/rbc/ev-station/apps/api/internal/auth"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 	"github.com/rbc/ev-station/apps/api/internal/financial"
 	"github.com/rbc/ev-station/apps/api/internal/provider"
@@ -20,14 +25,192 @@ import (
 type Handler struct {
 	sites    *site.Service
 	analyses *analysis.Service
+	repo     repository.Repository
 	weights  map[string]float64
 	geocoder provider.Geocoder
 	advisory *advisory.Service
+	auth     *auth.Service
 }
 
-func NewHandler(sites *site.Service, analyses *analysis.Service, geocoder provider.Geocoder, advisoryService *advisory.Service, weights map[string]float64) *Handler {
-	return &Handler{sites: sites, analyses: analyses, geocoder: geocoder, advisory: advisoryService, weights: weights}
+func NewHandler(sites *site.Service, analyses *analysis.Service, repo repository.Repository, geocoder provider.Geocoder, advisoryService *advisory.Service, authService *auth.Service, weights map[string]float64) *Handler {
+	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, weights: weights}
 }
+
+func (h *Handler) Register(c *gin.Context) {
+	var input struct {
+		Email       string          `json:"email" binding:"required,email"`
+		DisplayName string          `json:"displayName" binding:"required,max=160"`
+		Password    string          `json:"password" binding:"required,min=8"`
+		Role        domain.UserRole `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	users, err := h.repo.ListUsers(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "USERS_UNAVAILABLE", "Unable to prepare the first owner account.")
+		return
+	}
+	hasOwner := false
+	for _, existing := range users {
+		if existing.Role == domain.RoleOwner {
+			hasOwner = true
+			break
+		}
+	}
+	// Bootstrap exactly one owner. Every later public registration is a customer
+	// account, and never accepts a caller-supplied privileged role.
+	if hasOwner {
+		input.Role = domain.RoleViewer
+	} else {
+		input.Role = domain.RoleOwner
+	}
+	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, input.Role)
+	if err != nil {
+		writeError(c, http.StatusConflict, "USER_CREATE_FAILED", "Unable to create this user.")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": user})
+}
+
+func (h *Handler) CreateUser(c *gin.Context) {
+	if !h.requireOwner(c) {
+		return
+	}
+	var input struct {
+		Email       string          `json:"email" binding:"required,email"`
+		DisplayName string          `json:"displayName" binding:"required,max=160"`
+		Password    string          `json:"password" binding:"required,min=8"`
+		Role        domain.UserRole `json:"role" binding:"required,oneof=sales viewer"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, input.Role)
+	if err != nil {
+		writeError(c, http.StatusConflict, "USER_CREATE_FAILED", "Unable to create this user.")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": user})
+}
+func (h *Handler) RequireAuth(c *gin.Context) {
+	value := c.GetHeader("Authorization")
+	if !strings.HasPrefix(value, "Bearer ") {
+		writeError(c, http.StatusUnauthorized, "AUTH_REQUIRED", "Please sign in to continue.")
+		c.Abort()
+		return
+	}
+	claims, err := h.auth.Verify(strings.TrimPrefix(value, "Bearer "))
+	if err != nil {
+		writeError(c, http.StatusUnauthorized, "INVALID_TOKEN", "Your session has expired. Please sign in again.")
+		c.Abort()
+		return
+	}
+	c.Set("userId", claims.Subject)
+	c.Set("role", claims.Role)
+	c.Next()
+}
+func (h *Handler) Login(c *gin.Context) {
+	var input struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	user, token, err := h.auth.Login(c.Request.Context(), input.Email, input.Password)
+	if err != nil {
+		writeError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Email or password is incorrect.")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"user": user, "token": token}})
+}
+func (h *Handler) ListUsers(c *gin.Context) {
+	if !h.requireOwner(c) {
+		return
+	}
+	users, err := h.repo.ListUsers(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "USERS_UNAVAILABLE", "Unable to load users.")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": users})
+}
+func (h *Handler) SetSiteAccess(c *gin.Context) {
+	if !h.requireOwner(c) {
+		return
+	}
+	siteID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var input struct {
+		UserID uuid.UUID `json:"userId" binding:"required"`
+		Role   string    `json:"role" binding:"required,oneof=sales viewer"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	if err := h.repo.SetSiteAccess(c.Request.Context(), domain.SiteAccess{SiteID: siteID, UserID: input.UserID, Role: input.Role}); err != nil {
+		writeError(c, http.StatusNotFound, "SITE_OR_USER_NOT_FOUND", "Site or user was not found.")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+func (h *Handler) DeleteSiteAccess(c *gin.Context) {
+	if !h.requireOwner(c) {
+		return
+	}
+	siteID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	userID, err := uuid.Parse(c.Param("userID"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_USER_ID", "User ID is invalid.")
+		return
+	}
+	if err := h.repo.DeleteSiteAccess(c.Request.Context(), siteID, userID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "SITE_ACCESS_NOT_FOUND", "This site access assignment was not found.")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "SITE_ACCESS_DELETE_FAILED", "Unable to remove site access.")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+func (h *Handler) ListSiteAccess(c *gin.Context) {
+	if !h.requireOwner(c) {
+		return
+	}
+	siteID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	access, err := h.repo.ListSiteAccess(c.Request.Context(), siteID)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "ACCESS_UNAVAILABLE", "Unable to load access.")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": access})
+}
+
+const (
+	maxSiteImages     = 10
+	maxSiteImageBytes = 10 << 20
+	maxSitePDFBytes   = 10 << 20
+	// Allow up to ten 10 MB documents plus multipart form overhead.
+	maxUploadBytes = 102 << 20
+)
 
 func (h *Handler) SearchAddress(c *gin.Context) {
 	query := c.Query("q")
@@ -77,6 +260,14 @@ func (h *Handler) ResolveGoogleMapsURL(c *gin.Context) {
 }
 
 func (h *Handler) CreateSite(c *gin.Context) {
+	userID, role, ok := requestUser(c)
+	if !ok {
+		return
+	}
+	if role == domain.RoleViewer {
+		writeError(c, http.StatusForbidden, "SITE_WRITE_DENIED", "Viewers cannot create or edit sites.")
+		return
+	}
 	var input domain.CreateSiteInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
@@ -91,6 +282,12 @@ func (h *Handler) CreateSite(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, "SITE_CREATE_FAILED", "Unable to save the site.")
 		return
 	}
+	if role == domain.RoleSales {
+		if err := h.repo.SetSiteAccess(c.Request.Context(), domain.SiteAccess{SiteID: result.ID, UserID: userID, Role: string(domain.RoleSales)}); err != nil {
+			writeError(c, http.StatusInternalServerError, "SITE_ACCESS_SAVE_FAILED", "Site was created but could not be assigned to the sales user.")
+			return
+		}
+	}
 	c.JSON(http.StatusCreated, gin.H{"data": result})
 }
 
@@ -103,12 +300,35 @@ func (h *Handler) ListSites(c *gin.Context) {
 	if result == nil {
 		result = []domain.Site{}
 	}
+	userID, role, ok := requestUser(c)
+	if !ok {
+		return
+	}
+	if role != domain.RoleOwner {
+		allowed := make([]domain.Site, 0, len(result))
+		for _, candidate := range result {
+			access, accessErr := h.repo.ListSiteAccess(c.Request.Context(), candidate.ID)
+			if accessErr != nil {
+				continue
+			}
+			for _, grant := range access {
+				if grant.UserID == userID {
+					allowed = append(allowed, candidate)
+					break
+				}
+			}
+		}
+		result = allowed
+	}
 	c.JSON(http.StatusOK, gin.H{"data": result})
 }
 
 func (h *Handler) GetSite(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, id, siteRead) {
 		return
 	}
 	result, err := h.sites.Get(c.Request.Context(), id)
@@ -123,9 +343,87 @@ func (h *Handler) GetSite(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": result})
 }
 
+func (h *Handler) UploadSiteImages(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, id, siteWrite) {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
+	form, err := c.MultipartForm()
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Upload up to 10 JPEG, PNG, WebP, or PDF files with a maximum size of 10 MB each.")
+		return
+	}
+	files := form.File["images"]
+	if len(files) == 0 || len(files) > maxSiteImages {
+		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Upload between 1 and 10 images.")
+		return
+	}
+	existing, err := h.repo.GetSiteImages(c.Request.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_LOAD_FAILED", "Unable to prepare site image upload.")
+		return
+	}
+	if len(existing)+len(files) > maxSiteImages {
+		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "A site can have no more than 10 images. Remove existing images or upload fewer images.")
+		return
+	}
+	images := make([]domain.SiteImage, 0, len(files))
+	for _, file := range files {
+		if file.Size <= 0 || file.Size > maxSitePDFBytes {
+			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Each file must be no larger than 10 MB.")
+			return
+		}
+		opened, openErr := file.Open()
+		if openErr != nil {
+			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "An uploaded image could not be read.")
+			return
+		}
+		data, readErr := io.ReadAll(io.LimitReader(opened, maxSitePDFBytes+1))
+		_ = opened.Close()
+		if readErr != nil || len(data) == 0 || len(data) > maxSitePDFBytes {
+			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "An uploaded image could not be read.")
+			return
+		}
+		mimeType := http.DetectContentType(data)
+		if mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "image/webp" && mimeType != "application/pdf" {
+			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Only JPEG, PNG, WebP, and PDF files are supported.")
+			return
+		}
+		maxBytes := maxSiteImageBytes
+		if mimeType == "application/pdf" {
+			maxBytes = maxSitePDFBytes
+		}
+		if len(data) > maxBytes {
+			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Each file must be no larger than 10 MB.")
+			return
+		}
+		images = append(images, domain.SiteImage{ID: uuid.New(), SiteID: id, MIMEType: mimeType, Data: data, CreatedAt: time.Now().UTC()})
+	}
+	if err = h.repo.AddSiteImages(c.Request.Context(), id, images); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_UPLOAD_FAILED", "Unable to save site evidence files.")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"count": len(images)}})
+}
+
 func (h *Handler) UpdateSite(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, id, siteWrite) {
 		return
 	}
 	var input domain.CreateSiteInput
@@ -154,6 +452,9 @@ func (h *Handler) DeleteSite(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.requireOwner(c) {
+		return
+	}
 	if err := h.sites.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
@@ -168,6 +469,9 @@ func (h *Handler) DeleteSite(c *gin.Context) {
 func (h *Handler) GetLatestCompletedAnalysisForSite(c *gin.Context) {
 	siteID, ok := parseID(c)
 	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, siteID, siteRead) {
 		return
 	}
 	result, err := h.analyses.GetLatestCompletedForSite(c.Request.Context(), siteID)
@@ -188,6 +492,9 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.requireSitePermission(c, siteID, siteWrite) {
+		return
+	}
 	var body struct {
 		RadiusMeters int `json:"radiusMeters"`
 	}
@@ -197,8 +504,8 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 			return
 		}
 	}
-	if body.RadiusMeters != 0 && body.RadiusMeters != 1000 && body.RadiusMeters != 3000 && body.RadiusMeters != 5000 {
-		writeError(c, http.StatusBadRequest, "INVALID_RADIUS", "Radius must be 1000, 3000, or 5000 meters.")
+	if body.RadiusMeters != 0 && body.RadiusMeters != 1000 && body.RadiusMeters != 2000 && body.RadiusMeters != 3000 {
+		writeError(c, http.StatusBadRequest, "INVALID_RADIUS", "Radius must be 1000, 2000, or 3000 meters.")
 		return
 	}
 	result, err := h.analyses.Run(c.Request.Context(), siteID, body.RadiusMeters)
@@ -218,6 +525,9 @@ func (h *Handler) GetAnalysis(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if _, ok := h.requireAnalysisPermission(c, id, siteRead); !ok {
+		return
+	}
 	result, err := h.analyses.Get(c.Request.Context(), id)
 	if errors.Is(err, repository.ErrNotFound) {
 		writeError(c, http.StatusNotFound, "ANALYSIS_NOT_FOUND", "Analysis not found.")
@@ -233,6 +543,9 @@ func (h *Handler) GetAnalysis(c *gin.Context) {
 func (h *Handler) RecalculatePreliminary(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
+		return
+	}
+	if _, ok := h.requireAnalysisPermission(c, id, siteWrite); !ok {
 		return
 	}
 	result, err := h.analyses.RecalculatePreliminary(c.Request.Context(), id)
@@ -252,6 +565,10 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 	if !ok {
 		return
 	}
+	run, ok := h.requireAnalysisPermission(c, id, siteRead)
+	if !ok {
+		return
+	}
 	var body struct {
 		Language string `json:"language"`
 	}
@@ -265,20 +582,29 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_LANGUAGE", "Language must be th or en.")
 		return
 	}
-	run, err := h.analyses.Get(c.Request.Context(), id)
-	if errors.Is(err, repository.ErrNotFound) {
-		writeError(c, http.StatusNotFound, "ANALYSIS_NOT_FOUND", "Analysis not found.")
-		return
+	language := body.Language
+	if language == "" {
+		language = "th"
 	}
-	if err != nil {
-		writeError(c, http.StatusInternalServerError, "ANALYSIS_LOAD_FAILED", "Unable to load the analysis.")
+	refresh := c.Query("refresh") == "true"
+	expectedDecision := domain.InvestmentDecisionForScore(run.OverallScore)
+	var cached map[string]domain.AIAssessment
+	if !refresh && len(run.AIAssessments) > 0 {
+		if err := json.Unmarshal(run.AIAssessments, &cached); err == nil {
+			if assessment, ok := cached[language]; ok && assessment.Language == language && assessment.Decision == expectedDecision && assessment.DecisionPolicy == domain.InvestmentDecisionPolicyVersion {
+				c.JSON(http.StatusOK, gin.H{"data": assessment})
+				return
+			}
+		}
+	}
+	if !h.requireSitePermission(c, run.SiteID, siteWrite) {
 		return
 	}
 	if h.advisory == nil {
 		writeError(c, http.StatusServiceUnavailable, "AI_NOT_CONFIGURED", "AI assessment is not configured.")
 		return
 	}
-	result, err := h.advisory.Generate(c.Request.Context(), run, body.Language)
+	result, err := h.advisory.Generate(c.Request.Context(), run, language)
 	if errors.Is(err, advisory.ErrNotConfigured) {
 		writeError(c, http.StatusServiceUnavailable, "AI_NOT_CONFIGURED", "Set GEMINI_API_KEY on the API server before generating an AI assessment.")
 		return
@@ -293,6 +619,19 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 	}
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "AI_ASSESSMENT_FAILED", "Unable to generate the AI assessment.")
+		return
+	}
+	if cached == nil {
+		cached = make(map[string]domain.AIAssessment)
+	}
+	cached[language] = result
+	persisted, err := json.Marshal(cached)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "AI_ASSESSMENT_ENCODE_FAILED", "Unable to save the AI assessment.")
+		return
+	}
+	if err := h.repo.UpdateAnalysisAIAssessments(c.Request.Context(), run.ID, persisted); err != nil {
+		writeError(c, http.StatusInternalServerError, "AI_ASSESSMENT_SAVE_FAILED", "Unable to save the AI assessment.")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": result})

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PreliminaryVersion        = "preliminary-v1"
+	PreliminaryVersion        = "preliminary-v2"
 	MinimumCoveragePercentage = 60.0
 )
 
@@ -22,8 +22,8 @@ type PreliminaryResult struct {
 }
 
 // EvaluatePreliminary converts provider evidence into transparent screening
-// scores. It never changes the evidence status and excludes metrics that cannot
-// be interpreted safely (notably unverified electrical capacity).
+// scores. It never changes evidence status. Customer-supplied ground-surface
+// assessment is not included because it is a separate visual site review.
 func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult {
 	result := PreliminaryResult{
 		MetricScores: make(map[string]float64),
@@ -34,7 +34,7 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 			Limitations: []string{
 				"This score is a deterministic preliminary screening indicator, not an investment approval.",
 				"Missing metrics are excluded and the available weights are renormalized; review coverage before comparing sites.",
-				"Electrical capacity is excluded unless a utility-confirmed site value becomes available.",
+				"Electrical readiness uses only published-grid proximity or service-area evidence; it does not confirm capacity, a connection point, or three-phase supply for the plot.",
 			},
 		},
 	}
@@ -75,6 +75,12 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 }
 
 func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
+	// Older reports can already have a normalized POI score persisted.  Do not
+	// let that stale score survive recalculation when the map response was empty
+	// or did not declare complete coverage.
+	if metric.Type == "poi" && incompleteZeroPOI(metric.RawValue) {
+		return 0, "", false
+	}
 	if metric.NormalizedScore != nil {
 		return *metric.NormalizedScore, "Provider-supplied deterministic normalized score.", true
 	}
@@ -115,10 +121,11 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 		}
 	case "poi":
 		var value struct {
-			Count  float64 `json:"count"`
-			Radius float64 `json:"radiusMeters"`
+			Count            float64 `json:"count"`
+			Radius           float64 `json:"radiusMeters"`
+			CoverageComplete bool    `json:"coverageComplete"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.Count >= 0 && value.Radius > 0 {
+		if json.Unmarshal(metric.RawValue, &value) == nil && value.CoverageComplete && value.Count >= 0 && value.Radius > 0 {
 			areaKM2 := math.Pi * math.Pow(value.Radius/1000, 2)
 			density := value.Count / areaKM2
 			return 10 + 90*(density/8), "POI rule: mapped POI density increases linearly from 10 to 100 points at 8 POIs/km².", true
@@ -142,10 +149,88 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 			return 40 - (value.Count-1)*5, "Flood-layer rule: 40 for one overlapping published risk polygon, minus 5 for each additional polygon.", true
 		}
 	case "electrical":
-		// Public planning maps do not verify remaining capacity for a plot.
-		return 0, "", false
+		var value struct {
+			AssessmentType               string   `json:"assessmentType"`
+			MatchingMethod               string   `json:"matchingMethod"`
+			DistanceToAreaMeters         *float64 `json:"distanceToAreaMeters"`
+			NearestHighVoltageLineMeters *float64 `json:"nearestHighVoltageLineMeters"`
+			NearestStationMeters         *float64 `json:"nearestStationMeters"`
+			DataAvailable                bool     `json:"dataAvailable"`
+		}
+		if json.Unmarshal(metric.RawValue, &value) != nil {
+			return 0, "", false
+		}
+		nearest := nearestElectricalDistance(value.NearestHighVoltageLineMeters, value.NearestStationMeters, value.DistanceToAreaMeters)
+		if nearest != nil {
+			return 100 - *nearest/100, "Electrical-proximity rule: score decreases linearly from 100 at a published high-voltage line, station, or MEA station-area boundary to 0 at 10 km. This is public-map proximity only and does not confirm capacity, a connection point, or three-phase supply for the plot.", true
+		}
+		if value.AssessmentType == "published_station_area_guideline" && value.MatchingMethod == "point_in_published_area" {
+			return 65, "Electrical-area rule: 65 when the plot falls within a published MEA station area. This is an area reference only and does not confirm capacity or connection feasibility for the plot.", true
+		}
+		if value.AssessmentType == "official_public_map_guideline" && value.DataAvailable {
+			return 50, "Electrical-service-area rule: 50 when the PEA public planning map is available for the area but no plot-level grid distance is published. This does not confirm capacity or connection feasibility for the plot.", true
+		}
+	case "site_requirements":
+		var value struct {
+			InternetAvailable     *bool    `json:"internetAvailable"`
+			InternetSupports24GHz *bool    `json:"internetSupports24GHz"`
+			LandLevelingRequired  *bool    `json:"landLevelingRequired"`
+			FrontageMeters        *float64 `json:"frontageMeters"`
+			ElectricalExtensionKM *float64 `json:"electricalExtensionKm"`
+		}
+		if json.Unmarshal(metric.RawValue, &value) != nil || value.InternetAvailable == nil || value.InternetSupports24GHz == nil || value.LandLevelingRequired == nil || value.FrontageMeters == nil || value.ElectricalExtensionKM == nil {
+			return 0, "", false
+		}
+		score := 0.0
+		if *value.InternetAvailable {
+			score += 25
+		}
+		if *value.InternetAvailable && *value.InternetSupports24GHz {
+			score += 15
+		}
+		if !*value.LandLevelingRequired {
+			score += 15
+		} else {
+			score += 5
+		}
+		if *value.FrontageMeters >= 7 {
+			score += 25
+		} else if *value.FrontageMeters >= 6 {
+			score += 15
+		}
+		if *value.ElectricalExtensionKM <= 1 {
+			score += 20
+		} else if *value.ElectricalExtensionKM <= 3 {
+			score += 10
+		}
+		return score, "Site-requirements rule: internet availability 25 points, 2.4 GHz support 15 points, no land levelling required 15 points (5 when required), frontage 25 points at 7 metres or more (15 at 6–6.99 metres), and estimated electrical extension 20 points up to 1 km, 10 points for 1–3 km, or 0 above 3 km. These are customer/field-survey inputs and require verification.", true
 	}
 	return 0, "", false
+}
+
+func incompleteZeroPOI(raw json.RawMessage) bool {
+	var value struct {
+		Count            float64 `json:"count"`
+		CoverageComplete *bool   `json:"coverageComplete"`
+	}
+	if json.Unmarshal(raw, &value) != nil || value.Count != 0 {
+		return false
+	}
+	return value.CoverageComplete == nil || !*value.CoverageComplete
+}
+
+func nearestElectricalDistance(distances ...*float64) *float64 {
+	var nearest *float64
+	for _, distance := range distances {
+		if distance == nil || *distance < 0 {
+			continue
+		}
+		if nearest == nil || *distance < *nearest {
+			value := *distance
+			nearest = &value
+		}
+	}
+	return nearest
 }
 
 func ScoringRuleAssumption(rule string) string {

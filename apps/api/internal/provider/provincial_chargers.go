@@ -137,11 +137,12 @@ func (p *ProvincialChargerProvider) Collect(ctx context.Context, site domain.Sit
 		return observations, nil
 	}
 
-	value := competitionMetricValue{RadiusMeters: radius, Places: make([]competitionPlace, 0), Sources: make([]competitionSourceBreakdown, 0, len(results))}
+	const competitionRadius = 1000
+	value := competitionMetricValue{RadiusMeters: competitionRadius, Places: make([]competitionPlace, 0), Sources: make([]competitionSourceBreakdown, 0, len(results))}
 	for _, result := range results {
 		nearby := make([]competitionPlace, 0)
 		for _, place := range result.Places {
-			if haversineMeters(*site.Latitude, *site.Longitude, place.Latitude, place.Longitude) <= float64(radius) {
+			if haversineMeters(*site.Latitude, *site.Longitude, place.Latitude, place.Longitude) <= float64(competitionRadius) {
 				nearby = append(nearby, place)
 			}
 		}

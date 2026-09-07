@@ -38,6 +38,9 @@ func (s *Service) save(ctx context.Context, id uuid.UUID, input domain.CreateSit
 		ID: id, Name: strings.TrimSpace(input.Name), Address: strings.TrimSpace(input.Address),
 		Latitude: input.Latitude, Longitude: input.Longitude, LandSize: input.LandSize,
 		LandSizeUnit: input.LandSizeUnit, GoogleMapsURL: input.GoogleMapsURL, Notes: input.Notes,
+		InternetAvailable: input.InternetAvailable, InternetSupports24GHz: input.InternetSupports24GHz,
+		LandLevelingRequired: input.LandLevelingRequired, FrontageMeters: input.FrontageMeters,
+		ElectricalExtensionKM: input.ElectricalExtensionKM,
 		InputStatus: domain.DataPreliminary, CreatedAt: createdAt, UpdatedAt: now,
 	}
 	if !isNew {

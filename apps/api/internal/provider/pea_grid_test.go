@@ -39,3 +39,20 @@ func TestPEAGridProviderReturnsPublishedGridEvidenceWithoutCapacityClaim(t *test
 		t.Fatalf("unexpected grid evidence: %+v", value)
 	}
 }
+
+func TestPEAGridProviderTreatsEmptyGISResultsAsMissing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`{"features":[]}`))
+	}))
+	defer server.Close()
+	latitude, longitude := 14.0, 100.0
+	provider := NewPEAGridProvider(PEAGridConfig{StationURL: server.URL + "/stations", ConductorURL: server.URL + "/lines", SearchRadiusMeters: 5000, CacheTTL: time.Minute}, server.Client(), cache.Noop{})
+	observations, err := provider.Collect(context.Background(), domain.Site{Latitude: &latitude, Longitude: &longitude}, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	electrical := findObservation(t, observations, "electrical")
+	if electrical.Status != domain.DataMissing {
+		t.Fatalf("unexpected status: %s", electrical.Status)
+	}
+}

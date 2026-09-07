@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileImage, Info, MapPin, Search, Upload } from 'lucide-react'
+import { FileImage, FileText, Info, MapPin, Search, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -32,6 +32,11 @@ const createSchema = (t: (key: string) => string) => z.object({
 })
 type FormValues = z.input<ReturnType<typeof createSchema>>
 
+const maxSiteImages = 10
+const maxSiteImageBytes = 10 * 1024 * 1024
+const maxSitePDFBytes = 10 * 1024 * 1024
+const supportedSiteEvidenceTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+
 function toSiteInput(values: FormValues): CreateSiteInput {
   const numberOrUndefined = (value: unknown) => value === '' || value === undefined || Number.isNaN(Number(value)) ? undefined : Number(value)
   return { ...values, latitude: numberOrUndefined(values.latitude), longitude: numberOrUndefined(values.longitude), landSize: Number(values.landSize) } as CreateSiteInput
@@ -47,13 +52,14 @@ export function NewSitePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
+  const [fileError, setFileError] = useState('')
   const siteQuery = useQuery({ queryKey: ['site', id], queryFn: () => api.getSite(id!), enabled: isEditing })
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { landSizeUnit: 'sqm', address: '', googleMapsUrl: '', notes: '' } })
   useEffect(() => {
     if (!siteQuery.data) return
     reset({ name: siteQuery.data.name, address: siteQuery.data.address || '', latitude: siteQuery.data.latitude, longitude: siteQuery.data.longitude, googleMapsUrl: siteQuery.data.googleMapsUrl || '', landSize: siteQuery.data.landSize, landSizeUnit: siteQuery.data.landSizeUnit, notes: siteQuery.data.notes || '' })
   }, [reset, siteQuery.data])
-  const mutation = useMutation({ mutationFn: (input: CreateSiteInput) => isEditing ? api.updateSite(id!, input) : api.createSite(input), onSuccess: async site => { await queryClient.invalidateQueries({queryKey:['sites']}); await queryClient.invalidateQueries({queryKey:['site', site.id]}); navigate(`/sites/${site.id}`) } })
+  const mutation = useMutation({ mutationFn: async (input: CreateSiteInput) => { const saved = isEditing ? await api.updateSite(id!, input) : await api.createSite(input); if (files.length) await api.uploadSiteImages(saved.id, files); return saved }, onSuccess: async site => { await queryClient.invalidateQueries({queryKey:['sites']}); await queryClient.invalidateQueries({queryKey:['site', site.id]}); navigate(`/sites/${site.id}`) } })
   const latitude = watch('latitude')
   const longitude = watch('longitude')
   const address = watch('address')
@@ -73,16 +79,17 @@ export function NewSitePage() {
         <div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Latitude')}</span><input type="number" step="any" {...register('latitude')} placeholder="13.7563"/><FieldError message={errors.latitude?.message}/></label><label className="field"><span>{t('Longitude')}</span><input type="number" step="any" {...register('longitude')} placeholder="100.5018"/><FieldError message={errors.longitude?.message}/></label></div>
         <label className="field"><span>{t('Google Maps URL')}</span><input type="url" {...register('googleMapsUrl', { onBlur: event => { const value = event.target.value.trim(); const coordinates = extractGoogleMapsCoordinates(value); if (coordinates) { setValue('latitude', coordinates.latitude, { shouldValidate: true }); setValue('longitude', coordinates.longitude, { shouldValidate: true }) } else if (value) mapsResolution.mutate(value) } })} placeholder="https://maps.google.com/…"/><p className="field-hint">{t('Paste a Google Maps link and the coordinates will be filled automatically.')}</p>{mapsResolution.isPending && <p className="text-xs text-muted">{t('Resolving Google Maps link…')}</p>}{mapsResolution.isSuccess && <p className="text-xs text-emerald-700">{t('Coordinates filled. Please verify the map pin before continuing.')}</p>}{mapsResolution.isError && <p className="text-xs text-amber-700">{t(errorMessageKey(mapsResolution.error))}</p>}<FieldError message={errors.googleMapsUrl?.message}/></label>
       </div><div className="my-7 border-t border-line"/><h2 className="section-title">{t('Land details')}</h2><div className="mt-5 space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Land size *')}</span><input type="number" step="0.01" {...register('landSize')} placeholder="2500"/><FieldError message={errors.landSize?.message}/></label><label className="field"><span>{t('Land size unit *')}</span><select {...register('landSizeUnit')}><option value="sqm">{t('Square metres')}</option><option value="rai">{t('Rai')}</option><option value="ngan">{t('Ngan')}</option><option value="sqwah">{t('Square wah')}</option></select></label></div><label className="field"><span>{t('Notes')}</span><textarea rows={4} {...register('notes')} placeholder={t('Access, frontage, ownership, or other customer-supplied context…')}/></label>
-        <label className="field"><span>{t('Supporting evidence')}</span><span className="upload-area"><Upload size={22}/><span><strong>{t('Choose documents or photos')}</strong><small>{t('Files are staged locally in this foundation release.')}</small></span><input type="file" multiple accept="image/*,.pdf" className="sr-only" onChange={event => setFiles(Array.from(event.target.files || []))}/></span>{files.map(file => <span key={`${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted"><FileImage size={16}/>{file.name}</span>)}</label>
+		<label className="field"><span>{t('Supporting evidence')}</span><span className="upload-area"><Upload size={22}/><span><strong>{t('Choose site documents or photos')}</strong><small>{t('Choose up to 10 JPEG, PNG, WebP, or PDF files, up to 10 MB each.')}</small></span><input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={event => { const selected = Array.from(event.target.files || []); const error = selected.length > maxSiteImages ? t('You can attach up to 10 documents or photos.') : selected.find(file => !supportedSiteEvidenceTypes.has(file.type)) ? t('Only JPEG, PNG, WebP, and PDF files are supported.') : selected.find(file => file.size <= 0 || file.size > maxSiteImageBytes) ? t('Each document or photo must be 10 MB or smaller.') : ''; setFileError(error); setFiles(error ? [] : selected.slice(0, maxSiteImages)); event.currentTarget.value = '' }}/></span>{files.map(file => <span key={`${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted">{file.type === 'application/pdf' ? <FileText size={16}/> : <FileImage size={16}/>} {file.name}</span>)}{fileError ? <span className="text-xs font-medium text-red-600">{fileError}</span> : null}</label>
       </div></section>
       <section className="flex min-h-[540px] flex-col rounded-xl border border-line bg-white p-4 shadow-panel"><div className="px-2 pb-4"><h2 className="section-title">{t('Site location preview')}</h2><p className="mt-1 text-sm text-muted">{t('Approximate location from user-supplied coordinates.')}</p></div><MapPanel className="flex-1" latitude={numberOrUndefined(latitude)} longitude={numberOrUndefined(longitude)}/></section>
-      <div className="flex items-center justify-end gap-3 xl:fixed xl:bottom-0 xl:left-[236px] xl:right-0 xl:z-20 xl:border-t xl:border-line xl:bg-white xl:px-10 xl:py-4"><button type="button" className="button-secondary" onClick={() => navigate(isEditing ? `/sites/${id}` : '/')}>{t('Cancel')}</button><button type="submit" className="button-primary" disabled={mutation.isPending}>{mutation.isPending ? t('Saving…') : t(isEditing ? 'Save changes' : 'Save Site')}</button></div>
+      <div className="flex items-center justify-end gap-3 xl:fixed xl:bottom-0 xl:left-[236px] xl:right-0 xl:z-20 xl:border-t xl:border-line xl:bg-white xl:px-10 xl:py-4"><button type="button" className="button-secondary" onClick={() => navigate(isEditing ? `/sites/${id}` : '/')}>{t('Cancel')}</button><button type="submit" className="button-primary" disabled={mutation.isPending || Boolean(fileError)}>{mutation.isPending ? t('Saving…') : t(isEditing ? 'Save changes' : 'Save Site')}</button></div>
       {mutation.isError && <p className="text-right text-sm text-red-600 xl:col-span-2">{t(errorMessageKey(mutation.error))}</p>}
     </form>
   </div>
 }
 
 function FieldError({ message }: { message?: string }) { return message ? <span className="text-xs font-medium text-red-600">{message}</span> : null }
+
 
 function extractGoogleMapsCoordinates(value: string): { latitude: number; longitude: number } | undefined {
   const decoded = decodeURIComponent(value.trim())

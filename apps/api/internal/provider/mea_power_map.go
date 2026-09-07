@@ -159,7 +159,7 @@ func (p *MEAPowerMapProvider) Collect(ctx context.Context, site domain.Site, _ i
 		"This is a preliminary planning indicator from the published MEA Power Map, not verified remaining grid capacity for the submitted plot.",
 		"MEA states that map values may change and do not confirm supply capability, connection feasibility, construction, reinforcement, or network-extension requirements.",
 		"A formal MEA technical review and connection request are required before an investment decision.",
-		"This public planning value is excluded from scoring until utility-confirmed site capacity is available.",
+		"This public planning value may be used only as an electrical-proximity indicator in preliminary scoring; it does not confirm utility capacity for this plot.",
 	}
 	if matchedNearestArea {
 		methodology = "Nearest published MEA station-area boundary lookup; the site does not intersect that area. Distance is calculated from the submitted point to the published polygon boundary."

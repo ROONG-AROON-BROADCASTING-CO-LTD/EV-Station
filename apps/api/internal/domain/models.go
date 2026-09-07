@@ -9,6 +9,29 @@ import (
 
 type DataStatus string
 
+type UserRole string
+
+const (
+	RoleOwner  UserRole = "owner"
+	RoleSales  UserRole = "sales"
+	RoleViewer UserRole = "viewer"
+)
+
+type User struct {
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"displayName"`
+	Role        UserRole  `json:"role"`
+	IsActive    bool      `json:"isActive"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type SiteAccess struct {
+	SiteID uuid.UUID `json:"siteId"`
+	UserID uuid.UUID `json:"userId"`
+	Role   string    `json:"role"`
+}
+
 const (
 	DataVerified    DataStatus = "verified"
 	DataEstimated   DataStatus = "estimated"
@@ -17,29 +40,63 @@ const (
 )
 
 type Site struct {
-	ID            uuid.UUID  `json:"id"`
-	Name          string     `json:"name"`
-	Address       string     `json:"address,omitempty"`
-	Latitude      *float64   `json:"latitude,omitempty"`
-	Longitude     *float64   `json:"longitude,omitempty"`
-	LandSize      float64    `json:"landSize"`
-	LandSizeUnit  string     `json:"landSizeUnit"`
-	GoogleMapsURL string     `json:"googleMapsUrl,omitempty"`
-	Notes         string     `json:"notes,omitempty"`
-	InputStatus   DataStatus `json:"inputStatus"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	ID                    uuid.UUID  `json:"id"`
+	Name                  string     `json:"name"`
+	Address               string     `json:"address,omitempty"`
+	Latitude              *float64   `json:"latitude,omitempty"`
+	Longitude             *float64   `json:"longitude,omitempty"`
+	LandSize              float64    `json:"landSize"`
+	LandSizeUnit          string     `json:"landSizeUnit"`
+	GoogleMapsURL         string     `json:"googleMapsUrl,omitempty"`
+	Notes                 string     `json:"notes,omitempty"`
+	InternetAvailable     *bool      `json:"internetAvailable,omitempty"`
+	InternetSupports24GHz *bool      `json:"internetSupports24GHz,omitempty"`
+	LandLevelingRequired  *bool      `json:"landLevelingRequired,omitempty"`
+	FrontageMeters        *float64   `json:"frontageMeters,omitempty"`
+	ElectricalExtensionKM *float64   `json:"electricalExtensionKm,omitempty"`
+	InputStatus           DataStatus `json:"inputStatus"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 type CreateSiteInput struct {
-	Name          string   `json:"name" binding:"required,max=160"`
-	Address       string   `json:"address" binding:"max=1000"`
-	Latitude      *float64 `json:"latitude"`
-	Longitude     *float64 `json:"longitude"`
-	LandSize      float64  `json:"landSize" binding:"required,gt=0"`
-	LandSizeUnit  string   `json:"landSizeUnit" binding:"required,oneof=sqm rai ngan sqwah"`
-	GoogleMapsURL string   `json:"googleMapsUrl" binding:"omitempty,url"`
-	Notes         string   `json:"notes" binding:"max=5000"`
+	Name                  string   `json:"name" binding:"required,max=160"`
+	Address               string   `json:"address" binding:"max=1000"`
+	Latitude              *float64 `json:"latitude"`
+	Longitude             *float64 `json:"longitude"`
+	LandSize              float64  `json:"landSize" binding:"required,gt=0"`
+	LandSizeUnit          string   `json:"landSizeUnit" binding:"required,oneof=sqm rai ngan sqwah"`
+	GoogleMapsURL         string   `json:"googleMapsUrl" binding:"omitempty,url"`
+	Notes                 string   `json:"notes" binding:"max=5000"`
+	InternetAvailable     *bool    `json:"internetAvailable"`
+	InternetSupports24GHz *bool    `json:"internetSupports24GHz"`
+	LandLevelingRequired  *bool    `json:"landLevelingRequired"`
+	FrontageMeters        *float64 `json:"frontageMeters" binding:"omitempty,gte=0,lte=100"`
+	ElectricalExtensionKM *float64 `json:"electricalExtensionKm" binding:"omitempty,gte=0,lte=50"`
+}
+
+// SiteImage stores customer-supplied visual or PDF evidence for a submitted
+// plot. Image bytes can be used for the site-condition assessment; PDFs are
+// retained as supporting documents and are not sent to the image assessor.
+type SiteImage struct {
+	ID        uuid.UUID
+	SiteID    uuid.UUID
+	MIMEType  string
+	Data      []byte
+	CreatedAt time.Time
+}
+
+// SiteSurfaceAssessment is an image-based, preliminary assessment of the
+// current ground surface only. It is intentionally not a location-score input.
+type SiteSurfaceAssessment struct {
+	Summary                 string   `json:"summary"`
+	Suitability             string   `json:"suitability"`
+	Score                   float64  `json:"score"`
+	SurfaceTypes            []string `json:"surfaceTypes"`
+	ObservedRisks           []string `json:"observedRisks"`
+	RecommendedImprovements []string `json:"recommendedImprovements"`
+	Disclaimer              string   `json:"disclaimer"`
+	Model                   string   `json:"model"`
 }
 
 type DataSource struct {
@@ -93,24 +150,27 @@ type ScoringSummary struct {
 }
 
 type AnalysisRun struct {
-	ID                   uuid.UUID        `json:"id"`
-	SiteID               uuid.UUID        `json:"siteId"`
-	Status               string           `json:"status"`
-	AnalysisRadiusMeters int              `json:"analysisRadiusMeters"`
-	OverallScore         *float64         `json:"overallScore,omitempty"`
-	AssessmentStatus     DataStatus       `json:"assessmentStatus"`
-	Recommendation       string           `json:"recommendation"`
-	Metrics              []Metric         `json:"metrics"`
-	Financial            *FinancialResult `json:"financial,omitempty"`
-	Scoring              *ScoringSummary  `json:"scoring,omitempty"`
-	StartedAt            time.Time        `json:"startedAt"`
-	CompletedAt          *time.Time       `json:"completedAt,omitempty"`
-	CreatedAt            time.Time        `json:"createdAt"`
+	ID                    uuid.UUID        `json:"id"`
+	SiteID                uuid.UUID        `json:"siteId"`
+	Status                string           `json:"status"`
+	AnalysisRadiusMeters  int              `json:"analysisRadiusMeters"`
+	OverallScore          *float64         `json:"overallScore,omitempty"`
+	AssessmentStatus      DataStatus       `json:"assessmentStatus"`
+	Recommendation        string           `json:"recommendation"`
+	Metrics               []Metric         `json:"metrics"`
+	Financial             *FinancialResult `json:"financial,omitempty"`
+	Scoring               *ScoringSummary  `json:"scoring,omitempty"`
+	StationRecommendation json.RawMessage  `json:"stationRecommendation,omitempty"`
+	AIAssessments         json.RawMessage  `json:"aiAssessments,omitempty"`
+	StartedAt             time.Time        `json:"startedAt"`
+	CompletedAt           *time.Time       `json:"completedAt,omitempty"`
+	CreatedAt             time.Time        `json:"createdAt"`
 }
 
 // AIAssessment is explanatory output generated from an existing analysis run.
 type AIAssessment struct {
 	Summary        string    `json:"summary"`
+	Decision       string    `json:"decision"`
 	Recommendation string    `json:"recommendation"`
 	Strengths      []string  `json:"strengths"`
 	Risks          []string  `json:"risks"`
@@ -119,6 +179,22 @@ type AIAssessment struct {
 	Language       string    `json:"language"`
 	Model          string    `json:"model"`
 	GeneratedAt    time.Time `json:"generatedAt"`
+	DecisionPolicy string    `json:"decisionPolicy"`
+}
+
+const (
+	InvestmentDecisionInvest         = "invest"
+	InvestmentDecisionNotRecommended = "not_recommended"
+	InvestmentDecisionPolicyVersion  = "score-threshold-60-v1"
+)
+
+// InvestmentDecisionForScore is the single screening rule for the displayed
+// investment status. AI can explain the evidence, but never changes this rule.
+func InvestmentDecisionForScore(score *float64) string {
+	if score != nil && *score >= 60 {
+		return InvestmentDecisionInvest
+	}
+	return InvestmentDecisionNotRecommended
 }
 
 // AIScoring contains Gemini's evidence-bound scoring recommendation. It can only

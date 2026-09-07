@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rbc/ev-station/apps/api/internal/advisory"
+	"github.com/rbc/ev-station/apps/api/internal/auth"
 	"github.com/rbc/ev-station/apps/api/internal/analysis"
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/config"
@@ -56,7 +57,7 @@ func main() {
 		logger.Warn("using deterministic development fixture provider; results are not factual")
 		dataProvider = provider.FixtureProvider{}
 	} else if cfg.AnalysisProviderMode == "osm" {
-		logger.Info("using free OpenStreetMap, provincial charger, WorldPop, GISTDA, Department of Highways, DLT, MEA and PEA Power Map providers")
+		logger.Info("using OpenStreetMap, provincial charger, WorldPop, GISTDA, DOH/DRR AADT, DLT, MEA and PEA Power Map providers")
 		osmProvider := provider.NewOSMProvider(provider.OSMConfig{
 			Endpoint: cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
 			UserAgent: cfg.ExternalUserAgent, CacheTTL: cfg.RedisCacheTTL,
@@ -69,9 +70,17 @@ func main() {
 			Endpoint: cfg.GISTDAFloodRiskURL, CacheTTL: cfg.GISTDAFloodCacheTTL,
 			UserAgent: cfg.ExternalUserAgent,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
+		gistdaElevationProvider := provider.NewGISTDAElevationProvider(provider.GISTDAElevationConfig{
+			Endpoint: cfg.GISTDAElevationURL, APIKey: cfg.GISTDAAPIKey, CacheTTL: cfg.GISTDAElevationCacheTTL,
+			UserAgent: cfg.ExternalUserAgent,
+		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		dohAADTProvider := provider.NewDOHAADTProvider(provider.DOHAADTConfig{
 			CSVURL: cfg.DOHAADTCSVURL, RoadLayerURL: cfg.DOHAADTRoadLayerURL, DataYear: cfg.DOHAADTYear,
 			CacheTTL: cfg.DOHAADTCacheTTL, UserAgent: cfg.ExternalUserAgent,
+		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
+		drrAADTProvider := provider.NewDRRAADTProvider(provider.DRRAADTConfig{
+			CSVURL: cfg.DRRAADTCSVURL, RoadLayerURL: cfg.DRRAADTRoadLayerURL, DataYear: cfg.DRRAADTYear,
+			CacheTTL: cfg.DRRAADTCacheTTL, UserAgent: cfg.ExternalUserAgent,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		dltEVProvider := provider.NewDLTEVRegistrationProvider(provider.DLTEVRegistrationConfig{
 			CSVURL: cfg.DLTEVRegistrationCSVURL, DatasetDate: cfg.DLTEVRegistrationDatasetDate,
@@ -93,7 +102,7 @@ func main() {
 			SearchRadiusMeters: cfg.PEAGridSearchRadiusMeters, CacheTTL: cfg.PEAGridCacheTTL,
 			UserAgent: cfg.ExternalUserAgent,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
-		dataProvider = provider.NewCompositeProvider(osmProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, dohAADTProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
+		dataProvider = provider.NewCompositeProvider(osmProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, gistdaElevationProvider, dohAADTProvider, drrAADTProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
 	}
 
 	scoringEngine, err := scoring.New(scoring.DefaultWeights)
@@ -108,7 +117,8 @@ func main() {
 		Endpoint: cfg.NominatimURL, UserAgent: cfg.ExternalUserAgent,
 		CountryCodes: cfg.NominatimCountryCodes, CacheTTL: cfg.GeocodingCacheTTL,
 	}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
-	handler := httpapi.NewHandler(siteService, analysisService, geocoder, geminiAdvisory, scoring.DefaultWeights)
+	authService := auth.New(repo, cfg.JWTSecret)
+	handler := httpapi.NewHandler(siteService, analysisService, repo, geocoder, geminiAdvisory, authService, scoring.DefaultWeights)
 	router := httpapi.NewRouter(cfg, handler)
 	logger.Info("api listening", "port", cfg.Port, "environment", cfg.Environment)
 	if err = router.Run(":" + cfg.Port); err != nil {
