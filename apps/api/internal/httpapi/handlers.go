@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,21 +32,77 @@ type Handler struct {
 	geocoder provider.Geocoder
 	advisory *advisory.Service
 	auth     *auth.Service
+	otp      *auth.OTPService
+	notifier SiteSubmissionNotifier
 }
 
-func NewHandler(sites *site.Service, analyses *analysis.Service, repo repository.Repository, geocoder provider.Geocoder, advisoryService *advisory.Service, authService *auth.Service, weights map[string]float64) *Handler {
-	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, weights: weights}
+// SiteSubmissionNotifier delivers a notification after a customer submits a
+// site. It is intentionally optional, so the customer submission itself never
+// fails simply because a third-party messaging service is unavailable.
+type SiteSubmissionNotifier interface {
+	NotifyCustomerSubmission(context.Context, domain.Site) error
+}
+
+func NewHandler(sites *site.Service, analyses *analysis.Service, repo repository.Repository, geocoder provider.Geocoder, advisoryService *advisory.Service, authService *auth.Service, otpService *auth.OTPService, notifier SiteSubmissionNotifier, weights map[string]float64) *Handler {
+	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, otp: otpService, notifier: notifier, weights: weights}
+}
+
+func (h *Handler) LineWebhook(c *gin.Context) {
+	if h.notifier == nil {
+		writeError(c, http.StatusServiceUnavailable, "LINE_NOT_CONFIGURED", "LINE webhook is not configured.")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1024*1024))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_LINE_WEBHOOK", "Unable to read LINE webhook.")
+		return
+	}
+	recorder, ok := h.notifier.(interface {
+		RecordWebhook(context.Context, []byte, string) error
+	})
+	if !ok {
+		writeError(c, http.StatusServiceUnavailable, "LINE_NOT_CONFIGURED", "LINE webhook is not configured.")
+		return
+	}
+	if err = recorder.RecordWebhook(c.Request.Context(), body, c.GetHeader("X-Line-Signature")); err != nil {
+		writeError(c, http.StatusUnauthorized, "INVALID_LINE_WEBHOOK", "LINE webhook signature is invalid.")
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *Handler) RequestRegistrationOTP(c *gin.Context) {
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	if err := h.otp.Request(input.Email); err != nil {
+		if errors.Is(err, auth.ErrOTPNotConfigured) {
+			writeError(c, http.StatusServiceUnavailable, "OTP_NOT_CONFIGURED", "Email verification is not configured.")
+			return
+		}
+		writeError(c, http.StatusBadGateway, "OTP_DELIVERY_FAILED", "Unable to send verification code.")
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"sent": true}})
 }
 
 func (h *Handler) Register(c *gin.Context) {
 	var input struct {
-		Email       string          `json:"email" binding:"required,email"`
-		DisplayName string          `json:"displayName" binding:"required,max=160"`
-		Password    string          `json:"password" binding:"required,min=8"`
-		Role        domain.UserRole `json:"role"`
+		Email       string `json:"email" binding:"required,email"`
+		DisplayName string `json:"displayName" binding:"required,max=160"`
+		Password    string `json:"password" binding:"required,min=8"`
+		OTP         string `json:"otp" binding:"required,len=6"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	if !h.otp.Verify(input.Email, input.OTP) {
+		writeError(c, http.StatusBadRequest, "OTP_INVALID", "The verification code is invalid or expired.")
 		return
 	}
 	users, err := h.repo.ListUsers(c.Request.Context())
@@ -54,19 +112,18 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 	hasOwner := false
 	for _, existing := range users {
-		if existing.Role == domain.RoleOwner {
+		if existing.Role == domain.RoleSuperAdmin {
 			hasOwner = true
 			break
 		}
 	}
 	// Bootstrap exactly one owner. Every later public registration is a customer
 	// account, and never accepts a caller-supplied privileged role.
-	if hasOwner {
-		input.Role = domain.RoleViewer
-	} else {
-		input.Role = domain.RoleOwner
+	role := domain.RoleCustomer
+	if !hasOwner {
+		role = domain.RoleSuperAdmin
 	}
-	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, input.Role)
+	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, role)
 	if err != nil {
 		writeError(c, http.StatusConflict, "USER_CREATE_FAILED", "Unable to create this user.")
 		return
@@ -75,14 +132,18 @@ func (h *Handler) Register(c *gin.Context) {
 }
 
 func (h *Handler) CreateUser(c *gin.Context) {
-	if !h.requireOwner(c) {
+	_, actorRole, ok := requestUser(c)
+	if !ok || actorRole != domain.RoleSuperAdmin {
+		if ok {
+			writeError(c, http.StatusForbidden, "SUPER_ADMIN_REQUIRED", "Only a super admin can create a team account.")
+		}
 		return
 	}
 	var input struct {
 		Email       string          `json:"email" binding:"required,email"`
 		DisplayName string          `json:"displayName" binding:"required,max=160"`
 		Password    string          `json:"password" binding:"required,min=8"`
-		Role        domain.UserRole `json:"role" binding:"required,oneof=sales viewer"`
+		Role        domain.UserRole `json:"role" binding:"required,oneof=admin sales"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
@@ -129,7 +190,7 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"user": user, "token": token}})
 }
 func (h *Handler) ListUsers(c *gin.Context) {
-	if !h.requireOwner(c) {
+	if !h.requireAdmin(c) {
 		return
 	}
 	users, err := h.repo.ListUsers(c.Request.Context())
@@ -140,7 +201,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 func (h *Handler) SetSiteAccess(c *gin.Context) {
-	if !h.requireOwner(c) {
+	if !h.requireAdmin(c) {
 		return
 	}
 	siteID, ok := parseID(c)
@@ -149,7 +210,7 @@ func (h *Handler) SetSiteAccess(c *gin.Context) {
 	}
 	var input struct {
 		UserID uuid.UUID `json:"userId" binding:"required"`
-		Role   string    `json:"role" binding:"required,oneof=sales viewer"`
+		Role   string    `json:"role" binding:"required,oneof=sales customer"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
@@ -162,7 +223,7 @@ func (h *Handler) SetSiteAccess(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 func (h *Handler) DeleteSiteAccess(c *gin.Context) {
-	if !h.requireOwner(c) {
+	if !h.requireAdmin(c) {
 		return
 	}
 	siteID, ok := parseID(c)
@@ -185,7 +246,7 @@ func (h *Handler) DeleteSiteAccess(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 func (h *Handler) ListSiteAccess(c *gin.Context) {
-	if !h.requireOwner(c) {
+	if !h.requireAdmin(c) {
 		return
 	}
 	siteID, ok := parseID(c)
@@ -264,10 +325,6 @@ func (h *Handler) CreateSite(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if role == domain.RoleViewer {
-		writeError(c, http.StatusForbidden, "SITE_WRITE_DENIED", "Viewers cannot create or edit sites.")
-		return
-	}
 	var input domain.CreateSiteInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
@@ -282,11 +339,18 @@ func (h *Handler) CreateSite(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, "SITE_CREATE_FAILED", "Unable to save the site.")
 		return
 	}
-	if role == domain.RoleSales {
-		if err := h.repo.SetSiteAccess(c.Request.Context(), domain.SiteAccess{SiteID: result.ID, UserID: userID, Role: string(domain.RoleSales)}); err != nil {
+	if role == domain.RoleSales || role == domain.RoleCustomer {
+		if err := h.repo.SetSiteAccess(c.Request.Context(), domain.SiteAccess{SiteID: result.ID, UserID: userID, Role: string(role)}); err != nil {
 			writeError(c, http.StatusInternalServerError, "SITE_ACCESS_SAVE_FAILED", "Site was created but could not be assigned to the sales user.")
 			return
 		}
+	}
+	if role == domain.RoleCustomer && h.notifier != nil {
+		go func(site domain.Site) {
+			if notifyErr := h.notifier.NotifyCustomerSubmission(context.Background(), site); notifyErr != nil {
+				slog.Error("customer site LINE notification failed", "site_id", site.ID, "error", notifyErr)
+			}
+		}(result)
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": result})
 }
@@ -304,7 +368,7 @@ func (h *Handler) ListSites(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if role != domain.RoleOwner {
+	if role != domain.RoleSuperAdmin && role != domain.RoleAdmin {
 		allowed := make([]domain.Site, 0, len(result))
 		for _, candidate := range result {
 			access, accessErr := h.repo.ListSiteAccess(c.Request.Context(), candidate.ID)
@@ -418,6 +482,64 @@ func (h *Handler) UploadSiteImages(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"count": len(images)}})
 }
 
+type siteImageResponse struct {
+	ID        uuid.UUID `json:"id"`
+	MIMEType  string    `json:"mimeType"`
+	SizeBytes int64     `json:"sizeBytes"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (h *Handler) ListSiteImages(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, id, siteRead) {
+		return
+	}
+	images, err := h.repo.ListSiteImages(c.Request.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_LOAD_FAILED", "Unable to load site evidence files.")
+		return
+	}
+	response := make([]siteImageResponse, 0, len(images))
+	for _, image := range images {
+		response = append(response, siteImageResponse{ID: image.ID, MIMEType: image.MIMEType, SizeBytes: image.SizeBytes, CreatedAt: image.CreatedAt})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+func (h *Handler) GetSiteImage(c *gin.Context) {
+	siteID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	if !h.requireSitePermission(c, siteID, siteRead) {
+		return
+	}
+	imageID, err := uuid.Parse(c.Param("imageID"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGE", "Invalid site evidence file ID.")
+		return
+	}
+	image, err := h.repo.GetSiteImage(c.Request.Context(), siteID, imageID)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "SITE_IMAGE_NOT_FOUND", "Site evidence file not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_LOAD_FAILED", "Unable to load site evidence file.")
+		return
+	}
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", "inline")
+	c.Data(http.StatusOK, image.MIMEType, image.Data)
+}
+
 func (h *Handler) UpdateSite(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
@@ -452,7 +574,7 @@ func (h *Handler) DeleteSite(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.requireOwner(c) {
+	if !h.requireAdmin(c) {
 		return
 	}
 	if err := h.sites.Delete(c.Request.Context(), id); err != nil {
@@ -488,6 +610,9 @@ func (h *Handler) GetLatestCompletedAnalysisForSite(c *gin.Context) {
 }
 
 func (h *Handler) RunAnalysis(c *gin.Context) {
+	if !h.requireStaff(c) {
+		return
+	}
 	siteID, ok := parseID(c)
 	if !ok {
 		return
@@ -541,6 +666,9 @@ func (h *Handler) GetAnalysis(c *gin.Context) {
 }
 
 func (h *Handler) RecalculatePreliminary(c *gin.Context) {
+	if !h.requireStaff(c) {
+		return
+	}
 	id, ok := parseID(c)
 	if !ok {
 		return
@@ -597,6 +725,9 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 			}
 		}
 	}
+	if !h.requireStaff(c) {
+		return
+	}
 	if !h.requireSitePermission(c, run.SiteID, siteWrite) {
 		return
 	}
@@ -609,13 +740,11 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 		writeError(c, http.StatusServiceUnavailable, "AI_NOT_CONFIGURED", "Set GEMINI_API_KEY on the API server before generating an AI assessment.")
 		return
 	}
-	if errors.Is(err, advisory.ErrUnavailable) {
-		writeError(c, http.StatusBadGateway, "AI_UNAVAILABLE", "The AI provider is temporarily unavailable or its quota was exceeded.")
-		return
-	}
-	if errors.Is(err, advisory.ErrInvalidOutput) {
-		writeError(c, http.StatusBadGateway, "AI_INVALID_RESPONSE", "The AI provider returned an unusable assessment.")
-		return
+	if errors.Is(err, advisory.ErrUnavailable) || errors.Is(err, advisory.ErrInvalidOutput) {
+		// A completed screening must remain readable even if the optional AI
+		// narrative is unavailable or returns malformed structured content.
+		result = advisory.FallbackAssessment(run, language)
+		err = nil
 	}
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "AI_ASSESSMENT_FAILED", "Unable to generate the AI assessment.")

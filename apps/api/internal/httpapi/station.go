@@ -29,6 +29,9 @@ func (h *Handler) RecommendStation(c *gin.Context) {
 			return
 		}
 	}
+	if !h.requireStaff(c) {
+		return
+	}
 	if !h.requireSitePermission(c, run.SiteID, siteWrite) {
 		return
 	}

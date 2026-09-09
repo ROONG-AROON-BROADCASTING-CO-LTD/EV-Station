@@ -11,3 +11,4 @@ coverage/
 apps/api/bin/
 apps/web/playwright-report/
 apps/web/test-results/
+.runtime/

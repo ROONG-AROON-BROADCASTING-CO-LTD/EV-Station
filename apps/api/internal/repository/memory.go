@@ -10,13 +10,14 @@ import (
 )
 
 type Memory struct {
-	mu        sync.RWMutex
-	sites     map[uuid.UUID]domain.Site
-	images    map[uuid.UUID][]domain.SiteImage
-	analyses  map[uuid.UUID]domain.AnalysisRun
-	users     map[uuid.UUID]domain.User
-	passwords map[uuid.UUID]string
-	access    map[uuid.UUID][]domain.SiteAccess
+	mu                        sync.RWMutex
+	sites                     map[uuid.UUID]domain.Site
+	images                    map[uuid.UUID][]domain.SiteImage
+	analyses                  map[uuid.UUID]domain.AnalysisRun
+	users                     map[uuid.UUID]domain.User
+	passwords                 map[uuid.UUID]string
+	access                    map[uuid.UUID][]domain.SiteAccess
+	lineNotificationRecipient string
 }
 
 func NewMemory() *Memory {
@@ -53,6 +54,20 @@ func (m *Memory) ListUsers(_ context.Context) ([]domain.User, error) {
 		result = append(result, user)
 	}
 	return result, nil
+}
+func (m *Memory) SetLineNotificationRecipient(_ context.Context, recipientID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lineNotificationRecipient = recipientID
+	return nil
+}
+func (m *Memory) GetLineNotificationRecipient(_ context.Context) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.lineNotificationRecipient == "" {
+		return "", ErrNotFound
+	}
+	return m.lineNotificationRecipient, nil
 }
 func (m *Memory) SetSiteAccess(_ context.Context, access domain.SiteAccess) error {
 	m.mu.Lock()
@@ -164,6 +179,36 @@ func (m *Memory) GetSiteImages(_ context.Context, siteID uuid.UUID) ([]domain.Si
 		return nil, ErrNotFound
 	}
 	return append([]domain.SiteImage(nil), m.images[siteID]...), nil
+}
+
+func (m *Memory) ListSiteImages(_ context.Context, siteID uuid.UUID) ([]domain.SiteImage, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, ok := m.sites[siteID]; !ok {
+		return nil, ErrNotFound
+	}
+	items := make([]domain.SiteImage, 0, len(m.images[siteID]))
+	for _, image := range m.images[siteID] {
+		image.SizeBytes = int64(len(image.Data))
+		image.Data = nil
+		items = append(items, image)
+	}
+	return items, nil
+}
+
+func (m *Memory) GetSiteImage(_ context.Context, siteID, imageID uuid.UUID) (domain.SiteImage, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, ok := m.sites[siteID]; !ok {
+		return domain.SiteImage{}, ErrNotFound
+	}
+	for _, image := range m.images[siteID] {
+		if image.ID == imageID {
+			image.SizeBytes = int64(len(image.Data))
+			return image, nil
+		}
+	}
+	return domain.SiteImage{}, ErrNotFound
 }
 
 func (m *Memory) CreateAnalysis(_ context.Context, run domain.AnalysisRun) (domain.AnalysisRun, error) {

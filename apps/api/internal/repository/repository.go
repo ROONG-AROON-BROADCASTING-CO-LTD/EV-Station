@@ -17,6 +17,8 @@ type Repository interface {
 	CreateUser(context.Context, domain.User, string) (domain.User, error)
 	GetUserByEmail(context.Context, string) (domain.User, string, error)
 	ListUsers(context.Context) ([]domain.User, error)
+	SetLineNotificationRecipient(context.Context, string) error
+	GetLineNotificationRecipient(context.Context) (string, error)
 	SetSiteAccess(context.Context, domain.SiteAccess) error
 	ListSiteAccess(context.Context, uuid.UUID) ([]domain.SiteAccess, error)
 	DeleteSiteAccess(context.Context, uuid.UUID, uuid.UUID) error
@@ -27,6 +29,8 @@ type Repository interface {
 	DeleteSite(context.Context, uuid.UUID) error
 	AddSiteImages(context.Context, uuid.UUID, []domain.SiteImage) error
 	GetSiteImages(context.Context, uuid.UUID) ([]domain.SiteImage, error)
+	ListSiteImages(context.Context, uuid.UUID) ([]domain.SiteImage, error)
+	GetSiteImage(context.Context, uuid.UUID, uuid.UUID) (domain.SiteImage, error)
 	CreateAnalysis(context.Context, domain.AnalysisRun) (domain.AnalysisRun, error)
 	CompleteAnalysis(context.Context, domain.AnalysisRun) error
 	UpdateAnalysisScoring(context.Context, domain.AnalysisRun) error

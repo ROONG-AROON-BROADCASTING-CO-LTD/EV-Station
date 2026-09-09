@@ -91,6 +91,42 @@ type generatedSiteSurface struct {
 	Disclaimer              string   `json:"disclaimer"`
 }
 
+// FallbackAssessment keeps the analysis report useful when Gemini is
+// temporarily unavailable or does not return the requested structured output.
+// It deliberately uses only the completed run and never introduces new site
+// facts. The model field makes the fallback transparent to staff.
+func FallbackAssessment(run domain.AnalysisRun, language string) domain.AIAssessment {
+	if language != "en" {
+		language = "th"
+	}
+	decision := domain.InvestmentDecisionForScore(run.OverallScore)
+	if language == "en" {
+		recommendation := "The screening result supports moving to staff verification before any investment decision."
+		if decision == domain.InvestmentDecisionNotRecommended {
+			recommendation = "The screening result does not yet support proceeding. Complete the outstanding verification before reconsidering the site."
+		}
+		return domain.AIAssessment{
+			Summary: "A system-generated summary is shown because the AI narrative could not be produced at this time.", Decision: decision, Recommendation: recommendation,
+			Strengths: []string{"The completed screening metrics remain available in this report."},
+			Risks: []string{"Some evidence may still be preliminary, estimated, or require field verification."},
+			RequiredChecks: []string{"Review the evidence with a staff member.", "Confirm electrical capacity and the actual site conditions before installation."},
+			Disclaimer: "This is a system fallback summary, not an AI-generated assessment. Human review is required.", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
+		}
+	}
+	recommendation := "ผลคัดกรองสนับสนุนให้ดำเนินการตรวจสอบโดยเจ้าหน้าที่ก่อนตัดสินใจลงทุน"
+	if decision == domain.InvestmentDecisionNotRecommended {
+		recommendation = "ผลคัดกรองยังไม่สนับสนุนให้ดำเนินการ ควรตรวจสอบข้อมูลที่ค้างอยู่ให้ครบก่อนพิจารณาอีกครั้ง"
+	}
+	return domain.AIAssessment{
+		Summary: "แสดงสรุปจากระบบแทนชั่วคราว เนื่องจากบริการ AI ยังไม่สามารถสร้างคำอธิบายสำหรับรายงานนี้ได้",
+		Decision: decision, Recommendation: recommendation,
+		Strengths: []string{"ผลการคัดกรองและตัวชี้วัดที่เสร็จสิ้นยังแสดงอยู่ในรายงานนี้"},
+		Risks: []string{"ข้อมูลบางส่วนอาจเป็นข้อมูลเบื้องต้น ข้อมูลประมาณการ หรือต้องยืนยันหน้างาน"},
+		RequiredChecks: []string{"ให้เจ้าหน้าที่ตรวจสอบหลักฐานในรายงาน", "ยืนยันกำลังไฟฟ้าและสภาพพื้นที่จริงก่อนติดตั้ง"},
+		Disclaimer: "นี่คือสรุปสำรองจากระบบ ไม่ใช่ข้อความที่สร้างโดย AI และต้องตรวจสอบโดยเจ้าหน้าที่", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
+	}
+}
+
 func NewGeminiService(config GeminiConfig, client *http.Client) *Service {
 	if config.Model == "" {
 		config.Model = "gemini-3.5-flash-lite"

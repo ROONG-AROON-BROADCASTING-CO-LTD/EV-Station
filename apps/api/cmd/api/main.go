@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/rbc/ev-station/apps/api/internal/advisory"
-	"github.com/rbc/ev-station/apps/api/internal/auth"
 	"github.com/rbc/ev-station/apps/api/internal/analysis"
+	"github.com/rbc/ev-station/apps/api/internal/auth"
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/config"
 	"github.com/rbc/ev-station/apps/api/internal/httpapi"
+	lineapi "github.com/rbc/ev-station/apps/api/internal/line"
 	"github.com/rbc/ev-station/apps/api/internal/provider"
 	"github.com/rbc/ev-station/apps/api/internal/repository"
 	"github.com/rbc/ev-station/apps/api/internal/scoring"
@@ -57,7 +58,7 @@ func main() {
 		logger.Warn("using deterministic development fixture provider; results are not factual")
 		dataProvider = provider.FixtureProvider{}
 	} else if cfg.AnalysisProviderMode == "osm" {
-		logger.Info("using OpenStreetMap, provincial charger, WorldPop, GISTDA, DOH/DRR AADT, DLT, MEA and PEA Power Map providers")
+		logger.Info("using Google Places, Open Charge Map, OpenStreetMap, provincial charger, WorldPop, GISTDA, DOH/DRR AADT, DLT, MEA and PEA Power Map providers")
 		osmProvider := provider.NewOSMProvider(provider.OSMConfig{
 			Endpoint: cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
 			UserAgent: cfg.ExternalUserAgent, CacheTTL: cfg.RedisCacheTTL,
@@ -102,7 +103,15 @@ func main() {
 			SearchRadiusMeters: cfg.PEAGridSearchRadiusMeters, CacheTTL: cfg.PEAGridCacheTTL,
 			UserAgent: cfg.ExternalUserAgent,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
-		dataProvider = provider.NewCompositeProvider(osmProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, gistdaElevationProvider, dohAADTProvider, drrAADTProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
+		googlePlacesProvider := provider.NewGooglePlacesProvider(provider.GooglePlacesConfig{
+			APIKey: cfg.GoogleMapsServerAPIKey, Endpoint: cfg.GooglePlacesURL,
+			CacheTTL: cfg.GooglePlacesCacheTTL, UserAgent: cfg.ExternalUserAgent,
+		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
+		openChargeMapProvider := provider.NewOpenChargeMapProvider(provider.OpenChargeMapConfig{
+			APIKey: cfg.OpenChargeMapAPIKey, Endpoint: cfg.OpenChargeMapURL,
+			CacheTTL: cfg.OpenChargeMapCacheTTL, UserAgent: cfg.ExternalUserAgent,
+		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
+		dataProvider = provider.NewCompositeProvider(osmProvider, googlePlacesProvider, openChargeMapProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, gistdaElevationProvider, dohAADTProvider, drrAADTProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
 	}
 
 	scoringEngine, err := scoring.New(scoring.DefaultWeights)
@@ -118,7 +127,9 @@ func main() {
 		CountryCodes: cfg.NominatimCountryCodes, CacheTTL: cfg.GeocodingCacheTTL,
 	}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 	authService := auth.New(repo, cfg.JWTSecret)
-	handler := httpapi.NewHandler(siteService, analysisService, repo, geocoder, geminiAdvisory, authService, scoring.DefaultWeights)
+	otpService := auth.NewOTPService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.OTPTTL)
+	lineNotifier := lineapi.NewNotifier(cfg.LINEChannelAccessToken, cfg.LINEChannelSecret, cfg.LINENotificationRecipientID, cfg.LINEAPIBaseURL, repo, nil)
+	handler := httpapi.NewHandler(siteService, analysisService, repo, geocoder, geminiAdvisory, authService, otpService, lineNotifier, scoring.DefaultWeights)
 	router := httpapi.NewRouter(cfg, handler)
 	logger.Info("api listening", "port", cfg.Port, "environment", cfg.Environment)
 	if err = router.Run(":" + cfg.Port); err != nil {

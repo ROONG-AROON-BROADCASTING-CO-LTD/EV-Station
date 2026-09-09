@@ -66,7 +66,10 @@ func (s *Service) Run(ctx context.Context, siteID uuid.UUID, radius int) (domain
 
 	result := s.scoring.EvaluatePreliminary(run.Metrics)
 	s.applyDeterministicScore(&run, result)
-	s.applyGeminiScore(ctx, &run)
+	// Investment status and score must remain reproducible from the collected
+	// evidence and published scoring rules. Gemini is used separately for the
+	// site-surface visual assessment and the staff-requested narrative; it must
+	// never revise a metric score or the resulting recommendation.
 	run.Status = "completed"
 	completed := time.Now().UTC()
 	run.CompletedAt = &completed
@@ -288,50 +291,6 @@ func (s *Service) applyDeterministicScore(run *domain.AnalysisRun, result scorin
 	run.OverallScore = nil
 	run.AssessmentStatus = domain.DataMissing
 	run.Recommendation = "A preliminary score requires at least 60% weighted data coverage."
-}
-
-func (s *Service) applyGeminiScore(ctx context.Context, run *domain.AnalysisRun) {
-	if s.aiScorer == nil || run.OverallScore == nil {
-		return
-	}
-	aiResult, err := s.aiScorer.Score(ctx, *run, "th")
-	if err != nil {
-		// A missing key, quota exhaustion or invalid model output must never hide
-		// the evidence-backed screening score already available to staff.
-		return
-	}
-	eligible := make(map[string]bool, len(run.Metrics))
-	for index := range run.Metrics {
-		if run.Metrics[index].NormalizedScore != nil && run.Metrics[index].Type != "electrical" && run.Metrics[index].Type != "site_requirements" {
-			eligible[run.Metrics[index].Type] = true
-		}
-	}
-	updated := 0
-	for index := range run.Metrics {
-		metric := &run.Metrics[index]
-		score, ok := aiResult.MetricScores[metric.Type]
-		if !ok || !eligible[metric.Type] || score < 0 || score > 100 {
-			continue
-		}
-		metric.NormalizedScore = &score
-		metric.Assumptions = appendScoringRule(metric.Assumptions, "Gemini assisted scoring: proposed from the collected evidence only; requires staff review.")
-		updated++
-	}
-	if updated == 0 {
-		return
-	}
-	result := s.scoring.EvaluatePreliminary(run.Metrics)
-	if result.Overall == nil {
-		return
-	}
-	run.OverallScore = result.Overall
-	run.Scoring = &result.Summary
-	run.Scoring.Version = "gemini-assisted-v2"
-	run.Scoring.Limitations = append(run.Scoring.Limitations,
-		"Gemini proposed the individual metric scores from the collected evidence; the backend validated the values and calculated the weighted total.",
-		"Gemini model: "+aiResult.Model+". The recommendation remains preliminary and requires staff review.",
-	)
-	run.Recommendation = screeningRecommendation(*result.Overall)
 }
 
 func screeningRecommendation(score float64) string {

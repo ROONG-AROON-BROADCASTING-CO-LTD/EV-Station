@@ -42,6 +42,18 @@ func (p *Postgres) ListUsers(ctx context.Context) ([]domain.User, error) {
 	}
 	return users, rows.Err()
 }
+func (p *Postgres) SetLineNotificationRecipient(ctx context.Context, recipientID string) error {
+	_, err := p.pool.Exec(ctx, `INSERT INTO line_notification_recipient (id, recipient_id, updated_at) VALUES (true, $1, now()) ON CONFLICT (id) DO UPDATE SET recipient_id=EXCLUDED.recipient_id, updated_at=EXCLUDED.updated_at`, recipientID)
+	return err
+}
+func (p *Postgres) GetLineNotificationRecipient(ctx context.Context) (string, error) {
+	var recipientID string
+	err := p.pool.QueryRow(ctx, `SELECT recipient_id FROM line_notification_recipient WHERE id=true`).Scan(&recipientID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return recipientID, err
+}
 func (p *Postgres) SetSiteAccess(ctx context.Context, access domain.SiteAccess) error {
 	_, err := p.pool.Exec(ctx, `INSERT INTO site_access (site_id,user_id,access_role) VALUES ($1,$2,$3) ON CONFLICT (site_id,user_id) DO UPDATE SET access_role=EXCLUDED.access_role`, access.SiteID, access.UserID, access.Role)
 	return err
@@ -88,19 +100,22 @@ func NewPostgres(ctx context.Context, databaseURL string) (*Postgres, error) {
 
 func (p *Postgres) Close() { p.pool.Close() }
 
-const siteColumns = `id, name, address, latitude, longitude, land_size, land_size_unit, google_maps_url, notes, internet_available, internet_supports_24ghz, land_leveling_required, frontage_meters, electrical_extension_km, input_status, created_at, updated_at`
+// Older records were created before reference_code existed. COALESCE keeps
+// those historical rows readable while new submissions receive RBC-2569…
+// automatically from the database default.
+const siteColumns = `id, COALESCE(reference_code, ''), name, contact_name, contact_phone, address, latitude, longitude, land_size, land_size_unit, google_maps_url, notes, internet_available, internet_supports_24ghz, land_leveling_required, frontage_meters, electrical_extension_km, input_status, created_at, updated_at`
 
 func scanSite(row pgx.Row) (domain.Site, error) {
 	var site domain.Site
-	err := row.Scan(&site.ID, &site.Name, &site.Address, &site.Latitude, &site.Longitude, &site.LandSize, &site.LandSizeUnit, &site.GoogleMapsURL, &site.Notes, &site.InternetAvailable, &site.InternetSupports24GHz, &site.LandLevelingRequired, &site.FrontageMeters, &site.ElectricalExtensionKM, &site.InputStatus, &site.CreatedAt, &site.UpdatedAt)
+	err := row.Scan(&site.ID, &site.ReferenceCode, &site.Name, &site.ContactName, &site.ContactPhone, &site.Address, &site.Latitude, &site.Longitude, &site.LandSize, &site.LandSizeUnit, &site.GoogleMapsURL, &site.Notes, &site.InternetAvailable, &site.InternetSupports24GHz, &site.LandLevelingRequired, &site.FrontageMeters, &site.ElectricalExtensionKM, &site.InputStatus, &site.CreatedAt, &site.UpdatedAt)
 	return site, err
 }
 
 func (p *Postgres) CreateSite(ctx context.Context, site domain.Site) (domain.Site, error) {
-	query := `INSERT INTO sites (id,name,address,latitude,longitude,location,land_size,land_size_unit,google_maps_url,notes,internet_available,internet_supports_24ghz,land_leveling_required,frontage_meters,electrical_extension_km,input_status,created_at,updated_at)
-	VALUES ($1,$2,$3,$4,$5,CASE WHEN $4::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($5,$4),4326)::geography END,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+	query := `INSERT INTO sites (id,name,contact_name,contact_phone,address,latitude,longitude,location,land_size,land_size_unit,google_maps_url,notes,internet_available,internet_supports_24ghz,land_leveling_required,frontage_meters,electrical_extension_km,input_status,created_at,updated_at)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 	RETURNING ` + siteColumns
-	return scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.InputStatus, site.CreatedAt, site.UpdatedAt))
+	return scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.InputStatus, site.CreatedAt, site.UpdatedAt))
 }
 
 func (p *Postgres) ListSites(ctx context.Context) ([]domain.Site, error) {
@@ -129,11 +144,11 @@ func (p *Postgres) GetSite(ctx context.Context, id uuid.UUID) (domain.Site, erro
 }
 
 func (p *Postgres) UpdateSite(ctx context.Context, site domain.Site) (domain.Site, error) {
-	query := `UPDATE sites SET name=$2,address=$3,latitude=$4,longitude=$5,
-		location=CASE WHEN $4::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($5,$4),4326)::geography END,
-		land_size=$6,land_size_unit=$7,google_maps_url=$8,notes=$9,internet_available=$10,internet_supports_24ghz=$11,land_leveling_required=$12,frontage_meters=$13,electrical_extension_km=$14,updated_at=$15
+	query := `UPDATE sites SET name=$2,contact_name=$3,contact_phone=$4,address=$5,latitude=$6,longitude=$7,
+		location=CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,
+		land_size=$8,land_size_unit=$9,google_maps_url=$10,notes=$11,internet_available=$12,internet_supports_24ghz=$13,land_leveling_required=$14,frontage_meters=$15,electrical_extension_km=$16,updated_at=$17
 		WHERE id=$1 RETURNING ` + siteColumns
-	result, err := scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.UpdatedAt))
+	result, err := scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.UpdatedAt))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Site{}, ErrNotFound
 	}
@@ -190,6 +205,39 @@ func (p *Postgres) GetSiteImages(ctx context.Context, siteID uuid.UUID) ([]domai
 		images = append(images, image)
 	}
 	return images, rows.Err()
+}
+
+func (p *Postgres) ListSiteImages(ctx context.Context, siteID uuid.UUID) ([]domain.SiteImage, error) {
+	var exists bool
+	if err := p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sites WHERE id=$1)`, siteID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, ErrNotFound
+	}
+	rows, err := p.pool.Query(ctx, `SELECT id,site_id,mime_type,octet_length(image_data),created_at FROM site_images WHERE site_id=$1 ORDER BY created_at`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	images := []domain.SiteImage{}
+	for rows.Next() {
+		var image domain.SiteImage
+		if err = rows.Scan(&image.ID, &image.SiteID, &image.MIMEType, &image.SizeBytes, &image.CreatedAt); err != nil {
+			return nil, err
+		}
+		images = append(images, image)
+	}
+	return images, rows.Err()
+}
+
+func (p *Postgres) GetSiteImage(ctx context.Context, siteID, imageID uuid.UUID) (domain.SiteImage, error) {
+	var image domain.SiteImage
+	err := p.pool.QueryRow(ctx, `SELECT id,site_id,mime_type,image_data,octet_length(image_data),created_at FROM site_images WHERE site_id=$1 AND id=$2`, siteID, imageID).Scan(&image.ID, &image.SiteID, &image.MIMEType, &image.Data, &image.SizeBytes, &image.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.SiteImage{}, ErrNotFound
+	}
+	return image, err
 }
 
 func (p *Postgres) CreateAnalysis(ctx context.Context, run domain.AnalysisRun) (domain.AnalysisRun, error) {

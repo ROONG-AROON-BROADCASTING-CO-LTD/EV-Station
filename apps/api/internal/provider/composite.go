@@ -96,14 +96,21 @@ func (p *CompositeProvider) Collect(ctx context.Context, site domain.Site, radiu
 }
 
 func observationPriority(observation Observation) int {
-	if observation.MetricType != "traffic" {
-		return 0
-	}
-	if strings.Contains(observation.Source.Name, "Department of Highways") {
-		return 2
-	}
-	if strings.Contains(observation.Source.Name, "Department of Rural Roads") {
-		return 1
+	switch observation.MetricType {
+	case "traffic":
+		if strings.Contains(observation.Source.Name, "Department of Highways") {
+			return 2
+		}
+		if strings.Contains(observation.Source.Name, "Department of Rural Roads") {
+			return 1
+		}
+	case "poi":
+		if observation.Source.Type == "commercial_places_api" {
+			return 2
+		}
+		if observation.Source.Type == "open_data_api" {
+			return 1
+		}
 	}
 	return 0
 }

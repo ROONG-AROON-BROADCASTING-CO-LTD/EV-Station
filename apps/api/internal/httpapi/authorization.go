@@ -43,8 +43,29 @@ func requestUser(c *gin.Context) (uuid.UUID, domain.UserRole, bool) {
 
 func (h *Handler) requireOwner(c *gin.Context) bool {
 	_, role, ok := requestUser(c)
-	if ok && role != domain.RoleOwner {
+	if ok && role != domain.RoleSuperAdmin {
 		writeError(c, http.StatusForbidden, "OWNER_REQUIRED", "Only an owner can perform this action.")
+		return false
+	}
+	return ok
+}
+
+func (h *Handler) requireAdmin(c *gin.Context) bool {
+	_, role, ok := requestUser(c)
+	if ok && role != domain.RoleSuperAdmin && role != domain.RoleAdmin {
+		writeError(c, http.StatusForbidden, "ADMIN_REQUIRED", "Only an administrator can perform this action.")
+		return false
+	}
+	return ok
+}
+
+// requireStaff protects operations that spend provider quota or alter an
+// assessment. Customers may submit their own site and read an approved result,
+// but only the internal team may start or regenerate analysis work.
+func (h *Handler) requireStaff(c *gin.Context) bool {
+	_, role, ok := requestUser(c)
+	if ok && role != domain.RoleSuperAdmin && role != domain.RoleAdmin && role != domain.RoleSales {
+		writeError(c, http.StatusForbidden, "STAFF_REQUIRED", "Only sales staff or administrators can run an analysis.")
 		return false
 	}
 	return ok
@@ -55,7 +76,7 @@ func (h *Handler) requireSitePermission(c *gin.Context, siteID uuid.UUID, permis
 	if !ok {
 		return false
 	}
-	if role == domain.RoleOwner {
+	if role == domain.RoleSuperAdmin || role == domain.RoleAdmin {
 		return true
 	}
 	access, err := h.repo.ListSiteAccess(c.Request.Context(), siteID)
@@ -71,7 +92,7 @@ func (h *Handler) requireSitePermission(c *gin.Context, siteID uuid.UUID, permis
 		if grant.UserID != userID {
 			continue
 		}
-		if permission == siteRead || grant.Role == string(domain.RoleOwner) || grant.Role == string(domain.RoleSales) {
+		if permission == siteRead || grant.Role == string(domain.RoleSales) || grant.Role == string(domain.RoleCustomer) {
 			return true
 		}
 	}

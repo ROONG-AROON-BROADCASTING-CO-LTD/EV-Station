@@ -39,7 +39,7 @@ var googleMapsAddressStartPattern = regexp.MustCompile(`(?i)\s+(?:\d+\s|หม�
 func ResolveGoogleMapsURL(ctx context.Context, raw string, geocoder Geocoder) (GoogleMapsResolution, error) {
 	raw = strings.TrimSpace(raw)
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" || !isGoogleMapsHost(parsed.Hostname()) {
+	if err != nil || !IsGoogleMapsURL(raw) {
 		return GoogleMapsResolution{}, ErrInvalidGoogleMapsURL
 	}
 	client := &http.Client{Timeout: 12 * time.Second, CheckRedirect: func(req *http.Request, _ []*http.Request) error {
@@ -74,6 +74,14 @@ func ResolveGoogleMapsURL(ctx context.Context, raw string, geocoder Geocoder) (G
 		return GoogleMapsResolution{}, ErrGoogleMapsCoordinatesNotFound
 	}
 	return GoogleMapsResolution{InputURL: raw, ResolvedURL: finalURL, Latitude: latitude, Longitude: longitude}, nil
+}
+
+// IsGoogleMapsURL validates a customer-supplied Google Maps HTTPS URL without
+// requiring that its destination already exposes coordinates. Some valid
+// maps.app.goo.gl links resolve to a place identifier only.
+func IsGoogleMapsURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && parsed.Scheme == "https" && isGoogleMapsHost(parsed.Hostname())
 }
 
 func resolveGoogleMapsPlaceCoordinates(ctx context.Context, finalURL, page string, geocoder Geocoder) (float64, float64, bool) {

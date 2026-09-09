@@ -44,3 +44,12 @@ func TestIsGoogleMapsHost(t *testing.T) {
 		t.Fatal("Google Maps host validation did not match expected hosts")
 	}
 }
+
+func TestIsGoogleMapsURL(t *testing.T) {
+	if !IsGoogleMapsURL("https://maps.app.goo.gl/sDS72DJ4w8sxT8JG9") {
+		t.Fatal("Google Maps short link should be accepted")
+	}
+	if IsGoogleMapsURL("http://maps.app.goo.gl/example") || IsGoogleMapsURL("https://example.com/maps") {
+		t.Fatal("only HTTPS Google Maps links should be accepted")
+	}
+}

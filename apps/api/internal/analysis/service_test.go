@@ -3,10 +3,13 @@ package analysis
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rbc/ev-station/apps/api/internal/advisory"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 	"github.com/rbc/ev-station/apps/api/internal/provider"
 	"github.com/rbc/ev-station/apps/api/internal/repository"
@@ -87,6 +90,34 @@ func TestUnavailableProviderDoesNotInventScore(t *testing.T) {
 	}
 	if run.OverallScore != nil {
 		t.Fatal("overall score must be absent when required factual data is missing")
+	}
+}
+
+func TestRunDoesNotAllowGeminiToChangeEvidenceBasedScore(t *testing.T) {
+	repo := repository.NewMemory()
+	now := time.Now().UTC()
+	site := domain.Site{ID: uuid.New(), Name: "Test site", Address: "Bangkok", LandSize: 100, LandSizeUnit: "sqm", CreatedAt: now, UpdatedAt: now}
+	if _, err := repo.CreateSite(context.Background(), site); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		calls++
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"metricScores\":[{\"metricType\":\"traffic\",\"score\":0}]}"}]}}]}`))
+	}))
+	defer server.Close()
+	engine, _ := scoring.New(scoring.DefaultWeights)
+	gemini := advisory.NewGeminiService(advisory.GeminiConfig{APIKey: "test-key", Model: "test-model", BaseURL: server.URL, Timeout: time.Second}, server.Client())
+	run, err := NewService(repo, provider.FixtureProvider{}, engine, gemini).Run(context.Background(), site.ID, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 0 {
+		t.Fatalf("analysis scoring must not call Gemini, got %d calls", calls)
+	}
+	if run.Scoring == nil || run.Scoring.Version != scoring.PreliminaryVersion {
+		t.Fatalf("expected deterministic scoring version, got %+v", run.Scoring)
 	}
 }
 

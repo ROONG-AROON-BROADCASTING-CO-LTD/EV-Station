@@ -1,12 +1,16 @@
 export type DataStatus = 'verified' | 'estimated' | 'preliminary' | 'missing'
-export type UserRole = 'owner' | 'sales' | 'viewer'
-export interface User { id: string; email: string; displayName: string; role: UserRole; isActive: boolean; createdAt: string }
+export type UserRole = 'super_admin' | 'admin' | 'sales' | 'customer'
+export interface User { id: string; email: string; displayName: string; salesCode?: string; role: UserRole; isActive: boolean; createdAt: string }
 export interface SiteAccess { siteId: string; userId: string; role: UserRole }
+export interface SiteAttachment { id: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'; sizeBytes: number; createdAt: string }
 export interface AuthSession { user: User; token: string }
 
 export interface Site {
   id: string
+  referenceCode?: string
   name: string
+  contactName?: string
+  contactPhone?: string
   address?: string
   latitude?: number
   longitude?: number
@@ -26,6 +30,8 @@ export interface Site {
 
 export interface CreateSiteInput {
   name: string
+	contactName?: string
+	contactPhone?: string
   address?: string
   latitude?: number
   longitude?: number
@@ -116,6 +122,7 @@ export interface AnalysisRun {
     minimumCoveragePercentage: number
     limitations: string[]
   }
+  aiAssessments?: Partial<Record<'th' | 'en', AIAssessment>>
   startedAt: string
   completedAt?: string
   createdAt: string

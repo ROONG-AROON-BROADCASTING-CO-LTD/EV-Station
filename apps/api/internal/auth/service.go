@@ -17,13 +17,14 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrOTPNotConfigured = errors.New("otp delivery is not configured")
 
 type Service struct { repo repository.Repository; secret []byte }
 type Claims struct { Subject string `json:"sub"`; Role domain.UserRole `json:"role"`; ExpiresAt int64 `json:"exp"` }
 
 func New(repo repository.Repository, secret string) *Service { return &Service{repo: repo, secret: []byte(secret)} }
 func (s *Service) Register(ctx context.Context, email, displayName, password string, role domain.UserRole) (domain.User, error) {
-	if role != domain.RoleOwner && role != domain.RoleSales && role != domain.RoleViewer { return domain.User{}, errors.New("invalid role") }
+	if role != domain.RoleSuperAdmin && role != domain.RoleAdmin && role != domain.RoleSales && role != domain.RoleCustomer { return domain.User{}, errors.New("invalid role") }
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); if err != nil { return domain.User{}, err }
 	return s.repo.CreateUser(ctx, domain.User{ID: uuid.New(), Email: strings.ToLower(strings.TrimSpace(email)), DisplayName: strings.TrimSpace(displayName), Role: role, IsActive: true, CreatedAt: time.Now().UTC()}, string(hash))
 }

@@ -57,12 +57,28 @@ type Config struct {
 	PEAGridConductorURL                  string
 	PEAGridSearchRadiusMeters            int
 	PEAGridCacheTTL                      time.Duration
+	GoogleMapsServerAPIKey               string
+	GooglePlacesURL                      string
+	GooglePlacesCacheTTL                 time.Duration
+	OpenChargeMapAPIKey                  string
+	OpenChargeMapURL                     string
+	OpenChargeMapCacheTTL                time.Duration
 	GeminiAPIKey                         string
 	GeminiModel                          string
 	GeminiBaseURL                        string
 	GeminiTimeout                        time.Duration
 	JWTSecret                            string
 	AuthRequired                         bool
+	SMTPHost                             string
+	SMTPPort                             string
+	SMTPUsername                         string
+	SMTPPassword                         string
+	SMTPFrom                             string
+	OTPTTL                               time.Duration
+	LINEChannelAccessToken               string
+	LINEChannelSecret                    string
+	LINENotificationRecipientID          string
+	LINEAPIBaseURL                       string
 }
 
 func Load() Config {
@@ -131,6 +147,14 @@ func Load() Config {
 	if err != nil {
 		peaGridTTL = 24 * time.Hour
 	}
+	googlePlacesTTL, err := time.ParseDuration(getEnv("GOOGLE_PLACES_CACHE_TTL", "24h"))
+	if err != nil {
+		googlePlacesTTL = 24 * time.Hour
+	}
+	openChargeMapTTL, err := time.ParseDuration(getEnv("OPEN_CHARGE_MAP_CACHE_TTL", "24h"))
+	if err != nil {
+		openChargeMapTTL = 24 * time.Hour
+	}
 	peaGridSearchRadius := 25000
 	if parsed, parseErr := strconv.Atoi(getEnv("PEA_GRID_SEARCH_RADIUS_METERS", "25000")); parseErr == nil && parsed > 0 {
 		peaGridSearchRadius = parsed
@@ -146,6 +170,10 @@ func Load() Config {
 	geminiTimeout, err := time.ParseDuration(getEnv("GEMINI_TIMEOUT", "20s"))
 	if err != nil {
 		geminiTimeout = 20 * time.Second
+	}
+	otpTTL, err := time.ParseDuration(getEnv("OTP_TTL", "10m"))
+	if err != nil {
+		otpTTL = 10 * time.Minute
 	}
 	worldPopYear := time.Now().Year()
 	if parsed, parseErr := strconv.Atoi(getEnv("WORLDPOP_YEAR", strconv.Itoa(worldPopYear))); parseErr == nil {
@@ -202,12 +230,20 @@ func Load() Config {
 		PEAGridConductorURL:                  getEnv("PEA_GRID_CONDUCTOR_URL", "https://gisportal.pea.co.th/arcgis/rest/services/PEA_PAPD/PAPD_T_Station/FeatureServer/1/query"),
 		PEAGridSearchRadiusMeters:            peaGridSearchRadius,
 		PEAGridCacheTTL:                      peaGridTTL,
+		GoogleMapsServerAPIKey:               strings.TrimSpace(os.Getenv("GOOGLE_MAPS_SERVER_API_KEY")),
+		GooglePlacesURL:                      getEnv("GOOGLE_PLACES_URL", "https://places.googleapis.com/v1/places:searchNearby"),
+		GooglePlacesCacheTTL:                 googlePlacesTTL,
+		OpenChargeMapAPIKey:                  strings.TrimSpace(os.Getenv("OPEN_CHARGE_MAP_API_KEY")),
+		OpenChargeMapURL:                     getEnv("OPEN_CHARGE_MAP_API_URL", "https://api.openchargemap.io/v3/poi/"),
+		OpenChargeMapCacheTTL:                openChargeMapTTL,
 		GeminiAPIKey:                         strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
 		GeminiModel:                          getEnv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
 		GeminiBaseURL:                        getEnv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
 		GeminiTimeout:                        geminiTimeout,
 		JWTSecret:                            getEnv("JWT_SECRET", "development-only-change-this-secret"),
 		AuthRequired:                         strings.EqualFold(getEnv("AUTH_REQUIRED", "false"), "true"),
+		SMTPHost:                             os.Getenv("SMTP_HOST"), SMTPPort: getEnv("SMTP_PORT", "587"), SMTPUsername: os.Getenv("SMTP_USERNAME"), SMTPPassword: os.Getenv("SMTP_PASSWORD"), SMTPFrom: os.Getenv("SMTP_FROM"), OTPTTL: otpTTL,
+		LINEChannelAccessToken: strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN")), LINEChannelSecret: strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET")), LINENotificationRecipientID: strings.TrimSpace(os.Getenv("LINE_NOTIFICATION_RECIPIENT_ID")), LINEAPIBaseURL: getEnv("LINE_API_BASE_URL", "https://api.line.me"),
 	}
 }
 

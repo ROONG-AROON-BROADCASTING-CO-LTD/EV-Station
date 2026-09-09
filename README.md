@@ -40,6 +40,8 @@ docker compose up --build
 
 Open `http://localhost:8081`. API health is at `http://localhost:8080/health`.
 
+For Windows startup and a temporary Cloudflare test tunnel, see [Startup guide](docs/STARTUP.md).
+
 To reset local development data, stop the stack and explicitly remove its named volumes with `docker compose down -v`.
 
 ## Run locally

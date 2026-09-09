@@ -1,0 +1,2 @@
+ALTER TABLE sites DROP COLUMN IF EXISTS contact_phone;
+ALTER TABLE sites DROP COLUMN IF EXISTS contact_name;

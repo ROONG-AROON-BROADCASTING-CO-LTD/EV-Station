@@ -12,15 +12,21 @@ type DataStatus string
 type UserRole string
 
 const (
-	RoleOwner  UserRole = "owner"
-	RoleSales  UserRole = "sales"
-	RoleViewer UserRole = "viewer"
+	RoleSuperAdmin UserRole = "super_admin"
+	RoleAdmin      UserRole = "admin"
+	RoleSales      UserRole = "sales"
+	RoleCustomer   UserRole = "customer"
+	// Legacy names are retained in code so existing authorization call sites
+	// continue to mean the highest and lowest privilege respectively.
+	RoleOwner  = RoleSuperAdmin
+	RoleViewer = RoleCustomer
 )
 
 type User struct {
 	ID          uuid.UUID `json:"id"`
 	Email       string    `json:"email"`
 	DisplayName string    `json:"displayName"`
+	SalesCode   string    `json:"salesCode,omitempty"`
 	Role        UserRole  `json:"role"`
 	IsActive    bool      `json:"isActive"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -41,7 +47,10 @@ const (
 
 type Site struct {
 	ID                    uuid.UUID  `json:"id"`
+	ReferenceCode         string     `json:"referenceCode,omitempty"`
 	Name                  string     `json:"name"`
+	ContactName           string     `json:"contactName,omitempty"`
+	ContactPhone          string     `json:"contactPhone,omitempty"`
 	Address               string     `json:"address,omitempty"`
 	Latitude              *float64   `json:"latitude,omitempty"`
 	Longitude             *float64   `json:"longitude,omitempty"`
@@ -61,6 +70,8 @@ type Site struct {
 
 type CreateSiteInput struct {
 	Name                  string   `json:"name" binding:"required,max=160"`
+	ContactName           string   `json:"contactName" binding:"max=160"`
+	ContactPhone          string   `json:"contactPhone" binding:"max=40"`
 	Address               string   `json:"address" binding:"max=1000"`
 	Latitude              *float64 `json:"latitude"`
 	Longitude             *float64 `json:"longitude"`
@@ -83,6 +94,7 @@ type SiteImage struct {
 	SiteID    uuid.UUID
 	MIMEType  string
 	Data      []byte
+	SizeBytes int64
 	CreatedAt time.Time
 }
 

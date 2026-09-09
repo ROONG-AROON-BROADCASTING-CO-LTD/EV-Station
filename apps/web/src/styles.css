@@ -30,6 +30,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .map-grid { background-image: linear-gradient(rgba(135,151,170,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(135,151,170,.22) 1px, transparent 1px); background-size: 44px 44px; transform: rotate(-7deg) scale(1.15); }
 .print-site-location, .print-company-header { display: none; }
 
+@media (min-width: 1024px) {
+  .app-shell { grid-template-columns: 238px minmax(0, 1fr); transition: grid-template-columns 180ms ease; }
+  .app-shell[data-sidebar='collapsed'] { grid-template-columns: 64px minmax(0, 1fr); }
+}
+
 @media print {
   @page { size: A4; margin: 12mm 10mm; }
   html, body { background: #fff !important; }

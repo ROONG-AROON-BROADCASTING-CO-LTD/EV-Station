@@ -35,7 +35,7 @@ func (s *Service) save(ctx context.Context, id uuid.UUID, input domain.CreateSit
 	}
 	now := time.Now().UTC()
 	site := domain.Site{
-		ID: id, Name: strings.TrimSpace(input.Name), Address: strings.TrimSpace(input.Address),
+		ID: id, Name: strings.TrimSpace(input.Name), ContactName: strings.TrimSpace(input.ContactName), ContactPhone: strings.TrimSpace(input.ContactPhone), Address: strings.TrimSpace(input.Address),
 		Latitude: input.Latitude, Longitude: input.Longitude, LandSize: input.LandSize,
 		LandSizeUnit: input.LandSizeUnit, GoogleMapsURL: input.GoogleMapsURL, Notes: input.Notes,
 		InternetAvailable: input.InternetAvailable, InternetSupports24GHz: input.InternetSupports24GHz,
