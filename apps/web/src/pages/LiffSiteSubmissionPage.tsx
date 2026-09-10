@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NewSitePage } from './NewSitePage'
+import { api } from '../services/api'
+import type { LineCustomerProfile } from '../types/domain'
 
 type LiffSDK = {
   init: (options: { liffId: string }) => Promise<void>
@@ -24,6 +26,7 @@ function loadLiffSDK(): Promise<LiffSDK> {
 
 export function LiffSiteSubmissionPage() {
   const [idToken, setIDToken] = useState<string>()
+  const [profile, setProfile] = useState<LineCustomerProfile | null>(null)
   const [error, setError] = useState<string>()
   const [completed, setCompleted] = useState<boolean>()
 
@@ -46,7 +49,14 @@ export function LiffSiteSubmissionPage() {
         }
         const token = sdk.getIDToken()
         if (!token) throw new Error('กรุณาเปิดฟอร์มใหม่จาก LINE เพื่อยืนยันตัวตน')
-        if (active) { setIDToken(token); setError('') }
+        let savedProfile: LineCustomerProfile | null = null
+        try {
+          savedProfile = await api.getLiffCustomerProfile(token)
+        } catch {
+          // A saved profile is a convenience only. Submission can continue if
+          // it is temporarily unavailable.
+        }
+        if (active) { setIDToken(token); setProfile(savedProfile); setError('') }
       } catch (nextError) {
         if (active) setError(nextError instanceof Error ? nextError.message : 'ไม่สามารถเชื่อมต่อ LINE ได้')
       }
@@ -57,5 +67,5 @@ export function LiffSiteSubmissionPage() {
 
   if (completed !== undefined) return <main className="mx-auto max-w-xl px-5 py-12"><section className="rounded-xl border border-line bg-white p-7 text-center shadow-panel"><h1 className="page-title">ส่งข้อมูลพื้นที่สำเร็จ</h1><p className="mt-3 text-muted">{completed ? 'ระบบส่งข้อความยืนยันไปยังแชต LINE ของคุณแล้ว ทีมงานจะตรวจสอบและติดต่อกลับ' : 'บันทึกข้อมูลแล้ว แต่ยังส่งข้อความยืนยันไม่ได้ กรุณาเพิ่มเพื่อนหรือปลดบล็อก RBC EV Station แล้วลองอีกครั้ง'}</p><a className="button-primary mt-6 inline-flex" href="https://line.me/R/ti/p/@424cdtee">กลับไปแชต RBC EV Station</a></section></main>
   if (!idToken) return <main className="mx-auto max-w-xl px-5 py-12"><section className="rounded-xl border border-line bg-white p-7 text-center shadow-panel"><h1 className="page-title">ส่งข้อมูลพื้นที่</h1><p className={error ? 'mt-3 text-red-600' : 'mt-3 text-muted'}>{error || 'กำลังเชื่อมต่อบัญชี LINE…'}</p>{error && <button className="button-primary mt-6" onClick={() => location.reload()}>ลองใหม่</button>}</section></main>
-  return <main className="px-4 py-6 sm:px-6"><NewSitePage role="customer" liff={{ idToken, onSubmitted: setCompleted }}/></main>
+  return <main className="px-4 py-6 sm:px-6"><NewSitePage role="customer" liff={{ idToken, profile, onSubmitted: setCompleted }}/></main>
 }

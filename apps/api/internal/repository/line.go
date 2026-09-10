@@ -8,6 +8,24 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
 
+func (p *Postgres) GetLineCustomerProfile(ctx context.Context, user string) (domain.LineCustomerProfile, error) {
+	var profile domain.LineCustomerProfile
+	err := p.pool.QueryRow(ctx, `SELECT contact_name,contact_phone,created_at,updated_at FROM line_customer_profiles WHERE line_user_id=$1`, user).Scan(&profile.ContactName, &profile.ContactPhone, &profile.CreatedAt, &profile.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.LineCustomerProfile{}, ErrNotFound
+	}
+	return profile, err
+}
+
+func (p *Postgres) UpsertLineCustomerProfile(ctx context.Context, user string, profile domain.LineCustomerProfile) (domain.LineCustomerProfile, error) {
+	returning := `INSERT INTO line_customer_profiles(line_user_id,contact_name,contact_phone,created_at,updated_at)
+		VALUES ($1,$2,$3,$4,$4)
+		ON CONFLICT (line_user_id) DO UPDATE SET contact_name=EXCLUDED.contact_name,contact_phone=EXCLUDED.contact_phone,updated_at=EXCLUDED.updated_at
+		RETURNING contact_name,contact_phone,created_at,updated_at`
+	err := p.pool.QueryRow(ctx, returning, user, profile.ContactName, profile.ContactPhone, profile.UpdatedAt).Scan(&profile.ContactName, &profile.ContactPhone, &profile.CreatedAt, &profile.UpdatedAt)
+	return profile, err
+}
+
 // SaveLineSubmission saves the identity binding and site in one transaction.
 // A repeated request returns the original site, including after a lost response.
 func (p *Postgres) SaveLineSubmission(ctx context.Context, user string, requestID uuid.UUID, s domain.Site) (domain.Site, error) {

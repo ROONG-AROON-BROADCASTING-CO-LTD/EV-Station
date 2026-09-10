@@ -108,11 +108,11 @@ func TestGeminiServiceAnalyzesSiteSurfaceImages(t *testing.T) {
 		if !strings.Contains(payload, `"inline_data"`) || !strings.Contains(payload, `"mime_type":"image/jpeg"`) {
 			t.Fatalf("expected customer image as Gemini inline data: %s", payload)
 		}
-		if !strings.Contains(payload, "Analyze ONLY the visible ground surface") {
-			t.Fatalf("expected a ground-surface-only prompt: %s", payload)
+		if !strings.Contains(payload, "entranceWidthEstimate") || !strings.Contains(payload, "must never be used as engineering approval") {
+			t.Fatalf("expected a safeguarded entrance-width prompt: %s", payload)
 		}
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"พื้นกรวดและดินปนหญ้า\",\"suitability\":\"moderate\",\"score\":55,\"surfaceTypes\":[\"กรวด\",\"ดิน\"],\"observedRisks\":[\"พื้นไม่เรียบ\"],\"recommendedImprovements\":[\"ปรับระดับและบดอัด\"],\"disclaimer\":\"ประเมินจากสิ่งที่เห็นในภาพเท่านั้น\"}"}]}}]}`))
+		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"พื้นกรวดและดินปนหญ้า\",\"suitability\":\"moderate\",\"score\":55,\"surfaceTypes\":[\"กรวด\",\"ดิน\"],\"observedRisks\":[\"พื้นไม่เรียบ\"],\"recommendedImprovements\":[\"ปรับระดับและบดอัด\"],\"disclaimer\":\"ประเมินจากสิ่งที่เห็นในภาพเท่านั้น\",\"entranceWidthEstimate\":{\"minimumMeters\":5,\"maximumMeters\":6.5,\"confidence\":\"moderate\",\"visualEvidence\":\"เห็นขอบประตูทั้งสองด้าน\",\"obstructions\":[\"ประตูกั้น\"]}}"}]}}]}`))
 	}))
 	defer server.Close()
 
@@ -121,7 +121,7 @@ func TestGeminiServiceAnalyzesSiteSurfaceImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Score != 55 || result.Suitability != "moderate" || len(result.RecommendedImprovements) != 1 {
+	if result.Score != 55 || result.Suitability != "moderate" || len(result.RecommendedImprovements) != 1 || result.EntranceWidthEstimate == nil || result.EntranceWidthEstimate.MinimumMeters != 5 || result.EntranceWidthEstimate.MaximumMeters != 6.5 {
 		t.Fatalf("unexpected surface assessment: %+v", result)
 	}
 }

@@ -1,4 +1,4 @@
-import type { AIAssessment, AnalysisRun, AuthSession, CreateSiteInput, DataSourceCatalogEntry, FranchisePlan, GeocodingResult, GoogleMapsResolution, Site, SiteAccess, SiteAttachment, User, UserRole } from '../types/domain'
+import type { AIAssessment, AnalysisRun, APIUsageSummary, AuthSession, CreateSiteInput, DataSourceCatalogEntry, FranchisePlan, GeocodingResult, GoogleMapsResolution, LineCustomerProfile, Site, SiteAccess, SiteAttachment, User, UserRole } from '../types/domain'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
@@ -84,6 +84,7 @@ export const api = {
 	downloadSiteImage: (siteID: string, imageID: string) => download(`/sites/${siteID}/images/${imageID}`),
   createSite: (input: CreateSiteInput) => request<Site>('/sites', { method: 'POST', body: JSON.stringify(input) }),
 	createLiffSite: (input: CreateSiteInput, idToken: string, requestId: string) => liffRequest<{ site: Site }>('/liff/sites', idToken, { method: 'POST', body: JSON.stringify({ ...input, requestId }) }),
+	getLiffCustomerProfile: (idToken: string) => liffRequest<{ profile: LineCustomerProfile | null }>('/liff/customer-profile', idToken).then(result => result.profile),
 	completeLiffSite: (id: string, idToken: string) => liffRequest<{ notificationAccepted: boolean }>(`/liff/sites/${id}/complete`, idToken, { method: 'POST' }),
 	listLiffSites: (idToken: string) => liffRequest<Array<Site & { customerStatus: 'pending_review' | 'analysis_completed' }>>('/liff/sites', idToken),
 	resolveLiffGoogleMapsUrl: (url: string, idToken: string) => liffRequest<GoogleMapsResolution>('/liff/maps/resolve', idToken, { method: 'POST', body: JSON.stringify({ url }) }),
@@ -112,6 +113,8 @@ export const api = {
   },
   searchAddress: (query: string) => request<GeocodingResult[]>(`/geocoding/search?q=${encodeURIComponent(query)}&limit=5`),
   resolveGoogleMapsUrl: (url: string) => request<GoogleMapsResolution>('/maps/resolve', { method: 'POST', body: JSON.stringify({ url }) }),
-  getDataSources: () => request<DataSourceCatalogEntry[]>('/data-sources'),
+	getDataSources: () => request<DataSourceCatalogEntry[]>('/data-sources'),
+	getAPIUsage: () => request<APIUsageSummary[]>('/api-usage'),
+	recordGoogleMapsLoad: () => request<void>('/api-usage/google-maps-load', { method: 'POST' }),
   getFranchisePlans: () => request<FranchisePlan[]>('/financial/plans'),
 }

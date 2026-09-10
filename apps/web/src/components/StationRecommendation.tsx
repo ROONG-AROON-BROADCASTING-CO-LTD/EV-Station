@@ -1,20 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 import { api, errorMessageKey } from '../services/api'
+import type { StationRecommendation as StationProposal, StationRecommendationText as StationText } from '../types/domain'
 
-type StationText = { reason: string; assumptions: string[]; missingData: string[] }
-
-export interface StationProposal {
-  powerKw: number
-  chargerCount: number
-  totalPowerKw: number
-  installationConfirmed: boolean
-  landAreaSqWah: number
-  preliminaryCabinetLimit: number
-  th: StationText
-  en: StationText
-}
+export type { StationProposal }
 
 function RecommendationLanguage({ heading, text, assumptionLabel, missingLabel }: { heading: string; text: StationText; assumptionLabel: string; missingLabel: string }) {
   return <article className="rounded-xl border border-line bg-slate-50 p-4">
@@ -33,24 +22,17 @@ function RecommendationLanguage({ heading, text, assumptionLabel, missingLabel }
   </article>
 }
 
-export function StationRecommendation({ id }: { id: string }) {
+export function StationRecommendation({ id, initialProposal }: { id: string; initialProposal?: StationProposal }) {
   const { language, t } = useI18n()
   const th = language === 'th'
   const proposal = useMutation({ mutationFn: (refresh: boolean) => api.recommendStation(id, refresh) })
-  const generatedForRun = useRef<string | undefined>(undefined)
 
-  useEffect(() => {
-    if (generatedForRun.current === id) return
-    generatedForRun.current = id
-    proposal.mutate(false)
-  }, [id, proposal])
-
-  const result = proposal.data
+  const result = proposal.data ?? initialProposal
 	const text = result?.[language]
   return <section className="mt-5 rounded-2xl border border-line bg-white p-6 shadow-panel">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h2 className="section-title">{th ? 'คำแนะนำเบื้องต้น: ขนาดและจำนวนตู้ชาร์จ' : 'Preliminary recommendation: charger power and quantity'}</h2>
-      <button className="button-secondary print-hide" disabled={proposal.isPending} onClick={() => proposal.mutate(true)}>{proposal.isPending ? (th ? 'AI กำลังวิเคราะห์…' : 'Analyzing…') : (th ? 'ให้ AI วิเคราะห์ใหม่' : 'Regenerate AI recommendation')}</button>
+      <button className="button-secondary print-hide" disabled={proposal.isPending} onClick={() => proposal.mutate(Boolean(initialProposal))}>{proposal.isPending ? (th ? 'AI กำลังวิเคราะห์…' : 'Analyzing…') : initialProposal ? (th ? 'ให้ AI วิเคราะห์ใหม่' : 'Regenerate AI recommendation') : (th ? 'ให้ AI วิเคราะห์' : 'Generate AI recommendation')}</button>
     </div>
     <p className="mt-2 text-sm text-muted">{th ? '120 / 180 / 240 kW ต่อตู้ · ระบบบันทึกคำแนะนำไว้กับผลวิเคราะห์นี้ และจะสร้างใหม่เมื่อกดปุ่มเท่านั้น' : '120 / 180 / 240 kW per cabinet · This recommendation is saved with this analysis and regenerated only when requested.'}</p>
     {proposal.isError && <p role="alert" className="mt-3 text-red-700">{t(errorMessageKey(proposal.error))}</p>}

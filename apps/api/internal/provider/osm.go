@@ -77,6 +77,25 @@ type osmRoadMetricValue struct {
 	RadiusMeters           int            `json:"radiusMeters"`
 	MappedMajorRoadCount   int            `json:"mappedMajorRoadCount"`
 	NearestMajorRoadMeters *float64       `json:"nearestMajorRoadMeters,omitempty"`
+	NearestRoadName         string         `json:"nearestRoadName,omitempty"`
+	NearestRoadRef          string         `json:"nearestRoadRef,omitempty"`
+	NearestRoadClass        string         `json:"nearestRoadClass,omitempty"`
+	RoadClassCounts        map[string]int `json:"roadClassCounts"`
+}
+
+// osmTrafficPotentialValue deliberately contains no vehicle count.  It is used
+// only when an official AADT road match is unavailable, so the UI can still
+// describe the traffic potential implied by mapped road classes without
+// presenting a modelled value as an official count.
+type osmTrafficPotentialValue struct {
+	AssessmentType         string         `json:"assessmentType"`
+	PotentialScore         float64        `json:"potentialScore"`
+	RadiusMeters           int            `json:"radiusMeters"`
+	MappedMajorRoadCount   int            `json:"mappedMajorRoadCount"`
+	NearestMajorRoadMeters *float64       `json:"nearestMajorRoadMeters,omitempty"`
+	NearestRoadName         string         `json:"nearestRoadName,omitempty"`
+	NearestRoadRef          string         `json:"nearestRoadRef,omitempty"`
+	NearestRoadClass        string         `json:"nearestRoadClass,omitempty"`
 	RoadClassCounts        map[string]int `json:"roadClassCounts"`
 }
 
@@ -159,7 +178,10 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		if result.kind == "roads" {
 			roadSource := source
 			roadSource.Methodology = "Count mapped motorway, trunk, primary, secondary and tertiary ways within the radius and approximate the nearest distance from returned way geometry vertices."
-			observations[positions["road_accessibility"]] = osmRoadObservation(classifyOSMRoads(response.Elements), *site.Latitude, *site.Longitude, radius, roadSource)
+			roads := classifyOSMRoads(response.Elements)
+			roadObservation := osmRoadObservation(roads, *site.Latitude, *site.Longitude, radius, roadSource)
+			observations[positions["road_accessibility"]] = roadObservation
+			observations[positions["traffic"]] = osmTrafficPotentialObservation(roadObservation, roadSource)
 			continue
 		}
 		poi, chargers, communities := classifyOSMElements(response.Elements)
@@ -188,6 +210,38 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		observations[positions["competition"]] = competition
 	}
 	return observations, nil
+}
+
+func osmTrafficPotentialObservation(road Observation, source domain.DataSource) Observation {
+	var value osmRoadMetricValue
+	if json.Unmarshal(road.RawValue, &value) != nil || value.MappedMajorRoadCount == 0 || value.NearestMajorRoadMeters == nil {
+		return Observation{MetricType: "traffic", Status: domain.DataMissing, Source: source, Assumptions: []string{"No official AADT match was found and mapped major-road evidence was insufficient to estimate traffic potential."}}
+	}
+	base := 0.0
+	for roadClass, score := range map[string]float64{"motorway": 80, "trunk": 70, "primary": 60, "secondary": 45, "tertiary": 30} {
+		if value.RoadClassCounts[roadClass] > 0 && score > base {
+			base = score
+		}
+	}
+	proximity := 0.0
+	switch {
+	case *value.NearestMajorRoadMeters <= 100:
+		proximity = 15
+	case *value.NearestMajorRoadMeters <= 500:
+		proximity = 10
+	case *value.NearestMajorRoadMeters <= 1000:
+		proximity = 5
+	}
+	connectivity := math.Min(5, math.Log1p(float64(value.MappedMajorRoadCount)))
+	potential := math.Min(100, base+proximity+connectivity)
+	raw, _ := json.Marshal(osmTrafficPotentialValue{AssessmentType: "osm_road_traffic_potential", PotentialScore: potential, RadiusMeters: value.RadiusMeters, MappedMajorRoadCount: value.MappedMajorRoadCount, NearestMajorRoadMeters: value.NearestMajorRoadMeters, NearestRoadName: value.NearestRoadName, NearestRoadRef: value.NearestRoadRef, NearestRoadClass: value.NearestRoadClass, RoadClassCounts: value.RoadClassCounts})
+	source.Name = "OpenStreetMap road network — traffic potential estimate"
+	source.Methodology = "Fallback when no official AADT match is available: road-class potential (motorway 80, trunk 70, primary 60, secondary 45, tertiary 30), plus proximity (up to 15) and mapped-network connectivity (up to 5). It never estimates vehicles per day."
+	return Observation{MetricType: "traffic", RawValue: raw, Status: domain.DataEstimated, Source: source, Assumptions: []string{
+		"Road-based traffic potential is shown when usable official counts are unavailable. Review source results for coverage or retrieval failures.",
+		"Road classes and geometry come from OpenStreetMap and can be incomplete or differently classified from official Thai roads.",
+		"The provider supplies evidence only; deterministic preliminary-v2 scoring uses this estimated potential only when official AADT is unavailable.",
+	}}
 }
 
 func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
@@ -336,6 +390,7 @@ func classifyOSMRoads(elements []osmElement) []osmElement {
 func osmRoadObservation(roads []osmElement, latitude, longitude float64, radius int, source domain.DataSource) Observation {
 	classCounts := make(map[string]int)
 	var nearest *float64
+	var nearestRoad osmElement
 	for _, road := range roads {
 		classCounts[road.Tags["highway"]]++
 		for _, point := range road.Geometry {
@@ -343,10 +398,11 @@ func osmRoadObservation(roads []osmElement, latitude, longitude float64, radius 
 			if nearest == nil || distance < *nearest {
 				value := distance
 				nearest = &value
+				nearestRoad = road
 			}
 		}
 	}
-	raw, _ := json.Marshal(osmRoadMetricValue{RadiusMeters: radius, MappedMajorRoadCount: len(roads), NearestMajorRoadMeters: nearest, RoadClassCounts: classCounts})
+	raw, _ := json.Marshal(osmRoadMetricValue{RadiusMeters: radius, MappedMajorRoadCount: len(roads), NearestMajorRoadMeters: nearest, NearestRoadName: firstNonEmpty(nearestRoad.Tags["name:th"], nearestRoad.Tags["name"]), NearestRoadRef: nearestRoad.Tags["ref"], NearestRoadClass: nearestRoad.Tags["highway"], RoadClassCounts: classCounts})
 	return Observation{
 		MetricType: "road_accessibility", RawValue: raw, Status: domain.DataPreliminary, Source: source,
 		Assumptions: []string{

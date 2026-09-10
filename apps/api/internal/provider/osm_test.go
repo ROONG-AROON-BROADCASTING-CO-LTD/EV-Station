@@ -59,6 +59,12 @@ func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T
 	if !strings.Contains(string(byType["road_accessibility"].RawValue), `"mappedMajorRoadCount":1`) {
 		t.Fatalf("expected one mapped major road, got %s", byType["road_accessibility"].RawValue)
 	}
+	if byType["traffic"].Status != domain.DataEstimated || !strings.Contains(string(byType["traffic"].RawValue), `"assessmentType":"osm_road_traffic_potential"`) {
+		t.Fatalf("expected an explicitly labelled road-based traffic estimate, got %+v", byType["traffic"])
+	}
+	if !strings.Contains(string(byType["traffic"].RawValue), `"nearestRoadName":"Main Road"`) || !strings.Contains(string(byType["traffic"].RawValue), `"nearestRoadClass":"primary"`) {
+		t.Fatalf("expected the nearest mapped road identity, got %s", byType["traffic"].RawValue)
+	}
 	poiRaw := string(byType["poi"].RawValue)
 	if !strings.Contains(poiRaw, `"categoryCounts":{"amenity:restaurant":1}`) {
 		t.Fatalf("expected exact POI category totals, got %s", poiRaw)

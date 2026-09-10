@@ -90,10 +90,17 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 	switch metric.Type {
 	case "traffic":
 		var value struct {
-			AADT float64 `json:"aadt"`
+			AADT           *float64 `json:"aadt"`
+			AssessmentType string   `json:"assessmentType"`
+			PotentialScore *float64 `json:"potentialScore"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.AADT >= 0 {
-			return 20 + 80*(value.AADT/80000), "AADT screening rule: 20 points at zero, increasing linearly to 100 at 80,000 vehicles/day.", true
+		if json.Unmarshal(metric.RawValue, &value) == nil {
+			if value.AADT != nil && *value.AADT >= 0 {
+				return 20 + 80*(*value.AADT/80000), "AADT screening rule: 20 points at zero, increasing linearly to 100 at 80,000 vehicles/day.", true
+			}
+			if value.AssessmentType == "osm_road_traffic_potential" && value.PotentialScore != nil {
+				return *value.PotentialScore, "Road-based traffic-potential rule: mapped road class, proximity and network connectivity are used only when an official AADT match is unavailable; it is not a vehicle count.", true
+			}
 		}
 	case "road_accessibility":
 		var road struct {

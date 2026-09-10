@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { MapPanel } from '../components/MapPanel'
 import { ErrorState, LoadingState } from '../components/PageState'
 import { api, errorMessageKey } from '../services/api'
-import type { CreateSiteInput, UserRole } from '../types/domain'
+import type { CreateSiteInput, LineCustomerProfile, UserRole } from '../types/domain'
 import { useI18n } from '../i18n/I18nProvider'
 
 const optionalNumber = z.preprocess(value => value === '' || value === undefined ? undefined : Number(value), z.number().optional())
@@ -60,6 +60,7 @@ const SourceNote = () => { const { t } = useI18n(); return <span className="text
 
 type LiffSubmission = {
   idToken: string
+  profile: LineCustomerProfile | null
   onSubmitted: (notificationAccepted: boolean) => void
 }
 
@@ -81,6 +82,11 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
     if (!siteQuery.data) return
 	reset({ name: siteQuery.data.name, contactName: siteQuery.data.contactName || '', contactPhone: siteQuery.data.contactPhone || '', address: siteQuery.data.address || '', latitude: siteQuery.data.latitude, longitude: siteQuery.data.longitude, googleMapsUrl: siteQuery.data.googleMapsUrl || '', landSize: siteQuery.data.landSize, landSizeUnit: siteQuery.data.landSizeUnit, notes: siteQuery.data.notes || '', internetAvailable: siteQuery.data.internetAvailable, frontageMeters: siteQuery.data.frontageMeters })
   }, [reset, siteQuery.data])
+  useEffect(() => {
+    if (!liff?.profile || isEditing) return
+    setValue('contactName', liff.profile.contactName)
+    setValue('contactPhone', liff.profile.contactPhone)
+  }, [isEditing, liff?.profile, setValue])
   const attachments = [...photos, ...documents]
   const mutation = useMutation({ mutationFn: async (input: CreateSiteInput) => {
     if (liff) {
@@ -111,6 +117,7 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
     <form onSubmit={handleSubmit(values => mutation.mutate(toSiteInput(values)))} className="mt-8 grid gap-6 pb-24 xl:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
       <section className="rounded-xl border border-line bg-white p-6 shadow-panel"><h2 className="section-title">{t('Location')}</h2><div className="mt-5 space-y-5">
 		<div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Contact name *')}</span><input {...register('contactName')} /><FieldError message={errors.contactName?.message}/></label><label className="field"><span>{t('Phone number *')}</span><input inputMode="tel" {...register('contactPhone')} /><FieldError message={errors.contactPhone?.message}/></label></div>
+        {liff?.profile ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">ใช้ข้อมูลติดต่อที่บันทึกไว้จากบัญชี LINE ของคุณ แก้ไขได้หากข้อมูลเปลี่ยน</p> : null}
         <label className="field"><span>{t('Project or location name *')}</span><input {...register('name')} placeholder={t('e.g. Bang Na Candidate')}/><div className="field-meta"><FieldError message={errors.name?.message}/><SourceNote /></div></label>
         {!isCustomer && <><div><label className="field"><span>{t('Address')}</span><input {...register('address')} placeholder={t('Enter a street address or place')}/><p className="field-hint">{t('Provide an Address OR Latitude + Longitude.')}</p><div className="field-meta"><FieldError message={errors.address?.message}/><SourceNote /></div></label><button type="button" className="button-secondary mt-2" onClick={() => geocoding.mutate()} disabled={geocoding.isPending || String(address || '').trim().length < 3}><Search size={16}/>{geocoding.isPending ? t('Searching…') : t('Search free map data')}</button><p className="mt-2 text-xs leading-5 text-muted">{t('The address is sent to OpenStreetMap Nominatim only when you press search. Results are preliminary and must be confirmed.')}</p></div>
         {geocoding.data ? <div className="rounded-lg border border-line bg-slate-50 p-3"><p className="text-xs font-bold uppercase tracking-wide text-muted">{t('Address matches')}</p>{geocoding.data.length ? <div className="mt-2 space-y-2">{geocoding.data.map(result => <button key={`${result.latitude}-${result.longitude}`} type="button" className="flex w-full items-start gap-2 rounded-lg bg-white p-3 text-left text-sm shadow-sm hover:ring-2 hover:ring-emerald-100" onClick={() => { setValue('latitude', result.latitude, { shouldValidate: true }); setValue('longitude', result.longitude, { shouldValidate: true }) }}><MapPin size={17} className="mt-0.5 shrink-0 text-brand"/><span><strong className="block text-ink">{result.displayName}</strong><small className="mt-1 block text-muted">{result.latitude.toFixed(6)}, {result.longitude.toFixed(6)} · {t('Preliminary match')}</small></span></button>)}</div> : <p className="mt-2 text-sm text-muted">{t('No address matches found.')}</p>}</div> : null}

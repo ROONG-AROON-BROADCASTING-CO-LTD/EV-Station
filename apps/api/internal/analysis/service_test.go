@@ -163,6 +163,9 @@ func TestRecalculatePreliminaryUpgradesLegacyEvidenceWithoutReplacingIt(t *testi
 	run.AssessmentStatus = domain.DataMissing
 	for index := range run.Metrics {
 		run.Metrics[index].NormalizedScore = nil
+		if run.Metrics[index].Type == "traffic" {
+			run.Metrics[index].RawValue = []byte(`{"aadt":1000}`)
+		}
 		if run.Metrics[index].Type == "electrical" {
 			run.Metrics[index].RawValue = []byte(`{"assessmentType":"pea_public_grid_evidence","nearestHighVoltageLineMeters":3674}`)
 		}

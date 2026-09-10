@@ -26,7 +26,9 @@ type GoogleMapsResolution struct {
 	Longitude   float64 `json:"longitude"`
 }
 
-var coordinatePairPattern = regexp.MustCompile(`(-?\d{1,3}(?:\.\d+)?)\s*[,/]\s*(-?\d{1,3}(?:\.\d+)?)`)
+// Google Maps search redirects often encode a space after the comma as a
+// literal plus sign, for example: /maps/search/13.771293,+100.582707.
+var coordinatePairPattern = regexp.MustCompile(`(-?\d{1,3}(?:\.\d+)?)[\s+]*[,/][\s+]*(-?\d{1,3}(?:\.\d+)?)`)
 var encodedCoordinatePattern = regexp.MustCompile(`!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)`)
 var googleMapsPageTitlePattern = regexp.MustCompile(`(?is)<title>\s*(.*?)\s*-\s*Google Maps\s*</title>`)
 var parentheticalTextPattern = regexp.MustCompile(`\([^)]*\)`)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
@@ -17,13 +18,85 @@ type Memory struct {
 	users                     map[uuid.UUID]domain.User
 	passwords                 map[uuid.UUID]string
 	access                    map[uuid.UUID][]domain.SiteAccess
+	lineProfiles              map[string]domain.LineCustomerProfile
+	lineSubmissions           map[uuid.UUID]memoryLineSubmission
 	lineNotificationRecipient string
+	apiUsagePlans             map[string]domain.APIUsagePlan
+	apiUsage                  map[string]int64
 }
 
 func NewMemory() *Memory {
-	return &Memory{sites: make(map[uuid.UUID]domain.Site), images: make(map[uuid.UUID][]domain.SiteImage), analyses: make(map[uuid.UUID]domain.AnalysisRun), users: make(map[uuid.UUID]domain.User), passwords: make(map[uuid.UUID]string), access: make(map[uuid.UUID][]domain.SiteAccess)}
+	plans := defaultAPIUsagePlans()
+	return &Memory{sites: make(map[uuid.UUID]domain.Site), images: make(map[uuid.UUID][]domain.SiteImage), analyses: make(map[uuid.UUID]domain.AnalysisRun), users: make(map[uuid.UUID]domain.User), passwords: make(map[uuid.UUID]string), access: make(map[uuid.UUID][]domain.SiteAccess), lineProfiles: make(map[string]domain.LineCustomerProfile), lineSubmissions: make(map[uuid.UUID]memoryLineSubmission), apiUsagePlans: plans, apiUsage: make(map[string]int64)}
 }
 
+type memoryLineSubmission struct {
+	user      string
+	requestID uuid.UUID
+}
+
+func defaultAPIUsagePlans() map[string]domain.APIUsagePlan {
+	gistdaIncluded := int64(200)
+	googleMapsIncluded := int64(10_000)
+	googlePlacesIncluded := int64(5_000)
+	googleMapsOverageTHB := 0.252
+	googlePlacesOverageTHB := 1.152
+	result := map[string]domain.APIUsagePlan{}
+	for _, item := range []domain.APIUsagePlan{
+		{ProviderID: "google-maps-js", DisplayName: "Google Maps JavaScript API", UnitLabel: "map loads", IncludedUnits: &googleMapsIncluded, OveragePriceTHB: &googleMapsOverageTHB},
+		{ProviderID: "google-places", DisplayName: "Google Places API (New)", UnitLabel: "nearby-search requests", IncludedUnits: &googlePlacesIncluded, OveragePriceTHB: &googlePlacesOverageTHB},
+		{ProviderID: "gemini-advisory", DisplayName: "Gemini AI", UnitLabel: "generations"},
+		{ProviderID: "gistda-elevation", DisplayName: "GISTDA Sphere Elevation API", UnitLabel: "elevation requests", IncludedUnits: &gistdaIncluded},
+	} {
+		item.PricingNote = apiUsagePricingNote(item.ProviderID)
+		result[item.ProviderID] = item
+	}
+	return result
+}
+
+func apiUsagePricingNote(providerID string) string {
+	switch providerID {
+	case "google-maps-js":
+		return "ประมาณการจากราคา Dynamic Maps ของ Google: สิทธิ์ 10,000 ครั้ง/เดือน แล้ว ฿0.252/ครั้ง (US$7 ต่อ 1,000 ครั้ง ที่ 36 บาท/US$1)"
+	case "google-places":
+		return "ประมาณการจากราคา Nearby Search Pro ของ Google: สิทธิ์ 5,000 ครั้ง/เดือน แล้ว ฿1.152/ครั้ง (US$32 ต่อ 1,000 ครั้ง ที่ 36 บาท/US$1)"
+	default:
+		return ""
+	}
+}
+
+func (m *Memory) RecordAPIUsage(_ context.Context, providerID string, units int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if units > 0 {
+		m.apiUsage[providerID] += units
+	}
+	return nil
+}
+func (m *Memory) ListAPIUsage(_ context.Context, periodStart time.Time) ([]domain.APIUsageSummary, error) {
+	if periodStart.IsZero() {
+		periodStart = time.Now().UTC()
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	periodStart = time.Date(periodStart.Year(), periodStart.Month(), 1, 0, 0, 0, 0, time.UTC)
+	result := make([]domain.APIUsageSummary, 0, len(m.apiUsagePlans))
+	for _, plan := range m.apiUsagePlans {
+		plan.PricingNote = apiUsagePricingNote(plan.ProviderID)
+		item := domain.APIUsageSummary{APIUsagePlan: plan, UsedUnits: m.apiUsage[plan.ProviderID], PeriodStart: periodStart}
+		if plan.IncludedUnits != nil {
+			remaining := max(int64(0), *plan.IncludedUnits-item.UsedUnits)
+			item.RemainingUnits = &remaining
+			item.OverageUnits = max(int64(0), item.UsedUnits-*plan.IncludedUnits)
+			if plan.OveragePriceTHB != nil {
+				cost := float64(item.OverageUnits) * *plan.OveragePriceTHB
+				item.EstimatedCostTHB = &cost
+			}
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
 func (m *Memory) CreateUser(_ context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

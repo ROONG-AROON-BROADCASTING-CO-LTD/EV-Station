@@ -49,7 +49,14 @@ func (s *Service) Run(ctx context.Context, siteID uuid.UUID, radius int) (domain
 	if err != nil {
 		run.Status = "failed"
 		run.Recommendation = "Analysis failed while collecting provider data."
-		_ = s.repo.CompleteAnalysis(ctx, run)
+		completed := time.Now().UTC()
+		run.CompletedAt = &completed
+		// The request context may already be cancelled when an upstream source
+		// times out. Persist the terminal state with a short-lived context so a
+		// run can never remain "running" just because the browser disconnected.
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = s.repo.CompleteAnalysis(persistCtx, run)
 		return run, err
 	}
 
@@ -261,14 +268,14 @@ func (s *Service) siteReadinessMetric(ctx context.Context, runID, siteID uuid.UU
 		metric.Assumptions = []string{"Site-condition photos were supplied, but Gemini could not analyze them right now."}
 		return metric
 	}
-	rawValue, err := json.Marshal(map[string]any{"analysisScope": "ground_surface_only", "imageCount": len(visualEvidence), "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "model": assessment.Model})
+	rawValue, err := json.Marshal(map[string]any{"analysisScope": "visible_site_conditions", "imageCount": len(visualEvidence), "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "entranceWidthEstimate": assessment.EntranceWidthEstimate, "model": assessment.Model})
 	if err != nil {
 		return metric
 	}
 	metric.RawValue = rawValue
 	metric.Status = domain.DataPreliminary
-	metric.Source = domain.DataSource{Name: "Customer-supplied site photos analyzed by Gemini", Type: "customer_supplied_image_analysis", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now, Methodology: "Gemini assessed visible ground-surface conditions from customer-supplied images only."}
-	metric.Assumptions = []string{"This is a preliminary visual assessment of ground surface only; it is not part of the location score.", "Photos cannot confirm soil bearing capacity, underground conditions, drainage capacity, or engineering suitability."}
+	metric.Source = domain.DataSource{Name: "Customer-supplied site photos analyzed by Gemini", Type: "customer_supplied_image_analysis", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now, Methodology: "Gemini assessed visible site conditions and, when evidence allowed, an approximate entrance-width range from customer-supplied images only."}
+	metric.Assumptions = []string{"This is a preliminary visual assessment; it is not part of the location score.", "Any entrance-width range is an image estimate only and requires an on-site measurement before engineering review.", "Photos cannot confirm soil bearing capacity, underground conditions, drainage capacity, or engineering suitability."}
 	return metric
 }
 

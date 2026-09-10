@@ -10,7 +10,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -178,39 +177,7 @@ func (p *DOHAADTProvider) fetchAADT(ctx context.Context) (map[string]dohAADTReco
 }
 
 func (p *DOHAADTProvider) fetchNearbyRoads(ctx context.Context, latitude, longitude float64, radius int) ([]dohRoadFeature, error) {
-	params := url.Values{"f": {"json"}, "where": {"1=1"}, "geometry": {fmt.Sprintf("%.7f,%.7f", longitude, latitude)}, "geometryType": {"esriGeometryPoint"}, "inSR": {"4326"}, "spatialRel": {"esriSpatialRelIntersects"}, "distance": {strconv.Itoa(radius)}, "units": {"esriSRUnit_Meter"}, "outFields": {"road_code,section_co,section_na,km_start,km_end"}, "returnGeometry": {"true"}, "outSR": {"4326"}}
-	requestURL := strings.TrimRight(p.config.RoadLayerURL, "?") + "?" + params.Encode()
-	key := "doh:roads:" + hashText(requestURL)
-	if value, found, err := p.cache.Get(ctx, key); err == nil && found {
-		var result dohRoadFeatureResponse
-		if json.Unmarshal(value, &result) == nil {
-			return result.Features, nil
-		}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", p.config.UserAgent)
-	res, err := p.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("DOH road layer returned status %d", res.StatusCode)
-	}
-	payload, err := io.ReadAll(io.LimitReader(res.Body, 8<<20))
-	if err != nil {
-		return nil, err
-	}
-	var result dohRoadFeatureResponse
-	if err = json.Unmarshal(payload, &result); err != nil {
-		return nil, err
-	}
-	_ = p.cache.Set(ctx, key, payload, p.config.CacheTTL)
-	return result.Features, nil
+	return fetchTrafficRoads[dohRoadFeature](ctx, p.client, p.cache, p.config.RoadLayerURL, "road_code,section_co,section_na,km_start,km_end", "objectid", p.config.UserAgent, p.config.CacheTTL, latitude, longitude, radius)
 }
 
 func parseDOHAADT(payload []byte) (map[string]dohAADTRecord, error) {

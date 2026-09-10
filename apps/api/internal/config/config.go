@@ -36,6 +36,7 @@ type Config struct {
 	DOHAADTYear                          int
 	DOHAADTCacheTTL                      time.Duration
 	DRRAADTCSVURL                        string
+	LocalTrafficCSVURL                   string
 	DRRAADTRoadLayerURL                  string
 	DRRAADTYear                          int
 	DRRAADTCacheTTL                      time.Duration
@@ -209,6 +210,7 @@ func Load() Config {
 		DOHAADTYear:                          dohAADTYear,
 		DOHAADTCacheTTL:                      dohAADTTTL,
 		DRRAADTCSVURL:                        getEnv("DRR_AADT_CSV_URL", "https://dataportal.drr.go.th/dataset/3833590c-a0f4-4c99-baf1-8c540aadebb5/resource/0d612f16-e188-4604-b61c-c0da07854ef9/download/untitled.csv"),
+		LocalTrafficCSVURL:                   getEnv("LOCAL_TRAFFIC_CSV_URL", ""),
 		DRRAADTRoadLayerURL:                  getEnv("DRR_AADT_ROAD_LAYER_URL", "https://gis.drr.go.th/arcgis/rest/services/DRR_Feature/FeatureServer/2/query"),
 		DRRAADTYear:                          drrAADTYear,
 		DRRAADTCacheTTL:                      drrAADTTTL,

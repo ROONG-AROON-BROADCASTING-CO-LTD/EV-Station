@@ -54,6 +54,11 @@ func main() {
 	}
 
 	var dataProvider provider.AnalysisProvider = provider.UnavailableProvider{}
+	recordUsage := func(requestCtx context.Context, providerID string, units int64) {
+		if usageErr := repo.RecordAPIUsage(requestCtx, providerID, units); usageErr != nil {
+			logger.Warn("could not record API usage", "provider", providerID, "error", usageErr)
+		}
+	}
 	if cfg.AnalysisProviderMode == "fixture" && cfg.Environment != "production" {
 		logger.Warn("using deterministic development fixture provider; results are not factual")
 		dataProvider = provider.FixtureProvider{}
@@ -73,7 +78,7 @@ func main() {
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		gistdaElevationProvider := provider.NewGISTDAElevationProvider(provider.GISTDAElevationConfig{
 			Endpoint: cfg.GISTDAElevationURL, APIKey: cfg.GISTDAAPIKey, CacheTTL: cfg.GISTDAElevationCacheTTL,
-			UserAgent: cfg.ExternalUserAgent,
+			UserAgent: cfg.ExternalUserAgent, UsageRecorder: recordUsage,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		dohAADTProvider := provider.NewDOHAADTProvider(provider.DOHAADTConfig{
 			CSVURL: cfg.DOHAADTCSVURL, RoadLayerURL: cfg.DOHAADTRoadLayerURL, DataYear: cfg.DOHAADTYear,
@@ -105,13 +110,14 @@ func main() {
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		googlePlacesProvider := provider.NewGooglePlacesProvider(provider.GooglePlacesConfig{
 			APIKey: cfg.GoogleMapsServerAPIKey, Endpoint: cfg.GooglePlacesURL,
-			CacheTTL: cfg.GooglePlacesCacheTTL, UserAgent: cfg.ExternalUserAgent,
+			CacheTTL: cfg.GooglePlacesCacheTTL, UserAgent: cfg.ExternalUserAgent, UsageRecorder: recordUsage,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
 		openChargeMapProvider := provider.NewOpenChargeMapProvider(provider.OpenChargeMapConfig{
 			APIKey: cfg.OpenChargeMapAPIKey, Endpoint: cfg.OpenChargeMapURL,
 			CacheTTL: cfg.OpenChargeMapCacheTTL, UserAgent: cfg.ExternalUserAgent,
 		}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
-		dataProvider = provider.NewCompositeProvider(osmProvider, googlePlacesProvider, openChargeMapProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, gistdaElevationProvider, dohAADTProvider, drrAADTProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
+		localTrafficProvider := &provider.LocalTrafficProvider{URL: cfg.LocalTrafficCSVURL, Client: &http.Client{Timeout: cfg.ExternalHTTPTimeout}, Cache: externalCache}
+		dataProvider = provider.NewCompositeProvider(osmProvider, googlePlacesProvider, openChargeMapProvider, provincialChargerProvider, worldPopProvider, gistdaFloodProvider, gistdaElevationProvider, dohAADTProvider, drrAADTProvider, localTrafficProvider, dltEVProvider, meaPowerMapProvider, peaGridProvider)
 	}
 
 	scoringEngine, err := scoring.New(scoring.DefaultWeights)

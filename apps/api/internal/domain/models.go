@@ -38,6 +38,16 @@ type SiteAccess struct {
 	Role   string    `json:"role"`
 }
 
+// LineCustomerProfile stores the latest contact details a customer has
+// explicitly supplied through their verified LINE account. Site records keep
+// their own contact snapshot so historical submissions remain unchanged.
+type LineCustomerProfile struct {
+	ContactName  string    `json:"contactName"`
+	ContactPhone string    `json:"contactPhone"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
 const (
 	DataVerified    DataStatus = "verified"
 	DataEstimated   DataStatus = "estimated"
@@ -98,17 +108,29 @@ type SiteImage struct {
 	CreatedAt time.Time
 }
 
-// SiteSurfaceAssessment is an image-based, preliminary assessment of the
-// current ground surface only. It is intentionally not a location-score input.
+// SiteSurfaceAssessment is an image-based, preliminary assessment of visible
+// site conditions. It is intentionally not a location-score input and is not
+// an engineering measurement.
 type SiteSurfaceAssessment struct {
-	Summary                 string   `json:"summary"`
-	Suitability             string   `json:"suitability"`
-	Score                   float64  `json:"score"`
-	SurfaceTypes            []string `json:"surfaceTypes"`
-	ObservedRisks           []string `json:"observedRisks"`
-	RecommendedImprovements []string `json:"recommendedImprovements"`
-	Disclaimer              string   `json:"disclaimer"`
-	Model                   string   `json:"model"`
+	Summary                 string                 `json:"summary"`
+	Suitability             string                 `json:"suitability"`
+	Score                   float64                `json:"score"`
+	SurfaceTypes            []string               `json:"surfaceTypes"`
+	ObservedRisks           []string               `json:"observedRisks"`
+	RecommendedImprovements []string               `json:"recommendedImprovements"`
+	Disclaimer              string                 `json:"disclaimer"`
+	EntranceWidthEstimate   *EntranceWidthEstimate `json:"entranceWidthEstimate,omitempty"`
+	Model                   string                 `json:"model"`
+}
+
+// EntranceWidthEstimate is a visual range only. A tape/site measurement is
+// still required before the result can be used for engineering decisions.
+type EntranceWidthEstimate struct {
+	MinimumMeters  float64  `json:"minimumMeters"`
+	MaximumMeters  float64  `json:"maximumMeters"`
+	Confidence     string   `json:"confidence"`
+	VisualEvidence string   `json:"visualEvidence"`
+	Obstructions   []string `json:"obstructions"`
 }
 
 type DataSource struct {
@@ -219,4 +241,24 @@ type AIScoring struct {
 	Language       string             `json:"language"`
 	Model          string             `json:"model"`
 	GeneratedAt    time.Time          `json:"generatedAt"`
+}
+
+// APIUsagePlan is a monthly budget configured by the owner. The application
+// counts requests it makes; it never presents this as the vendor invoice.
+type APIUsagePlan struct {
+	ProviderID      string   `json:"providerId"`
+	DisplayName     string   `json:"displayName"`
+	UnitLabel       string   `json:"unitLabel"`
+	IncludedUnits   *int64   `json:"includedUnits,omitempty"`
+	OveragePriceTHB *float64 `json:"overagePriceThb,omitempty"`
+	PricingNote     string   `json:"pricingNote,omitempty"`
+}
+
+type APIUsageSummary struct {
+	APIUsagePlan
+	UsedUnits        int64     `json:"usedUnits"`
+	RemainingUnits   *int64    `json:"remainingUnits,omitempty"`
+	OverageUnits     int64     `json:"overageUnits"`
+	EstimatedCostTHB *float64  `json:"estimatedCostThb,omitempty"`
+	PeriodStart      time.Time `json:"periodStart"`
 }

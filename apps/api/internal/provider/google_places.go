@@ -25,6 +25,9 @@ type GooglePlacesConfig struct {
 	Endpoint  string
 	CacheTTL  time.Duration
 	UserAgent string
+	// UsageRecorder is called only after a non-cached, successful provider
+	// request. Recording must never make an analysis fail.
+	UsageRecorder func(context.Context, string, int64)
 }
 
 type GooglePlacesProvider struct {
@@ -197,6 +200,9 @@ func (p *GooglePlacesProvider) search(ctx context.Context, latitude, longitude f
 		return googlePlacesResponse{}, err
 	}
 	_ = p.cache.Set(ctx, cacheKey, body, p.config.CacheTTL)
+	if p.config.UsageRecorder != nil {
+		p.config.UsageRecorder(ctx, "google-places", 1)
+	}
 	return result, nil
 }
 

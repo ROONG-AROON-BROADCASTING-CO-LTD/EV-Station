@@ -9,6 +9,7 @@ func TestExtractGoogleMapsCoordinates(t *testing.T) {
 	}{
 		{"at coordinate", "https://www.google.com/maps/@13.7563,100.5018,15z", 13.7563, 100.5018},
 		{"encoded coordinate", "https://www.google.com/maps/data=!3d13.8716898!4d100.6213684", 13.8716898, 100.6213684},
+		{"search redirect with plus", "https://www.google.com/maps/search/13.771293,+100.582707?entry=tts", 13.771293, 100.582707},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

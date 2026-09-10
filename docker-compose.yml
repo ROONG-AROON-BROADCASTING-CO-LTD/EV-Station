@@ -69,6 +69,7 @@ services:
       DOH_AADT_CSV_URL: ${DOH_AADT_CSV_URL:-https://opendata.doh.go.th/dataset/ed101df4-f0a1-4d7f-b9d9-76859b2ca73e/resource/f88f9c4e-b32e-4cd1-bf51-4e1f84ba7b16/download/aadt-68.csv}
       DOH_AADT_ROAD_LAYER_URL: ${DOH_AADT_ROAD_LAYER_URL:-https://giportal.mot.go.th/arcgis/rest/services/Hosted/%E0%B9%80%E0%B8%AA%E0%B9%89%E0%B8%99%E0%B8%97%E0%B8%B2%E0%B8%87%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87%E0%B9%81%E0%B8%9C%E0%B9%88%E0%B8%99%E0%B8%94%E0%B8%B4%E0%B8%99_%E0%B8%97%E0%B8%A5/FeatureServer/0/query}
       DOH_AADT_YEAR: ${DOH_AADT_YEAR:-2568}
+      LOCAL_TRAFFIC_CSV_URL: ${LOCAL_TRAFFIC_CSV_URL:-}
       DOH_AADT_CACHE_TTL: ${DOH_AADT_CACHE_TTL:-24h}
       DLT_EV_REGISTRATION_CSV_URL: ${DLT_EV_REGISTRATION_CSV_URL:-https://gdcatalog.dlt.go.th/dataset/e8b7d87e-5a3c-4b8b-854c-974d3b600256/resource/e5a037c6-3cc2-415e-b559-e6e85cfba2ca/download/stt_car_fuel_at_25690228.csv}
       DLT_EV_REGISTRATION_DATASET_DATE: ${DLT_EV_REGISTRATION_DATASET_DATE:-28 February 2569}

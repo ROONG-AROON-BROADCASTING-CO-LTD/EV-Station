@@ -14,6 +14,7 @@ const NewSitePage = lazy(() => import('./pages/NewSitePage').then(module => ({ d
 const SitePage = lazy(() => import('./pages/SitePage').then(module => ({ default: module.SitePage })))
 const DataSourcesPage = lazy(() => import('./pages/DataSourcesPage').then(module => ({ default: module.DataSourcesPage })))
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })))
+const APIUsagePage = lazy(() => import('./pages/APIUsagePage').then(module => ({ default: module.APIUsagePage })))
 
 function Placeholder({ title }: { title: string }) { const { t } = useI18n(); return <div><h1 className="page-title">{title}</h1><p className="mt-3 text-muted">{t('This module is prepared for a later MVP iteration.')}</p></div> }
 
@@ -44,6 +45,7 @@ export default function App() {
     <Route path="/analysis/:id" element={<AnalysisPage />} />
     <Route path="/analyses" element={session.user.role === 'customer' ? <Navigate to="/" replace /> : <Placeholder title={t('Analyses')} />} />
     <Route path="/data-sources" element={session.user.role === 'customer' ? <Navigate to="/" replace /> : <DataSourcesPage />} />
+		<Route path="/api-usage" element={session.user.role === 'super_admin' || session.user.role === 'admin' ? <APIUsagePage /> : <Navigate to="/" replace />} />
     <Route path="/settings" element={<SettingsPage role={session.user.role} />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></Suspense></AppShell>

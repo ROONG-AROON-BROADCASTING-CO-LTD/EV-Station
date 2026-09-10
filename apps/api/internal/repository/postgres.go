@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,6 +13,51 @@ import (
 )
 
 type Postgres struct{ pool *pgxpool.Pool }
+
+func (p *Postgres) RecordAPIUsage(ctx context.Context, providerID string, units int64) error {
+	if units <= 0 {
+		return nil
+	}
+	_, err := p.pool.Exec(ctx, `INSERT INTO api_usage_events (provider_id, units) VALUES ($1,$2)`, providerID, units)
+	return err
+}
+
+func (p *Postgres) ListAPIUsage(ctx context.Context, periodStart time.Time) ([]domain.APIUsageSummary, error) {
+	if periodStart.IsZero() {
+		periodStart = time.Now().UTC()
+	}
+	periodStart = time.Date(periodStart.Year(), periodStart.Month(), 1, 0, 0, 0, 0, time.UTC)
+	rows, err := p.pool.Query(ctx, `SELECT p.provider_id,p.display_name,p.unit_label,p.included_units,p.overage_price_thb,
+        COALESCE(SUM(e.units),0)
+        FROM api_usage_plans p
+        LEFT JOIN api_usage_events e ON e.provider_id=p.provider_id AND e.created_at >= $1
+        GROUP BY p.provider_id,p.display_name,p.unit_label,p.included_units,p.overage_price_thb
+        ORDER BY p.display_name`, periodStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []domain.APIUsageSummary{}
+	for rows.Next() {
+		var item domain.APIUsageSummary
+		if err = rows.Scan(&item.ProviderID, &item.DisplayName, &item.UnitLabel, &item.IncludedUnits, &item.OveragePriceTHB, &item.UsedUnits); err != nil {
+			return nil, err
+		}
+		item.PricingNote = apiUsagePricingNote(item.ProviderID)
+		item.PeriodStart = periodStart
+		if item.IncludedUnits != nil {
+			remaining := max(int64(0), *item.IncludedUnits-item.UsedUnits)
+			item.RemainingUnits = &remaining
+			item.OverageUnits = max(int64(0), item.UsedUnits-*item.IncludedUnits)
+			if item.OveragePriceTHB != nil {
+				estimated := float64(item.OverageUnits) * *item.OveragePriceTHB
+				item.EstimatedCostTHB = &estimated
+			}
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
 
 func (p *Postgres) CreateUser(ctx context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	err := p.pool.QueryRow(ctx, `INSERT INTO users (id,email,password_hash,display_name,role,is_active,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING id,email,display_name,role,is_active,created_at`, user.ID, user.Email, passwordHash, user.DisplayName, user.Role, user.IsActive, user.CreatedAt).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.IsActive, &user.CreatedAt)

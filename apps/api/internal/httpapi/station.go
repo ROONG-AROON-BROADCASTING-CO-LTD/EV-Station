@@ -49,6 +49,10 @@ func (h *Handler) RecommendStation(c *gin.Context) {
 		writeError(c, 502, "AI_UNAVAILABLE", "Unable to generate a station recommendation.")
 		return
 	}
+	if err := h.repo.RecordAPIUsage(c.Request.Context(), "gemini-advisory", 1); err != nil {
+		writeError(c, 500, "API_USAGE_RECORD_FAILED", "Unable to record API usage.")
+		return
+	}
 	persisted, err := json.Marshal(result)
 	if err != nil {
 		writeError(c, 500, "STATION_RECOMMENDATION_ENCODE_FAILED", "Unable to save the station recommendation.")

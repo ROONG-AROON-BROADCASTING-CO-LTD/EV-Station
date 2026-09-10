@@ -95,3 +95,11 @@ func TestPreliminaryScoreSeparatesRoadAccessibilityFromTrafficVolume(t *testing.
 		t.Fatal("road accessibility must not be recorded as traffic volume")
 	}
 }
+
+func TestPreliminaryScoreUsesExplicitRoadTrafficPotentialOnlyWhenLabelled(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	result := engine.EvaluatePreliminary([]domain.Metric{{Type: "traffic", Status: domain.DataEstimated, RawValue: json.RawMessage(`{"assessmentType":"osm_road_traffic_potential","potentialScore":87}`)}})
+	if result.MetricScores["traffic"] != 87 {
+		t.Fatalf("expected explicit road traffic potential score, got %+v", result.MetricScores)
+	}
+}

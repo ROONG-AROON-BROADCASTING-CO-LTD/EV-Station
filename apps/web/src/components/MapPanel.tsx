@@ -1,6 +1,8 @@
 import { CircleF, GoogleMap, LoadScript, MarkerF } from '@react-google-maps/api'
 import { MapPin, Radio } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
+import { api } from '../services/api'
 
 interface MapPanelProps { latitude?: number; longitude?: number; radiusMeters?: number; className?: string }
 
@@ -39,6 +41,12 @@ export function MapPanel({ latitude, longitude, radiusMeters = 3000, className =
   const { t } = useI18n()
   const key = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_API_KEY
   const hasCoordinates = latitude !== undefined && longitude !== undefined
+	const countedMapLoad = useRef(false)
+	useEffect(() => {
+		if (!key || !hasCoordinates || countedMapLoad.current) return
+		countedMapLoad.current = true
+		void api.recordGoogleMapsLoad().catch(() => undefined)
+	}, [key, hasCoordinates])
   if (!hasCoordinates) {
     return <div className={`relative grid min-h-72 place-items-center overflow-hidden rounded-xl border border-line bg-[#eef3f7] ${className}`}>
       <div className="absolute inset-0 opacity-45 map-grid" />

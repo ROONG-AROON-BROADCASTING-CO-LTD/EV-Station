@@ -122,10 +122,28 @@ export interface AnalysisRun {
     minimumCoveragePercentage: number
     limitations: string[]
   }
+  stationRecommendation?: StationRecommendation
   aiAssessments?: Partial<Record<'th' | 'en', AIAssessment>>
   startedAt: string
   completedAt?: string
   createdAt: string
+}
+
+export interface StationRecommendationText {
+  reason: string
+  assumptions: string[]
+  missingData: string[]
+}
+
+export interface StationRecommendation {
+  powerKw: number
+  chargerCount: number
+  totalPowerKw: number
+  installationConfirmed: boolean
+  landAreaSqWah: number
+  preliminaryCabinetLimit: number
+  th: StationRecommendationText
+  en: StationRecommendationText
 }
 
 export interface AIAssessment {
@@ -154,6 +172,13 @@ export interface GeocodingResult {
 
 export interface GoogleMapsResolution { inputUrl: string; resolvedUrl: string; latitude: number; longitude: number }
 
+export interface LineCustomerProfile {
+  contactName: string
+  contactPhone: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type DataSourceCostModel = 'free_no_key' | 'free_key' | 'free_download' | 'free_public_map' | 'free_allowance_then_paid' | 'paid_billing' | 'manual_or_contract'
 
 export interface DataSourceCatalogEntry {
@@ -166,4 +191,18 @@ export interface DataSourceCatalogEntry {
   referenceUri: string
   usageNote: string
   dataQualityNote: string
+}
+
+export interface APIUsageSummary {
+  providerId: string
+  displayName: string
+  unitLabel: string
+  includedUnits?: number
+  overagePriceThb?: number
+	pricingNote?: string
+  usedUnits: number
+  remainingUnits?: number
+  overageUnits: number
+  estimatedCostThb?: number
+  periodStart: string
 }

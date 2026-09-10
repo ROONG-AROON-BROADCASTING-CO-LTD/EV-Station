@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 	"github.com/rbc/ev-station/apps/api/internal/provider"
+	"github.com/rbc/ev-station/apps/api/internal/repository"
 	"github.com/rbc/ev-station/apps/api/internal/site"
 	"net/http"
 	"os"
@@ -25,6 +26,8 @@ type lineStore interface {
 	SaveLineSubmission(context.Context, string, uuid.UUID, domain.Site) (domain.Site, error)
 	OwnsLineSite(context.Context, string, uuid.UUID) (bool, error)
 	ListLineSites(context.Context, string) ([]domain.Site, error)
+	GetLineCustomerProfile(context.Context, string) (domain.LineCustomerProfile, error)
+	UpsertLineCustomerProfile(context.Context, string, domain.LineCustomerProfile) (domain.LineCustomerProfile, error)
 }
 
 func (h *Handler) LiffPage(c *gin.Context) {
@@ -34,6 +37,30 @@ func (h *Handler) LiffPage(c *gin.Context) {
 }
 func (h *Handler) LiffConfig(c *gin.Context) {
 	c.JSON(200, gin.H{"liffId": os.Getenv("LINE_LIFF_ID")})
+}
+
+// LiffCustomerProfile returns only the verified caller's saved contact details.
+// A missing profile is normal for a customer's first submission.
+func (h *Handler) LiffCustomerProfile(c *gin.Context) {
+	user, ok := h.lineUser(c)
+	if !ok {
+		return
+	}
+	store, ok := h.repo.(lineStore)
+	if !ok {
+		writeError(c, http.StatusServiceUnavailable, "STORAGE_UNAVAILABLE", "ระบบยังไม่พร้อม")
+		return
+	}
+	profile, err := store.GetLineCustomerProfile(c.Request.Context(), user)
+	if err == repository.ErrNotFound {
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"profile": nil}})
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "PROFILE_LOAD_FAILED", "ไม่สามารถโหลดข้อมูลผู้ติดต่อได้")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"profile": profile}})
 }
 func (h *Handler) lineUser(c *gin.Context) (string, bool) {
 	n, ok := h.notifier.(lineIdentity)
@@ -88,6 +115,10 @@ func (h *Handler) LiffSubmit(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
+	if _, err := store.UpsertLineCustomerProfile(c.Request.Context(), user, domain.LineCustomerProfile{ContactName: strings.TrimSpace(in.ContactName), ContactPhone: strings.TrimSpace(in.ContactPhone), UpdatedAt: now}); err != nil {
+		writeError(c, http.StatusInternalServerError, "PROFILE_SAVE_FAILED", "ไม่สามารถบันทึกข้อมูลผู้ติดต่อได้")
+		return
+	}
 	s := domain.Site{ID: uuid.New(), Name: strings.TrimSpace(in.Name), ContactName: strings.TrimSpace(in.ContactName), ContactPhone: strings.TrimSpace(in.ContactPhone), Address: in.Address, Latitude: in.Latitude, Longitude: in.Longitude, GoogleMapsURL: in.GoogleMapsURL, LandSize: in.LandSize, LandSizeUnit: in.LandSizeUnit, InternetAvailable: in.InternetAvailable, FrontageMeters: in.FrontageMeters, Notes: in.Notes, InputStatus: domain.DataPreliminary, CreatedAt: now, UpdatedAt: now}
 	s, err := store.SaveLineSubmission(c.Request.Context(), user, uuid.MustParse(in.RequestID), s)
 	if err != nil {

@@ -14,4 +14,4 @@ $commandLines = @(
 
 Set-Content -LiteralPath $StartupCommand -Value $commandLines -Encoding ASCII
 Write-Host "Auto-start installed: $StartupCommand" -ForegroundColor Green
-Write-Host 'After sign-in, Docker, web, tunnel and Edge will start automatically.' -ForegroundColor Green
+Write-Host 'After sign-in, Docker, web, the Cloudflare Named Tunnel and Edge will start automatically.' -ForegroundColor Green

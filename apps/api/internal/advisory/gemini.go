@@ -82,13 +82,22 @@ type generatedMetricScore struct {
 }
 
 type generatedSiteSurface struct {
-	Summary                 string   `json:"summary"`
-	Suitability             string   `json:"suitability"`
-	Score                   float64  `json:"score"`
-	SurfaceTypes            []string `json:"surfaceTypes"`
-	ObservedRisks           []string `json:"observedRisks"`
-	RecommendedImprovements []string `json:"recommendedImprovements"`
-	Disclaimer              string   `json:"disclaimer"`
+	Summary                 string                  `json:"summary"`
+	Suitability             string                  `json:"suitability"`
+	Score                   float64                 `json:"score"`
+	SurfaceTypes            []string                `json:"surfaceTypes"`
+	ObservedRisks           []string                `json:"observedRisks"`
+	RecommendedImprovements []string                `json:"recommendedImprovements"`
+	Disclaimer              string                  `json:"disclaimer"`
+	EntranceWidthEstimate   *generatedEntranceWidth `json:"entranceWidthEstimate,omitempty"`
+}
+
+type generatedEntranceWidth struct {
+	MinimumMeters  float64  `json:"minimumMeters"`
+	MaximumMeters  float64  `json:"maximumMeters"`
+	Confidence     string   `json:"confidence"`
+	VisualEvidence string   `json:"visualEvidence"`
+	Obstructions   []string `json:"obstructions"`
 }
 
 // FallbackAssessment keeps the analysis report useful when Gemini is
@@ -107,10 +116,10 @@ func FallbackAssessment(run domain.AnalysisRun, language string) domain.AIAssess
 		}
 		return domain.AIAssessment{
 			Summary: "A system-generated summary is shown because the AI narrative could not be produced at this time.", Decision: decision, Recommendation: recommendation,
-			Strengths: []string{"The completed screening metrics remain available in this report."},
-			Risks: []string{"Some evidence may still be preliminary, estimated, or require field verification."},
+			Strengths:      []string{"The completed screening metrics remain available in this report."},
+			Risks:          []string{"Some evidence may still be preliminary, estimated, or require field verification."},
 			RequiredChecks: []string{"Review the evidence with a staff member.", "Confirm electrical capacity and the actual site conditions before installation."},
-			Disclaimer: "This is a system fallback summary, not an AI-generated assessment. Human review is required.", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
+			Disclaimer:     "This is a system fallback summary, not an AI-generated assessment. Human review is required.", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
 		}
 	}
 	recommendation := "ผลคัดกรองสนับสนุนให้ดำเนินการตรวจสอบโดยเจ้าหน้าที่ก่อนตัดสินใจลงทุน"
@@ -118,12 +127,12 @@ func FallbackAssessment(run domain.AnalysisRun, language string) domain.AIAssess
 		recommendation = "ผลคัดกรองยังไม่สนับสนุนให้ดำเนินการ ควรตรวจสอบข้อมูลที่ค้างอยู่ให้ครบก่อนพิจารณาอีกครั้ง"
 	}
 	return domain.AIAssessment{
-		Summary: "แสดงสรุปจากระบบแทนชั่วคราว เนื่องจากบริการ AI ยังไม่สามารถสร้างคำอธิบายสำหรับรายงานนี้ได้",
+		Summary:  "แสดงสรุปจากระบบแทนชั่วคราว เนื่องจากบริการ AI ยังไม่สามารถสร้างคำอธิบายสำหรับรายงานนี้ได้",
 		Decision: decision, Recommendation: recommendation,
-		Strengths: []string{"ผลการคัดกรองและตัวชี้วัดที่เสร็จสิ้นยังแสดงอยู่ในรายงานนี้"},
-		Risks: []string{"ข้อมูลบางส่วนอาจเป็นข้อมูลเบื้องต้น ข้อมูลประมาณการ หรือต้องยืนยันหน้างาน"},
+		Strengths:      []string{"ผลการคัดกรองและตัวชี้วัดที่เสร็จสิ้นยังแสดงอยู่ในรายงานนี้"},
+		Risks:          []string{"ข้อมูลบางส่วนอาจเป็นข้อมูลเบื้องต้น ข้อมูลประมาณการ หรือต้องยืนยันหน้างาน"},
 		RequiredChecks: []string{"ให้เจ้าหน้าที่ตรวจสอบหลักฐานในรายงาน", "ยืนยันกำลังไฟฟ้าและสภาพพื้นที่จริงก่อนติดตั้ง"},
-		Disclaimer: "นี่คือสรุปสำรองจากระบบ ไม่ใช่ข้อความที่สร้างโดย AI และต้องตรวจสอบโดยเจ้าหน้าที่", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
+		Disclaimer:     "นี่คือสรุปสำรองจากระบบ ไม่ใช่ข้อความที่สร้างโดย AI และต้องตรวจสอบโดยเจ้าหน้าที่", Language: language, Model: "system-fallback", GeneratedAt: time.Now().UTC(), DecisionPolicy: domain.InvestmentDecisionPolicyVersion,
 	}
 }
 
@@ -253,7 +262,7 @@ func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteIm
 		language = "th"
 	}
 	languageName := map[string]string{"th": "Thai", "en": "English"}[language]
-	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze ONLY the visible ground surface in the supplied site photos: surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. Do NOT assess or mention electricity, traffic, road access, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
+	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze the visible ground surface in the supplied site photos: surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. Also, ONLY when a clear entrance boundary and a reasonably reliable visual scale/reference are visible, provide entranceWidthEstimate as an approximate meter range. Never provide a single exact width; use confidence low, moderate, or high; identify visible obstructions. Omit entranceWidthEstimate when the entrance, boundaries, perspective, or scale are insufficient. A vehicle or a photo alone is not confirmed scale. This estimate is not a survey, does not prove two-way access, and must never be used as engineering approval. Do NOT assess or mention electricity, traffic, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
 	parts := make([]map[string]any, 0, len(images)+1)
 	parts = append(parts, map[string]any{"text": prompt})
 	for _, image := range images {
@@ -294,7 +303,11 @@ func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteIm
 	if err = json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result); err != nil || !validSiteSurface(result) {
 		return domain.SiteSurfaceAssessment{}, ErrInvalidOutput
 	}
-	return domain.SiteSurfaceAssessment{Summary: result.Summary, Suitability: result.Suitability, Score: result.Score, SurfaceTypes: result.SurfaceTypes, ObservedRisks: result.ObservedRisks, RecommendedImprovements: result.RecommendedImprovements, Disclaimer: result.Disclaimer, Model: s.config.Model}, nil
+	assessment := domain.SiteSurfaceAssessment{Summary: result.Summary, Suitability: result.Suitability, Score: result.Score, SurfaceTypes: result.SurfaceTypes, ObservedRisks: result.ObservedRisks, RecommendedImprovements: result.RecommendedImprovements, Disclaimer: result.Disclaimer, Model: s.config.Model}
+	if validEntranceWidthEstimate(result.EntranceWidthEstimate) {
+		assessment.EntranceWidthEstimate = &domain.EntranceWidthEstimate{MinimumMeters: result.EntranceWidthEstimate.MinimumMeters, MaximumMeters: result.EntranceWidthEstimate.MaximumMeters, Confidence: result.EntranceWidthEstimate.Confidence, VisualEvidence: result.EntranceWidthEstimate.VisualEvidence, Obstructions: result.EntranceWidthEstimate.Obstructions}
+	}
+	return assessment, nil
 }
 
 func (s *Service) buildRequest(run domain.AnalysisRun, language string) (geminiRequest, error) {
@@ -403,12 +416,20 @@ func scoringSchema() map[string]any {
 
 func siteSurfaceSchema() map[string]any {
 	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 8}
+	entranceWidthEstimate := map[string]any{"type": "object", "properties": map[string]any{
+		"minimumMeters":  map[string]any{"type": "number", "minimum": 0.5, "maximum": 100},
+		"maximumMeters":  map[string]any{"type": "number", "minimum": 0.5, "maximum": 100},
+		"confidence":     map[string]any{"type": "string", "enum": []string{"low", "moderate", "high"}},
+		"visualEvidence": map[string]any{"type": "string"},
+		"obstructions":   stringArray,
+	}, "required": []string{"minimumMeters", "maximumMeters", "confidence", "visualEvidence", "obstructions"}, "additionalProperties": false}
 	return map[string]any{"type": "object", "properties": map[string]any{
 		"summary":      map[string]any{"type": "string"},
 		"suitability":  map[string]any{"type": "string", "enum": []string{"low", "moderate", "high"}},
 		"score":        map[string]any{"type": "number", "minimum": 0, "maximum": 100},
 		"surfaceTypes": stringArray, "observedRisks": stringArray, "recommendedImprovements": stringArray,
-		"disclaimer": map[string]any{"type": "string"},
+		"disclaimer":            map[string]any{"type": "string"},
+		"entranceWidthEstimate": entranceWidthEstimate,
 	}, "required": []string{"summary", "suitability", "score", "surfaceTypes", "observedRisks", "recommendedImprovements", "disclaimer"}, "additionalProperties": false}
 }
 
@@ -470,4 +491,8 @@ func validScoringResult(value generatedScoring) bool {
 
 func validSiteSurface(value generatedSiteSurface) bool {
 	return strings.TrimSpace(value.Summary) != "" && (value.Suitability == "low" || value.Suitability == "moderate" || value.Suitability == "high") && value.Score >= 0 && value.Score <= 100 && strings.TrimSpace(value.Disclaimer) != ""
+}
+
+func validEntranceWidthEstimate(value *generatedEntranceWidth) bool {
+	return value != nil && value.MinimumMeters > 0 && value.MaximumMeters >= value.MinimumMeters && value.MaximumMeters <= 100 && (value.Confidence == "low" || value.Confidence == "moderate" || value.Confidence == "high") && strings.TrimSpace(value.VisualEvidence) != ""
 }

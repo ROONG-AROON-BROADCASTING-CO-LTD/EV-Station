@@ -294,6 +294,29 @@ func (h *Handler) GetDataSources(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": provider.DataSourceCatalog()})
 }
 
+func (h *Handler) GetAPIUsage(c *gin.Context) {
+	if !h.requireAdmin(c) {
+		return
+	}
+	items, err := h.repo.ListAPIUsage(c.Request.Context(), time.Now().UTC())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "API_USAGE_UNAVAILABLE", "Unable to load API usage.")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (h *Handler) RecordGoogleMapsLoad(c *gin.Context) {
+	if _, _, ok := requestUser(c); !ok {
+		return
+	}
+	if err := h.repo.RecordAPIUsage(c.Request.Context(), "google-maps-js", 1); err != nil {
+		writeError(c, http.StatusInternalServerError, "API_USAGE_RECORD_FAILED", "Unable to record API usage.")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) Health(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) }
 
 func (h *Handler) ResolveGoogleMapsURL(c *gin.Context) {
@@ -633,7 +656,11 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_RADIUS", "Radius must be 1000, 2000, or 3000 meters.")
 		return
 	}
-	result, err := h.analyses.Run(c.Request.Context(), siteID, body.RadiusMeters)
+	// Keep the analysis alive long enough to save a completed or failed result
+	// even if the browser or tunnel closes the original HTTP request.
+	analysisCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 90*time.Second)
+	defer cancel()
+	result, err := h.analyses.Run(analysisCtx, siteID, body.RadiusMeters)
 	if errors.Is(err, repository.ErrNotFound) {
 		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
 		return
@@ -749,6 +776,12 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "AI_ASSESSMENT_FAILED", "Unable to generate the AI assessment.")
 		return
+	}
+	if result.Model != "system-fallback" {
+		if err := h.repo.RecordAPIUsage(c.Request.Context(), "gemini-advisory", 1); err != nil {
+			writeError(c, http.StatusInternalServerError, "API_USAGE_RECORD_FAILED", "Unable to record API usage.")
+			return
+		}
 	}
 	if cached == nil {
 		cached = make(map[string]domain.AIAssessment)

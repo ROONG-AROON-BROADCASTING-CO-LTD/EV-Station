@@ -24,6 +24,9 @@ type GISTDAElevationConfig struct {
 	APIKey    string
 	CacheTTL  time.Duration
 	UserAgent string
+	// UsageRecorder is called only after a non-cached, successful provider
+	// request. Recording must never make an analysis fail.
+	UsageRecorder func(context.Context, string, int64)
 }
 
 type GISTDAElevationProvider struct {
@@ -138,6 +141,9 @@ func (p *GISTDAElevationProvider) fetch(ctx context.Context, latitude, longitude
 		return gistdaTerrainValue{}, err
 	}
 	_ = p.cache.Set(ctx, cacheKey, payload, p.config.CacheTTL)
+	if p.config.UsageRecorder != nil {
+		p.config.UsageRecorder(ctx, "gistda-elevation", 1)
+	}
 	return value, nil
 }
 

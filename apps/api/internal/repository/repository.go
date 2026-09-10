@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
@@ -36,6 +37,8 @@ type Repository interface {
 	UpdateAnalysisScoring(context.Context, domain.AnalysisRun) error
 	UpdateAnalysisStationRecommendation(context.Context, uuid.UUID, []byte) error
 	UpdateAnalysisAIAssessments(context.Context, uuid.UUID, []byte) error
+	RecordAPIUsage(context.Context, string, int64) error
+	ListAPIUsage(context.Context, time.Time) ([]domain.APIUsageSummary, error)
 	GetAnalysis(context.Context, uuid.UUID) (domain.AnalysisRun, error)
 	GetLatestCompletedAnalysisForSite(context.Context, uuid.UUID) (domain.AnalysisRun, error)
 }
