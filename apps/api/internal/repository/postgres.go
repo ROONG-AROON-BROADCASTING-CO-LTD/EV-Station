@@ -72,6 +72,14 @@ func (p *Postgres) GetUserByEmail(ctx context.Context, email string) (domain.Use
 	}
 	return user, hash, err
 }
+func (p *Postgres) GetUserByID(ctx context.Context, id uuid.UUID) (domain.User, error) {
+	var user domain.User
+	err := p.pool.QueryRow(ctx, `SELECT id,email,display_name,role,is_active,created_at FROM users WHERE id=$1`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.IsActive, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.User{}, ErrNotFound
+	}
+	return user, err
+}
 func (p *Postgres) ListUsers(ctx context.Context) ([]domain.User, error) {
 	rows, err := p.pool.Query(ctx, `SELECT id,email,display_name,role,is_active,created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
@@ -87,6 +95,30 @@ func (p *Postgres) ListUsers(ctx context.Context) ([]domain.User, error) {
 		users = append(users, user)
 	}
 	return users, rows.Err()
+}
+func (p *Postgres) UpdateUser(ctx context.Context, user domain.User, passwordHash *string) (domain.User, error) {
+	if passwordHash == nil {
+		err := p.pool.QueryRow(ctx, `UPDATE users SET email=$2,display_name=$3,role=$4,is_active=$5,updated_at=now() WHERE id=$1 RETURNING id,email,display_name,role,is_active,created_at`, user.ID, user.Email, user.DisplayName, user.Role, user.IsActive).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.IsActive, &user.CreatedAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
+		return user, err
+	}
+	err := p.pool.QueryRow(ctx, `UPDATE users SET email=$2,display_name=$3,role=$4,is_active=$5,password_hash=$6,updated_at=now() WHERE id=$1 RETURNING id,email,display_name,role,is_active,created_at`, user.ID, user.Email, user.DisplayName, user.Role, user.IsActive, *passwordHash).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.IsActive, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.User{}, ErrNotFound
+	}
+	return user, err
+}
+func (p *Postgres) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	command, err := p.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, userID)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 func (p *Postgres) SetLineNotificationRecipient(ctx context.Context, recipientID string) error {
 	_, err := p.pool.Exec(ctx, `INSERT INTO line_notification_recipient (id, recipient_id, updated_at) VALUES (true, $1, now()) ON CONFLICT (id) DO UPDATE SET recipient_id=EXCLUDED.recipient_id, updated_at=EXCLUDED.updated_at`, recipientID)
@@ -149,19 +181,19 @@ func (p *Postgres) Close() { p.pool.Close() }
 // Older records were created before reference_code existed. COALESCE keeps
 // those historical rows readable while new submissions receive RBC-2569…
 // automatically from the database default.
-const siteColumns = `id, COALESCE(reference_code, ''), name, contact_name, contact_phone, address, latitude, longitude, land_size, land_size_unit, google_maps_url, notes, internet_available, internet_supports_24ghz, land_leveling_required, frontage_meters, electrical_extension_km, input_status, created_at, updated_at`
+const siteColumns = `id, COALESCE(reference_code, ''), name, contact_name, contact_phone, address, latitude, longitude, land_size, land_size_unit, google_maps_url, notes, internet_available, internet_supports_24ghz, land_leveling_required, frontage_meters, electrical_extension_km, electrical_supply_type, input_status, created_at, updated_at`
 
 func scanSite(row pgx.Row) (domain.Site, error) {
 	var site domain.Site
-	err := row.Scan(&site.ID, &site.ReferenceCode, &site.Name, &site.ContactName, &site.ContactPhone, &site.Address, &site.Latitude, &site.Longitude, &site.LandSize, &site.LandSizeUnit, &site.GoogleMapsURL, &site.Notes, &site.InternetAvailable, &site.InternetSupports24GHz, &site.LandLevelingRequired, &site.FrontageMeters, &site.ElectricalExtensionKM, &site.InputStatus, &site.CreatedAt, &site.UpdatedAt)
+	err := row.Scan(&site.ID, &site.ReferenceCode, &site.Name, &site.ContactName, &site.ContactPhone, &site.Address, &site.Latitude, &site.Longitude, &site.LandSize, &site.LandSizeUnit, &site.GoogleMapsURL, &site.Notes, &site.InternetAvailable, &site.InternetSupports24GHz, &site.LandLevelingRequired, &site.FrontageMeters, &site.ElectricalExtensionKM, &site.ElectricalSupplyType, &site.InputStatus, &site.CreatedAt, &site.UpdatedAt)
 	return site, err
 }
 
 func (p *Postgres) CreateSite(ctx context.Context, site domain.Site) (domain.Site, error) {
-	query := `INSERT INTO sites (id,name,contact_name,contact_phone,address,latitude,longitude,location,land_size,land_size_unit,google_maps_url,notes,internet_available,internet_supports_24ghz,land_leveling_required,frontage_meters,electrical_extension_km,input_status,created_at,updated_at)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+	query := `INSERT INTO sites (id,name,contact_name,contact_phone,address,latitude,longitude,location,land_size,land_size_unit,google_maps_url,notes,internet_available,internet_supports_24ghz,land_leveling_required,frontage_meters,electrical_extension_km,electrical_supply_type,input_status,created_at,updated_at)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 	RETURNING ` + siteColumns
-	return scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.InputStatus, site.CreatedAt, site.UpdatedAt))
+	return scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.ElectricalSupplyType, site.InputStatus, site.CreatedAt, site.UpdatedAt))
 }
 
 func (p *Postgres) ListSites(ctx context.Context) ([]domain.Site, error) {
@@ -192,9 +224,9 @@ func (p *Postgres) GetSite(ctx context.Context, id uuid.UUID) (domain.Site, erro
 func (p *Postgres) UpdateSite(ctx context.Context, site domain.Site) (domain.Site, error) {
 	query := `UPDATE sites SET name=$2,contact_name=$3,contact_phone=$4,address=$5,latitude=$6,longitude=$7,
 		location=CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,
-		land_size=$8,land_size_unit=$9,google_maps_url=$10,notes=$11,internet_available=$12,internet_supports_24ghz=$13,land_leveling_required=$14,frontage_meters=$15,electrical_extension_km=$16,updated_at=$17
+		land_size=$8,land_size_unit=$9,google_maps_url=$10,notes=$11,internet_available=$12,internet_supports_24ghz=$13,land_leveling_required=$14,frontage_meters=$15,electrical_extension_km=$16,electrical_supply_type=$17,updated_at=$18
 		WHERE id=$1 RETURNING ` + siteColumns
-	result, err := scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.UpdatedAt))
+	result, err := scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.ElectricalSupplyType, site.UpdatedAt))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Site{}, ErrNotFound
 	}

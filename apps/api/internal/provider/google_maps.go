@@ -24,6 +24,44 @@ type GoogleMapsResolution struct {
 	ResolvedURL string  `json:"resolvedUrl"`
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
+	SuggestedName string `json:"suggestedName,omitempty"`
+	NearestRoad   string `json:"nearestRoad,omitempty"`
+	District      string `json:"district,omitempty"`
+	Province      string `json:"province,omitempty"`
+}
+
+// SuggestSiteName converts reverse-geocoded map context into an editable
+// operational label. It intentionally does not include customer identity,
+// deed numbers, or precise coordinates.
+func SuggestSiteName(ctx context.Context, geocoder Geocoder, latitude, longitude float64) (GoogleMapsResolution, error) {
+	reverse, ok := geocoder.(ReverseGeocoder)
+	if !ok {
+		return GoogleMapsResolution{}, errors.New("reverse geocoding is unavailable")
+	}
+	location, err := reverse.Reverse(ctx, latitude, longitude)
+	if err != nil {
+		return GoogleMapsResolution{}, err
+	}
+	parts := make([]string, 0, 2)
+	if location.Road != "" {
+		parts = append(parts, location.Road)
+	}
+	area := location.District
+	if area == "" {
+		area = location.Province
+	}
+	if area != "" && (len(parts) == 0 || parts[len(parts)-1] != area) {
+		parts = append(parts, area)
+	}
+	if len(parts) == 0 {
+		return GoogleMapsResolution{NearestRoad: location.Road, District: location.District, Province: location.Province}, nil
+	}
+	return GoogleMapsResolution{
+		SuggestedName: "พื้นที่เสนอ · " + strings.Join(parts, " · "),
+		NearestRoad: location.Road,
+		District: location.District,
+		Province: location.Province,
+	}, nil
 }
 
 // Google Maps search redirects often encode a space after the comma as a

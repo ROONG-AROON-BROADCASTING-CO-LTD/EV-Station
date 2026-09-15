@@ -23,6 +23,7 @@ export interface Site {
   landLevelingRequired?: boolean
   frontageMeters?: number
   electricalExtensionKm?: number
+  electricalSupplyType: 'unknown' | 'overhead' | 'underground'
   inputStatus: DataStatus
   createdAt: string
   updatedAt: string
@@ -44,6 +45,7 @@ export interface CreateSiteInput {
   landLevelingRequired?: boolean
   frontageMeters?: number
   electricalExtensionKm?: number
+  electricalSupplyType?: Site['electricalSupplyType']
 }
 
 export interface DataSource {
@@ -136,11 +138,19 @@ export interface StationRecommendationText {
 }
 
 export interface StationRecommendation {
+	recommendationAvailable: boolean
+	blocker?: 'utility_capacity_not_confirmed' | 'entrance_below_7m' | 'underground_electricity'
+	capacityConfirmed: boolean
+	recommendationStage: 'initial_phase' | 'screening_evidence' | 'utility_confirmed' | 'blocked'
   powerKw: number
   chargerCount: number
   totalPowerKw: number
   installationConfirmed: boolean
   landAreaSqWah: number
+  franchisePackage: 'S' | 'M' | 'L'
+  recommendedAreaSqWah: number
+  layoutCabinetLimit: number
+  electricalCabinetLimit: number
   preliminaryCabinetLimit: number
   th: StationRecommendationText
   en: StationRecommendationText
@@ -170,7 +180,7 @@ export interface GeocodingResult {
   assumptions: string[]
 }
 
-export interface GoogleMapsResolution { inputUrl: string; resolvedUrl: string; latitude: number; longitude: number }
+export interface GoogleMapsResolution { inputUrl: string; resolvedUrl: string; latitude: number; longitude: number; suggestedName?: string; nearestRoad?: string; district?: string; province?: string }
 
 export interface LineCustomerProfile {
   contactName: string

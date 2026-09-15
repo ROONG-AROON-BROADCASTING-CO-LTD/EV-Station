@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileImage, FileText, Info, MapPin, Search, Upload } from 'lucide-react'
+import { FileImage, FileText, Info, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -8,14 +8,14 @@ import { z } from 'zod'
 import { MapPanel } from '../components/MapPanel'
 import { ErrorState, LoadingState } from '../components/PageState'
 import { api, errorMessageKey } from '../services/api'
-import type { CreateSiteInput, LineCustomerProfile, UserRole } from '../types/domain'
-import { useI18n } from '../i18n/I18nProvider'
+import type { CreateSiteInput, LineCustomerProfile, SiteAttachment, UserRole } from '../types/domain'
+import { LanguageSwitcher, useI18n } from '../i18n/I18nProvider'
 
 const optionalNumber = z.preprocess(value => value === '' || value === undefined ? undefined : Number(value), z.number().optional())
 const createSchema = (t: (key: string) => string, isCustomer: boolean) => z.object({
   name: z.string().trim().min(1, t('Site name is required')).max(160),
-	contactName: z.string().trim().min(1, t('Contact name is required')).max(160),
-	contactPhone: z.string().trim().min(1, t('Phone number is required')).max(40),
+	contactName: z.string().trim().max(160).optional(),
+	contactPhone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(1000).optional(),
   latitude: optionalNumber,
   longitude: optionalNumber,
@@ -31,14 +31,14 @@ const createSchema = (t: (key: string) => string, isCustomer: boolean) => z.obje
 		return value === 'yes'
 	}, z.boolean().optional()),
 	frontageMeters: optionalNumber,
+	electricalSupplyType: z.enum(['unknown', 'overhead', 'underground']).default('unknown'),
   notes: z.string().max(5000).optional(),
 }).superRefine((value, ctx) => {
-  const hasAddress = Boolean(value.address)
   const hasGoogleMapsUrl = Boolean(value.googleMapsUrl)
   const hasLat = value.latitude !== undefined
   const hasLng = value.longitude !== undefined
   if (isCustomer && !hasGoogleMapsUrl) ctx.addIssue({ code: 'custom', path: ['googleMapsUrl'], message: t('Google Maps link is required.') })
-  if (!hasAddress && !hasGoogleMapsUrl && !(hasLat && hasLng)) ctx.addIssue({ code: 'custom', path: ['googleMapsUrl'], message: t('Provide an address, Google Maps link, or latitude and longitude.') })
+  if (!hasGoogleMapsUrl && !(hasLat && hasLng)) ctx.addIssue({ code: 'custom', path: ['googleMapsUrl'], message: t('Provide a Google Maps link or latitude and longitude.') })
   if (hasLat !== hasLng) ctx.addIssue({ code: 'custom', path: [hasLat ? 'longitude' : 'latitude'], message: t('Both coordinates are required.') })
   if (hasLat && (value.latitude! < -90 || value.latitude! > 90)) ctx.addIssue({ code: 'custom', path: ['latitude'], message: t('Latitude must be between -90 and 90.') })
   if (hasLng && (value.longitude! < -180 || value.longitude! > 180)) ctx.addIssue({ code: 'custom', path: ['longitude'], message: t('Longitude must be between -180 and 180.') })
@@ -65,7 +65,7 @@ type LiffSubmission = {
 }
 
 export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmission }) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const isCustomer = role === 'customer'
   const schema = createSchema(t, isCustomer)
   const { id } = useParams()
@@ -74,13 +74,17 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
   const queryClient = useQueryClient()
   const [photos, setPhotos] = useState<File[]>([])
   const [documents, setDocuments] = useState<File[]>([])
-  const [fileError, setFileError] = useState('')
+  const [photoError, setPhotoError] = useState('')
+  const [documentError, setDocumentError] = useState('')
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
   const liffRequestID = useRef(crypto.randomUUID())
   const siteQuery = useQuery({ queryKey: ['site', id], queryFn: () => api.getSite(id!), enabled: isEditing })
-	const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { landSizeUnit: 'sqm', address: '', googleMapsUrl: '', notes: '' } })
+	const existingAttachments = useQuery({ queryKey: ['site-images', id], queryFn: () => api.listSiteImages(id!), enabled: isEditing })
+	const { register, handleSubmit, watch, getValues, setValue, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { landSizeUnit: 'sqm', address: '', googleMapsUrl: '', notes: '', electricalSupplyType: 'unknown' } })
   useEffect(() => {
     if (!siteQuery.data) return
-	reset({ name: siteQuery.data.name, contactName: siteQuery.data.contactName || '', contactPhone: siteQuery.data.contactPhone || '', address: siteQuery.data.address || '', latitude: siteQuery.data.latitude, longitude: siteQuery.data.longitude, googleMapsUrl: siteQuery.data.googleMapsUrl || '', landSize: siteQuery.data.landSize, landSizeUnit: siteQuery.data.landSizeUnit, notes: siteQuery.data.notes || '', internetAvailable: siteQuery.data.internetAvailable, frontageMeters: siteQuery.data.frontageMeters })
+	reset({ name: siteQuery.data.name, contactName: siteQuery.data.contactName || '', contactPhone: siteQuery.data.contactPhone || '', address: siteQuery.data.address || '', latitude: siteQuery.data.latitude, longitude: siteQuery.data.longitude, googleMapsUrl: siteQuery.data.googleMapsUrl || '', landSize: siteQuery.data.landSize, landSizeUnit: siteQuery.data.landSizeUnit, notes: siteQuery.data.notes || '', internetAvailable: siteQuery.data.internetAvailable, frontageMeters: siteQuery.data.frontageMeters, electricalSupplyType: siteQuery.data.electricalSupplyType || 'unknown' })
   }, [reset, siteQuery.data])
   useEffect(() => {
     if (!liff?.profile || isEditing) return
@@ -88,6 +92,7 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
     setValue('contactPhone', liff.profile.contactPhone)
   }, [isEditing, liff?.profile, setValue])
   const attachments = [...photos, ...documents]
+  const fileError = photoError || documentError
   const mutation = useMutation({ mutationFn: async (input: CreateSiteInput) => {
     if (liff) {
       const saved = await api.createLiffSite(input, liff.idToken, liffRequestID.current)
@@ -106,44 +111,55 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
   } })
   const latitude = watch('latitude')
   const longitude = watch('longitude')
-  const address = watch('address')
-  const geocoding = useMutation({ mutationFn: () => api.searchAddress(String(address || '')) })
-  const mapsResolution = useMutation({ mutationFn: (url: string) => liff ? api.resolveLiffGoogleMapsUrl(url, liff.idToken) : api.resolveGoogleMapsUrl(url), onSuccess: result => { setValue('latitude', result.latitude, { shouldValidate: true }); setValue('longitude', result.longitude, { shouldValidate: true }) } })
+	const mapsResolution = useMutation({ mutationFn: (url: string) => liff ? api.resolveLiffGoogleMapsUrl(url, liff.idToken) : api.resolveGoogleMapsUrl(url), onSuccess: result => {
+		setValue('latitude', result.latitude, { shouldValidate: true })
+		setValue('longitude', result.longitude, { shouldValidate: true })
+		if (!getValues('name')?.trim() && result.suggestedName) setValue('name', result.suggestedName, { shouldValidate: true })
+	} })
   const numberOrUndefined = (value: unknown) => value === '' || value === undefined || Number.isNaN(Number(value)) ? undefined : Number(value)
 
   if (siteQuery.isLoading) return <LoadingState label={t('Loading site…')} />
   if (siteQuery.isError) return <ErrorState error={siteQuery.error} />
-  return <div><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="page-title">{t(isEditing ? 'Edit Site' : 'New Site')}</h1><p className="mt-2 text-sm text-muted">{t(isEditing ? 'Update the customer-supplied details for this site.' : 'Record customer-supplied site details before verification.')}</p></div><div className="inline-flex items-center gap-2 text-sm text-muted"><Info size={16}/>{t('Saved inputs are not yet verified.')}</div></div>
+  return <div><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="page-title">{t(isEditing ? 'Edit Site' : 'New Site')}</h1><p className="mt-2 text-sm text-muted">{t(isEditing ? 'Update the customer-supplied details for this site.' : 'Record customer-supplied site details before verification.')}</p></div><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-col sm:items-end"><LanguageSwitcher/><div className="inline-flex items-center gap-2 text-sm text-muted"><Info size={16}/>{t('Saved inputs are not yet verified.')}</div></div></div>
     <form onSubmit={handleSubmit(values => mutation.mutate(toSiteInput(values)))} className="mt-8 grid gap-6 pb-24 xl:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
       <section className="rounded-xl border border-line bg-white p-6 shadow-panel"><h2 className="section-title">{t('Location')}</h2><div className="mt-5 space-y-5">
-		<div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Contact name *')}</span><input {...register('contactName')} /><FieldError message={errors.contactName?.message}/></label><label className="field"><span>{t('Phone number *')}</span><input inputMode="tel" {...register('contactPhone')} /><FieldError message={errors.contactPhone?.message}/></label></div>
-        {liff?.profile ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">ใช้ข้อมูลติดต่อที่บันทึกไว้จากบัญชี LINE ของคุณ แก้ไขได้หากข้อมูลเปลี่ยน</p> : null}
-        <label className="field"><span>{t('Project or location name *')}</span><input {...register('name')} placeholder={t('e.g. Bang Na Candidate')}/><div className="field-meta"><FieldError message={errors.name?.message}/><SourceNote /></div></label>
-        {!isCustomer && <><div><label className="field"><span>{t('Address')}</span><input {...register('address')} placeholder={t('Enter a street address or place')}/><p className="field-hint">{t('Provide an Address OR Latitude + Longitude.')}</p><div className="field-meta"><FieldError message={errors.address?.message}/><SourceNote /></div></label><button type="button" className="button-secondary mt-2" onClick={() => geocoding.mutate()} disabled={geocoding.isPending || String(address || '').trim().length < 3}><Search size={16}/>{geocoding.isPending ? t('Searching…') : t('Search free map data')}</button><p className="mt-2 text-xs leading-5 text-muted">{t('The address is sent to OpenStreetMap Nominatim only when you press search. Results are preliminary and must be confirmed.')}</p></div>
-        {geocoding.data ? <div className="rounded-lg border border-line bg-slate-50 p-3"><p className="text-xs font-bold uppercase tracking-wide text-muted">{t('Address matches')}</p>{geocoding.data.length ? <div className="mt-2 space-y-2">{geocoding.data.map(result => <button key={`${result.latitude}-${result.longitude}`} type="button" className="flex w-full items-start gap-2 rounded-lg bg-white p-3 text-left text-sm shadow-sm hover:ring-2 hover:ring-emerald-100" onClick={() => { setValue('latitude', result.latitude, { shouldValidate: true }); setValue('longitude', result.longitude, { shouldValidate: true }) }}><MapPin size={17} className="mt-0.5 shrink-0 text-brand"/><span><strong className="block text-ink">{result.displayName}</strong><small className="mt-1 block text-muted">{result.latitude.toFixed(6)}, {result.longitude.toFixed(6)} · {t('Preliminary match')}</small></span></button>)}</div> : <p className="mt-2 text-sm text-muted">{t('No address matches found.')}</p>}</div> : null}
-        {geocoding.isError ? <p className="text-sm text-red-600">{t(errorMessageKey(geocoding.error))}</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Latitude')}</span><input type="number" step="any" {...register('latitude')} placeholder="13.7563"/><FieldError message={errors.latitude?.message}/></label><label className="field"><span>{t('Longitude')}</span><input type="number" step="any" {...register('longitude')} placeholder="100.5018"/><FieldError message={errors.longitude?.message}/></label></div></>}
-        <label className="field"><span>{t('Google Maps URL')}</span><input type="url" {...register('googleMapsUrl', { onBlur: event => { const value = event.target.value.trim(); const coordinates = extractGoogleMapsCoordinates(value); if (coordinates) { setValue('latitude', coordinates.latitude, { shouldValidate: true }); setValue('longitude', coordinates.longitude, { shouldValidate: true }) } else if (value) mapsResolution.mutate(value) } })} placeholder="https://maps.google.com/…"/><p className="field-hint">{t('Paste a Google Maps link and the coordinates will be filled automatically.')}</p>{mapsResolution.isPending && <p className="text-xs text-muted">{t('Resolving Google Maps link…')}</p>}{mapsResolution.isSuccess && <p className="text-xs text-emerald-700">{t('Coordinates filled. Please verify the map pin before continuing.')}</p>}{mapsResolution.isError && <p className="text-xs text-amber-700">{liff ? 'บันทึกลิงก์ได้แล้ว ระบบจะส่งให้ทีมงานตรวจสอบพิกัดเพิ่มเติม' : t(errorMessageKey(mapsResolution.error))}</p>}<FieldError message={errors.googleMapsUrl?.message}/></label>
-      </div><div className="my-7 border-t border-line"/><h2 className="section-title">{t('Land details')}</h2><div className="mt-5 space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Land size *')}</span><input type="number" step="0.01" {...register('landSize')} placeholder="2500"/><FieldError message={errors.landSize?.message}/></label><label className="field"><span>{t('Land size unit *')}</span><select {...register('landSizeUnit')}><option value="sqm">{t('Square metres')}</option><option value="rai">{t('Rai')}</option><option value="ngan">{t('Ngan')}</option><option value="sqwah">{t('Square wah')}</option></select></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Internet access')}</span><select {...register('internetAvailable', { setValueAs: value => value === '' ? undefined : value === 'yes' })}><option value="">{t('Not sure')}</option><option value="yes">{t('Available')}</option><option value="no">{t('Not available')}</option></select></label><label className="field"><span>{t('Entrance width (metres)')}</span><input type="number" step="0.1" min="0" {...register('frontageMeters')} placeholder={t('Unknown')}/></label></div>
-		<label className="field"><span>{t('Photos of the site and surrounding area')}</span><span className="upload-area"><Upload size={22}/><span><strong>{t('Choose site photos')}</strong><small>{t('Attach up to 10 documents or photos. Include the site, entrance and surrounding road where possible.')}</small></span><input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event => { const selected = Array.from(event.target.files || []); const error = photos.length + documents.length + selected.length > maxSiteImages ? t('You can attach up to 10 documents or photos.') : selected.find(file => !supportedSitePhotoTypes.has(file.type)) ? t('Only JPEG, PNG, and WebP photos are supported.') : selected.find(file => file.size <= 0 || file.size > maxSiteImageBytes) ? t('Each document or photo must be 10 MB or smaller.') : ''; setFileError(error); if (!error) setPhotos(selected); event.currentTarget.value = '' }}/></span>{photos.map(file => <span key={`photo-${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted"><FileImage size={16}/> {file.name}</span>)}{fileError ? <span className="text-xs font-medium text-red-600">{fileError}</span> : null}</label>
-		<label className="field"><span>{t('Supporting documents (optional)')}</span><span className="upload-area"><Upload size={22}/><span><strong>{t('Choose site documents')}</strong><small>{t('Land deed, site plan, or other related documents')}</small></span><input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={event => { const selected = Array.from(event.target.files || []); const error = photos.length + documents.length + selected.length > maxSiteImages ? t('You can attach up to 10 documents or photos.') : selected.find(file => !supportedSiteEvidenceTypes.has(file.type)) ? t('Only JPEG, PNG, WebP, and PDF files are supported.') : selected.find(file => file.size <= 0 || file.size > maxSitePDFBytes) ? t('Each document or photo must be 10 MB or smaller.') : ''; setFileError(error); if (!error) setDocuments(selected); event.currentTarget.value = '' }}/></span>{documents.map(file => <span key={`document-${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted">{file.type === 'application/pdf' ? <FileText size={16}/> : <FileImage size={16}/>} {file.name}</span>)}</label>
+		{liff ? <><input type="hidden" {...register('contactName')} /><input type="hidden" {...register('contactPhone')} /></> : null}
+        <label className="field"><span>{t('Project or location name *')}</span><input {...register('name')} placeholder={t('e.g. Bang Na Candidate')}/><p className="field-hint">{t('After the map link is confirmed, the system suggests a name from the nearest road and area. You can edit it anytime.')}</p><div className="field-meta"><FieldError message={errors.name?.message}/><SourceNote /></div></label>
+        {!isCustomer && <div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Latitude')}</span><input type="number" step="any" {...register('latitude')} placeholder="13.7563"/><FieldError message={errors.latitude?.message}/></label><label className="field"><span>{t('Longitude')}</span><input type="number" step="any" {...register('longitude')} placeholder="100.5018"/><FieldError message={errors.longitude?.message}/></label></div>}
+        <label className="field"><span>{t('Google Maps URL')}</span><input type="url" {...register('googleMapsUrl', { onBlur: event => { const value = event.target.value.trim(); if (value) mapsResolution.mutate(value) } })} placeholder="https://maps.google.com/…"/><p className="field-hint">{t('Paste a Google Maps link and the coordinates will be filled automatically.')}</p>{mapsResolution.isPending && <p className="text-xs text-muted">{t('Resolving Google Maps link…')}</p>}{mapsResolution.isSuccess && <p className="text-xs text-emerald-700">{t('Coordinates and a suggested site name are filled. Please verify the map pin before continuing.')}</p>}{mapsResolution.isError && <p className="text-xs text-amber-700">{liff ? 'บันทึกลิงก์ได้แล้ว ระบบจะส่งให้ทีมงานตรวจสอบพิกัดเพิ่มเติม' : t(errorMessageKey(mapsResolution.error))}</p>}<FieldError message={errors.googleMapsUrl?.message}/></label>
+      </div><div className="my-7 border-t border-line"/><h2 className="section-title">{t('Land details')}</h2><div className="mt-5 space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Land size *')}</span><input type="number" step="0.01" {...register('landSize')} placeholder="2500"/><FieldError message={errors.landSize?.message}/></label><label className="field"><span>{t('Land size unit *')}</span><select {...register('landSizeUnit')}><option value="sqm">{t('Square metres')}</option><option value="rai">{t('Rai')}</option><option value="ngan">{t('Ngan')}</option><option value="sqwah">{t('Square wah')}</option></select></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="field"><span>{t('Internet access')}</span><select {...register('internetAvailable', { setValueAs: value => value === '' ? undefined : value === 'yes' })}><option value="">{t('Not sure')}</option><option value="yes">{t('Available')}</option><option value="no">{t('Not available')}</option></select></label><label className="field"><span>{t('Entrance width (metres)')}</span><input type="number" step="0.1" min="0" {...register('frontageMeters')} placeholder={t('Unknown')}/><small className="field-hint">{language === 'th' ? 'ทางเข้าและทางออกต้องกว้างอย่างน้อย 7.00 ม.' : 'Entrance and exit must be at least 7.00 m wide.'}</small></label></div>
+		{isEditing ? <ExistingEvidence siteID={id!} attachments={existingAttachments.data || []} loading={existingAttachments.isLoading} failed={existingAttachments.isError} /> : null}
+		<div className="field"><span>{t('Photos of the site and surrounding area')}</span><input ref={photoInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event => { const selected = Array.from(event.target.files || []); const error = photos.length + documents.length + (existingAttachments.data?.length || 0) + selected.length > maxSiteImages ? t('You can attach up to 10 documents or photos.') : selected.find(file => !supportedSitePhotoTypes.has(file.type)) ? t('Only JPEG, PNG, and WebP photos are supported.') : selected.find(file => file.size <= 0 || file.size > maxSiteImageBytes) ? t('Each document or photo must be 10 MB or smaller.') : ''; setPhotoError(error); if (!error) setPhotos(selected); event.currentTarget.value = '' }}/><button type="button" className="upload-area w-full text-left" onClick={() => photoInputRef.current?.click()}><Upload size={22}/><span><strong>{t('Choose site photos')}</strong><small>{t('Upload JPEG, PNG, or WebP photos. Include the site, entrance, and surrounding road where possible.')}</small></span></button>{photos.map(file => <span key={`photo-${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted"><FileImage size={16}/> {file.name}</span>)}{photoError ? <span role="alert" className="text-xs font-medium text-red-600">{photoError}</span> : null}</div>
+		<div className="field"><span>{t('Supporting documents (optional)')}</span><input ref={documentInputRef} type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={event => { const selected = Array.from(event.target.files || []); const error = photos.length + documents.length + (existingAttachments.data?.length || 0) + selected.length > maxSiteImages ? t('You can attach up to 10 documents or photos.') : selected.find(file => !supportedSiteEvidenceTypes.has(file.type)) ? t('Only JPEG, PNG, WebP, and PDF files are supported.') : selected.find(file => file.size <= 0 || file.size > maxSitePDFBytes) ? t('Each document or photo must be 10 MB or smaller.') : ''; setDocumentError(error); if (!error) setDocuments(selected); event.currentTarget.value = '' }}/><button type="button" className="upload-area w-full text-left" onClick={() => documentInputRef.current?.click()}><Upload size={22}/><span><strong>{t('Choose site documents')}</strong><small>{t('Land deed, site plan, or related JPEG, PNG, WebP, or PDF files')}</small></span></button>{documents.map(file => <span key={`document-${file.name}-${file.size}`} className="flex items-center gap-2 text-sm text-muted">{file.type === 'application/pdf' ? <FileText size={16}/> : <FileImage size={16}/>} {file.name}</span>)}{documentError ? <span role="alert" className="text-xs font-medium text-red-600">{documentError}</span> : null}</div>
       </div></section>
-      <section className="flex min-h-[540px] flex-col rounded-xl border border-line bg-white p-4 shadow-panel"><div className="px-2 pb-4"><h2 className="section-title">{t('Site location preview')}</h2><p className="mt-1 text-sm text-muted">{t('Approximate location from user-supplied coordinates.')}</p></div><MapPanel className="flex-1" latitude={numberOrUndefined(latitude)} longitude={numberOrUndefined(longitude)}/></section>
-      <div className={`flex items-center justify-end gap-3 xl:fixed xl:bottom-0 xl:right-0 xl:z-20 xl:border-t xl:border-line xl:bg-white xl:px-10 xl:py-4 ${liff ? 'xl:left-0' : 'xl:left-[236px]'}`}>{!liff && <button type="button" className="button-secondary" onClick={() => navigate(isEditing ? `/sites/${id}` : '/')}>{t('Cancel')}</button>}<button type="submit" className="button-primary" disabled={mutation.isPending || Boolean(fileError)}>{mutation.isPending ? t('Saving…') : t(isEditing ? 'Save changes' : 'Save Site')}</button></div>
+      <section className="flex min-h-[320px] flex-col rounded-xl border border-line bg-white p-4 shadow-panel sm:min-h-[420px] xl:min-h-[540px]"><div className="px-2 pb-4"><h2 className="section-title">{t('Site location preview')}</h2><p className="mt-1 text-sm text-muted">{t('Approximate location from user-supplied coordinates.')}</p></div><MapPanel className="flex-1" latitude={numberOrUndefined(latitude)} longitude={numberOrUndefined(longitude)}/></section>
+      <div className="flex items-center justify-end gap-3 xl:sticky xl:bottom-4 xl:z-20 xl:col-span-2 xl:rounded-xl xl:border xl:border-line xl:bg-white xl:px-6 xl:py-4 xl:shadow-panel">{!liff && <button type="button" className="button-secondary" onClick={() => navigate(isEditing ? `/sites/${id}` : '/')}>{t('Cancel')}</button>}<button type="submit" className="button-primary" disabled={mutation.isPending || Boolean(fileError)}>{mutation.isPending ? t('Saving…') : t(isEditing ? 'Save changes' : 'Save Site')}</button></div>
       {mutation.isError && <p className="text-right text-sm text-red-600 xl:col-span-2">{t(errorMessageKey(mutation.error))}</p>}
     </form>
   </div>
 }
 
-function FieldError({ message }: { message?: string }) { return message ? <span className="text-xs font-medium text-red-600">{message}</span> : null }
+function FieldError({ message }: { message?: string }) { return message ? <span role="alert" className="text-xs font-medium text-red-600">{message}</span> : null }
 
-
-function extractGoogleMapsCoordinates(value: string): { latitude: number; longitude: number } | undefined {
-  const decoded = decodeURIComponent(value.trim())
-  const candidates = decoded.match(/-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?/g) || []
-  for (const candidate of candidates) {
-    const [latitude, longitude] = candidate.split(',').map(Number)
-    if (latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) return { latitude, longitude }
-  }
-  return undefined
+function ExistingEvidence({ siteID, attachments, loading, failed }: { siteID: string; attachments: SiteAttachment[]; loading: boolean; failed: boolean }) {
+	if (loading) return <div className="rounded-xl border border-line bg-slate-50 p-4 text-sm text-muted">กำลังโหลดรูปและเอกสารเดิม…</div>
+	if (failed) return <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">ไม่สามารถโหลดรูปและเอกสารเดิมได้ กรุณาลองเปิดหน้าอีกครั้ง</div>
+	if (!attachments.length) return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-muted">ยังไม่มีรูปหรือเอกสารแนบในรายการนี้</div>
+	return <div className="rounded-xl border border-line bg-slate-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-ink">รูปและเอกสารเดิม</p><p className="mt-1 text-xs text-muted">ไฟล์เดิมจะยังอยู่เมื่อบันทึกการแก้ไข และสามารถกดเปิดเพื่อตรวจสอบได้</p></div><span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600">{attachments.length} ไฟล์</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{attachments.map(attachment => <ExistingEvidenceCard key={attachment.id} siteID={siteID} attachment={attachment} />)}</div></div>
 }
+
+function ExistingEvidenceCard({ siteID, attachment }: { siteID: string; attachment: SiteAttachment }) {
+	const file = useQuery({ queryKey: ['site-image-file', siteID, attachment.id], queryFn: () => api.downloadSiteImage(siteID, attachment.id) })
+	const [objectURL, setObjectURL] = useState<string>()
+	useEffect(() => {
+		if (!file.data) return
+		const url = URL.createObjectURL(file.data)
+		setObjectURL(url)
+		return () => URL.revokeObjectURL(url)
+	}, [file.data])
+	const isPDF = attachment.mimeType === 'application/pdf'
+	const label = isPDF ? 'เอกสาร PDF' : 'รูปภาพพื้นที่'
+	return <article className="overflow-hidden rounded-lg border border-line bg-white"><div className="flex aspect-[4/3] items-center justify-center bg-slate-50">{file.isLoading ? <span className="text-xs text-muted">กำลังโหลด…</span> : objectURL && !isPDF ? <a href={objectURL} target="_blank" rel="noreferrer" className="h-full w-full" aria-label={`เปิด${label}`}><img src={objectURL} alt={label} className="h-full w-full object-cover" /></a> : objectURL && isPDF ? <a href={objectURL} target="_blank" rel="noreferrer" className="grid h-full w-full place-items-center text-red-600 hover:bg-red-50" aria-label={`เปิด${label}`}><FileText size={38} /></a> : <span className="text-xs text-red-600">โหลดไฟล์ไม่สำเร็จ</span>}</div><div className="flex items-center gap-2 p-3"><span className={isPDF ? 'text-red-600' : 'text-emerald-700'}>{isPDF ? <FileText size={16} /> : <FileImage size={16} />}</span><div className="min-w-0"><p className="text-sm font-bold text-ink">{label}</p><p className="text-xs text-muted">{formatFileSize(attachment.sizeBytes)}</p></div></div></article>
+}
+
+function formatFileSize(bytes: number) { return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB` }

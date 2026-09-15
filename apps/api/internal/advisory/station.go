@@ -8,6 +8,8 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
@@ -20,43 +22,74 @@ type StationText struct {
 }
 
 type StationRecommendation struct {
-	PowerKW               int         `json:"powerKw"`
-	ChargerCount          int         `json:"chargerCount"`
-	TotalPowerKW          int         `json:"totalPowerKw"`
-	InstallationConfirmed bool        `json:"installationConfirmed"`
-	LandAreaSqWah         float64     `json:"landAreaSqWah"`
-	PreliminaryCabinetLimit int       `json:"preliminaryCabinetLimit"`
-	TH                    StationText `json:"th"`
-	EN                    StationText `json:"en"`
+	RecommendationAvailable bool        `json:"recommendationAvailable"`
+	Blocker                 string      `json:"blocker,omitempty"`
+	CapacityConfirmed       bool        `json:"capacityConfirmed"`
+	RecommendationStage     string      `json:"recommendationStage"`
+	PowerKW                 int         `json:"powerKw"`
+	ChargerCount            int         `json:"chargerCount"`
+	TotalPowerKW            int         `json:"totalPowerKw"`
+	InstallationConfirmed   bool        `json:"installationConfirmed"`
+	LandAreaSqWah           float64     `json:"landAreaSqWah"`
+	FranchisePackage        string      `json:"franchisePackage"`
+	RecommendedAreaSqWah    float64     `json:"recommendedAreaSqWah"`
+	LayoutCabinetLimit      int         `json:"layoutCabinetLimit"`
+	ElectricalCabinetLimit  int         `json:"electricalCabinetLimit"`
+	PreliminaryCabinetLimit int         `json:"preliminaryCabinetLimit"`
+	TH                      StationText `json:"th"`
+	EN                      StationText `json:"en"`
+	GeneratedByAI           bool        `json:"-"`
 }
 
 // Station proposes a planning scenario; public grid proximity never confirms supply.
 func (s *Service) Station(ctx context.Context, run domain.AnalysisRun, site domain.Site) (StationRecommendation, error) {
+	landAreaSqWah := areaInSquareWah(site)
+	franchisePlan := franchiseLayoutForSite(site, landAreaSqWah)
+	if blocker := StationBlocker(site); blocker != "" {
+		return blockedStationRecommendation(landAreaSqWah, franchisePlan, blocker), nil
+	}
+	layoutCabinetLimit := franchisePlan.CabinetLimit
+	electricalCabinetLimit := electricalPlanningCabinetLimit(run)
+	// S/M/L is a site-layout recommendation. Published map voltage and distance
+	// are useful risk evidence, but cannot reduce the advertised package count:
+	// they do not reveal remaining capacity or the feasible connection design.
+	preliminaryCabinetLimit := layoutCabinetLimit
+	capacityConfirmed := hasConfirmedElectricalCapacity(run)
 	if strings.TrimSpace(s.config.APIKey) == "" {
+		if !capacityConfirmed {
+			// Preserve a useful, clearly-labelled planning fallback if AI is not
+			// configured. It follows the package layout but does not claim that
+			// traffic, demand, or utility capacity has been assessed.
+			return initialPhaseStationRecommendation(landAreaSqWah, franchisePlan, electricalCabinetLimit, preliminaryCabinetLimit), nil
+		}
 		return StationRecommendation{}, ErrNotConfigured
 	}
 	facts, err := compactRunFacts(run)
 	if err != nil {
 		return StationRecommendation{}, err
 	}
-	landAreaSqWah := areaInSquareWah(site)
-	preliminaryCabinetLimit := cabinetLimitFromLandArea(landAreaSqWah)
-	facts["land"] = map[string]any{"size": site.LandSize, "unit": site.LandSizeUnit, "areaSqWah": landAreaSqWah, "frontageMeters": site.FrontageMeters, "preliminaryCabinetLimit": preliminaryCabinetLimit}
+	facts["land"] = map[string]any{"size": site.LandSize, "unit": site.LandSizeUnit, "areaSqWah": landAreaSqWah, "frontageMeters": site.FrontageMeters, "franchisePackage": franchisePlan.Code, "recommendedAreaSqWah": franchisePlan.RecommendedAreaSqWah, "layoutCabinetLimit": layoutCabinetLimit, "electricalCabinetLimit": electricalCabinetLimit, "preliminaryCabinetLimit": preliminaryCabinetLimit}
 	delete(facts, "financialEstimate")
 	data, err := json.Marshal(facts)
 	if err != nil {
 		return StationRecommendation{}, err
 	}
-	prompt := `Create a PRELIMINARY EV charging-station planning recommendation from the supplied screening evidence. This is the system's main purpose: help a team and customer screen a site and plan an initial investment before an electrician and the utility inspect the actual site. A charger means one physical DC cabinet, not a connector or site.
+	powerOptions := []int{120, 180, 240}
+	utilityContext := "The utility has already confirmed capacity and a feasible connection point for this site; final electrical design is still required."
+	if !capacityConfirmed {
+		powerOptions = []int{120}
+		utilityContext = "The utility has NOT confirmed capacity or a feasible connection point. You may use published electrical-map evidence only as risk context. Recommend 120 kW per cabinet only and never claim that supply, a cable route, or installation is available."
+	}
+	prompt := `Create a PRELIMINARY EV charging-station planning recommendation from the supplied screening evidence. ` + utilityContext + ` This is the system's main purpose: help a team and customer screen a site and plan an initial investment before an electrician and the utility inspect the actual site. A charger means one physical DC cabinet, not a connector or site.
 
-Always choose 120, 180, or 240 kW per cabinet and a positive integer cabinet count. Choose conservatively when evidence is limited: prefer 120 kW and one cabinet rather than returning no recommendation. Use traffic, registered EV trend, population, mapped places, competitors, land size, frontage if supplied, and published PEA/MEA electrical-map proximity as combined preliminary evidence. A nearby published high-voltage line or station is a positive planning signal, not confirmation of supply. Do not infer actual simultaneous charging sessions from provincial EV registration or AADT alone. Do not use overall score alone to size chargers. Do not claim installation is confirmed, grid capacity is available, a particular cable route is possible, or a land area alone determines the maximum cabinet count.
+Use all available evidence together: traffic, registered-EV trend, population, mapped places, competitors, land size, frontage if supplied, and published PEA/MEA electrical-map proximity. The S/M/L package and preliminaryCabinetLimit are physical layout ceilings, not the answer by themselves. Choose a conservative cabinet count from 1 through that ceiling: lower it when demand, traffic, access, competition, or evidence quality does not support the full package; use the full ceiling only when the combined evidence supports it. A nearby published high-voltage line or station is a positive planning signal, not confirmation of supply. Do not infer actual simultaneous charging sessions from provincial EV registration or AADT alone. Do not use overall score alone to size chargers. Do not claim installation is confirmed, grid capacity is available, a particular cable route is possible, or that land area alone determines the recommended cabinet count.
 
-The facts include preliminaryCabinetLimit. It is a preliminary upper limit calculated only from the submitted land area using one cabinet per complete 100 square wah, with a minimum of one cabinet. Choose a count from 1 through that limit. State in both languages that frontage, traffic flow, required parking bays, utility capacity and the actual layout can reduce this number after inspection.
+The facts include preliminaryCabinetLimit. It is the S/M/L layout ceiling (1, 2, or 4 cabinets), based on the supplied total-site area and frontage, not an electrical-capacity calculation. Published grid voltage/distance is risk context only and must not be treated as remaining capacity. State in both languages which combined evidence supports the count and that utility capacity, traffic flow, required parking bays, and the actual layout must be verified before installation.
 
 Clearly state that the output is a preliminary recommendation. Explain the reason for the selected power and cabinet count, list assumptions used, and list the site layout, utility capacity, connection point, electrical design, and cost items that an electrician/PEA/MEA must confirm before installation. Return identical facts and translated explanations in Thai and English; reason, assumptions, missingData are required in each. No ROI, prices or payback. Return JSON only. FACTS: ` + string(data)
 	request := scoringRequest(prompt)
 	textSchema := map[string]any{"type": "object", "properties": map[string]any{"reason": map[string]any{"type": "string"}, "assumptions": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "missingData": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}, "required": []string{"reason", "assumptions", "missingData"}, "additionalProperties": false}
-	request.GenerationConfig.ResponseJSONSchema = map[string]any{"type": "object", "properties": map[string]any{"powerKw": map[string]any{"type": "integer", "enum": []int{120, 180, 240}}, "chargerCount": map[string]any{"type": "integer", "minimum": 1, "maximum": preliminaryCabinetLimit}, "th": textSchema, "en": textSchema}, "required": []string{"powerKw", "chargerCount", "th", "en"}, "additionalProperties": false}
+	request.GenerationConfig.ResponseJSONSchema = map[string]any{"type": "object", "properties": map[string]any{"powerKw": map[string]any{"type": "integer", "enum": powerOptions}, "chargerCount": map[string]any{"type": "integer", "minimum": 1, "maximum": preliminaryCabinetLimit}, "th": textSchema, "en": textSchema}, "required": []string{"powerKw", "chargerCount", "th", "en"}, "additionalProperties": false}
 	request.GenerationConfig.MaxOutputTokens = 2500
 	body, err := json.Marshal(request)
 	if err != nil {
@@ -81,17 +114,112 @@ Clearly state that the output is a preliminary recommendation. Explain the reaso
 		return StationRecommendation{}, ErrInvalidOutput
 	}
 	var result StationRecommendation
-	if json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result) != nil || !validStation(result) {
+	if json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result) != nil {
+		return StationRecommendation{}, ErrInvalidOutput
+	}
+	// Gemini returns only the fields in the response schema. Mark this as an
+	// available recommendation before validating its power, cabinet count, and
+	// bilingual explanation.
+	result.RecommendationAvailable = true
+	if !validStation(result) {
 		return StationRecommendation{}, ErrInvalidOutput
 	}
 	result.LandAreaSqWah = landAreaSqWah
+	result.FranchisePackage = franchisePlan.Code
+	result.RecommendedAreaSqWah = franchisePlan.RecommendedAreaSqWah
+	result.LayoutCabinetLimit = layoutCabinetLimit
+	result.ElectricalCabinetLimit = electricalCabinetLimit
 	result.PreliminaryCabinetLimit = preliminaryCabinetLimit
+	result.RecommendationAvailable = true
+	result.CapacityConfirmed = capacityConfirmed
+	if capacityConfirmed {
+		result.RecommendationStage = "utility_confirmed"
+	} else {
+		result.RecommendationStage = "screening_evidence"
+	}
+	result.GeneratedByAI = true
 	if result.ChargerCount > preliminaryCabinetLimit {
 		result.ChargerCount = preliminaryCabinetLimit
 	}
 	result.TotalPowerKW = result.PowerKW * result.ChargerCount
 	result.InstallationConfirmed = false
 	return result, nil
+}
+
+// StationBlocker contains the two commercial gates that the business has set:
+// vehicles need a 7 m entrance/exit, and underground supply is not pursued
+// because its civil-work cost makes the current model uneconomic.  Unknown is
+// deliberately not treated as underground; it requires evidence from the site
+// or PEA/MEA rather than a province-level guess.
+func StationBlocker(site domain.Site) string {
+	if site.ElectricalSupplyType == "underground" {
+		return "underground_electricity"
+	}
+	if site.FrontageMeters != nil && *site.FrontageMeters < 7 {
+		return "entrance_below_7m"
+	}
+	return ""
+}
+
+func blockedStationRecommendation(landAreaSqWah float64, franchisePlan franchiseLayoutPlan, blocker string) StationRecommendation {
+	thReason, enReason := "", ""
+	if blocker == "underground_electricity" {
+		thReason = "จุดเชื่อมต่อระบุว่าเป็นสายไฟฟ้าใต้ดิน ซึ่งนโยบายธุรกิจปัจจุบันยังไม่ลงทุนเพราะต้นทุนงานโยธาและการเชื่อมต่อสูง"
+		enReason = "The connection point is recorded as underground electricity. The current business policy does not invest because civil-work and connection costs are high."
+	} else {
+		thReason = "หน้ากว้างทางเข้า–ออกต่ำกว่าเกณฑ์ขั้นต่ำ 7.00 เมตร จึงยังไม่ลงทุนในปัจจุบัน"
+		enReason = "The entrance/exit frontage is below the 7.00 m minimum, so the site is not being invested in currently."
+	}
+	return StationRecommendation{
+		RecommendationAvailable: false, Blocker: blocker, RecommendationStage: "blocked",
+		LandAreaSqWah: landAreaSqWah, FranchisePackage: franchisePlan.Code, RecommendedAreaSqWah: franchisePlan.RecommendedAreaSqWah,
+		LayoutCabinetLimit: franchisePlan.CabinetLimit,
+		TH:                 StationText{Reason: thReason, Assumptions: []string{"เกณฑ์ธุรกิจ: ทางเข้าและทางออกต้องมีความกว้างไม่น้อยกว่า 7.00 เมตร", "ไฟฟ้าใต้ดินต้องยืนยันจากหน้างานหรือ PEA/MEA ไม่อนุมานจากจังหวัด"}, MissingData: []string{"หากต้องการทบทวน: ผลวัดหน้ากว้างหน้างาน และหลักฐานรูปแบบระบบไฟฟ้าจาก PEA/MEA"}},
+		EN:                 StationText{Reason: enReason, Assumptions: []string{"Business gate: entrance and exit must be at least 7.00 m wide.", "Underground electricity must be confirmed at the site or by PEA/MEA; it is never inferred from province."}, MissingData: []string{"To reconsider: an on-site frontage measurement and PEA/MEA evidence of the supply type."}},
+	}
+}
+
+// hasConfirmedElectricalCapacity accepts only a utility-confirmed capacity
+// record. Published grid layers and proximity evidence are intentionally not
+// sufficient to size chargers.
+func hasConfirmedElectricalCapacity(run domain.AnalysisRun) bool {
+	for _, metric := range run.Metrics {
+		if metric.Type == "electrical" && metric.Status == domain.DataVerified && metric.Source.SiteVerification == "utility_capacity_confirmed" {
+			return true
+		}
+	}
+	return false
+}
+
+// initialPhaseStationRecommendation uses the supplied S/M/L layout. Published
+// utility-map voltage and distance remain risk evidence; they do not prove
+// capacity and must not reduce the layout's cabinet quantity.
+func initialPhaseStationRecommendation(landAreaSqWah float64, franchisePlan franchiseLayoutPlan, electricalCabinetLimit, preliminaryCabinetLimit int) StationRecommendation {
+	return StationRecommendation{
+		RecommendationAvailable: true,
+		CapacityConfirmed:       false,
+		RecommendationStage:     "initial_phase",
+		PowerKW:                 120,
+		ChargerCount:            preliminaryCabinetLimit,
+		TotalPowerKW:            120 * preliminaryCabinetLimit,
+		InstallationConfirmed:   false,
+		LandAreaSqWah:           landAreaSqWah,
+		FranchisePackage:        franchisePlan.Code,
+		RecommendedAreaSqWah:    franchisePlan.RecommendedAreaSqWah,
+		LayoutCabinetLimit:      franchisePlan.CabinetLimit,
+		ElectricalCabinetLimit:  electricalCabinetLimit,
+		PreliminaryCabinetLimit: preliminaryCabinetLimit,
+		TH: StationText{
+			Reason:      "เสนอรูปแบบ " + franchisePlan.Code + " ตามมาตรฐานพื้นที่แนะนำ " + formatSqWah(franchisePlan.RecommendedAreaSqWah) + " ตร.วา สำหรับ " + strconv.Itoa(franchisePlan.CabinetLimit) + " สถานีชาร์จ และแนะนำติดตั้งเบื้องต้น 120 kW จำนวน " + strconv.Itoa(preliminaryCabinetLimit) + " ตู้",
+			Assumptions: []string{"พื้นที่แนะนำ 100 / 200 / 400 ตร.วา ของรูปแบบ S / M / L เป็นพื้นที่รวมร้านกาแฟ พื้นที่บริการ ทางเข้า และสถานีชาร์จแล้ว จึงไม่หักพื้นที่ร้านกาแฟซ้ำ", "จำนวนตู้ตามรูปแบบแฟรนไชส์และหน้ากว้างที่ให้มา; แรงดันและระยะโครงข่ายไม่ถูกนำมาใช้ลดจำนวนตู้", "แรงดันและระยะจากชั้นข้อมูลสาธารณะเป็นข้อมูลวางแผนเบื้องต้น ไม่ใช่กำลังไฟคงเหลือ ระยะเดินสายจริง หรือการอนุมัติจุดเชื่อมต่อ"},
+			MissingData: []string{"หนังสือหรือผลสำรวจจาก PEA/MEA ที่ยืนยันกำลังไฟและจุดเชื่อมต่อ", "แบบแนวเดินสายและค่าใช้จ่ายขยายเขต/ติดตั้ง", "ผังตำแหน่งตู้และช่องจอดจริง"},
+		},
+		EN: StationText{
+			Reason:      "Propose the " + franchisePlan.Code + " format with its recommended " + formatSqWah(franchisePlan.RecommendedAreaSqWah) + " sq wah total site area and " + strconv.Itoa(franchisePlan.CabinetLimit) + " charging stations; the preliminary recommendation is " + strconv.Itoa(preliminaryCabinetLimit) + " 120 kW cabinets.",
+			Assumptions: []string{"The S / M / L recommended areas of 100 / 200 / 400 sq wah already include the café, service area, access, and charging stations, so café space is not deducted again.", "Cabinet quantity follows the franchise layout and supplied frontage; published grid voltage and distance do not reduce it.", "Published voltage and distance are planning evidence only, not remaining capacity, an actual cable route, or a connection approval."},
+			MissingData: []string{"PEA/MEA survey or written confirmation of capacity and connection point", "Cable-route and extension/install-cost design", "Actual cabinet and parking-bay layout"},
+		},
+	}
 }
 
 func areaInSquareWah(site domain.Site) float64 {
@@ -108,12 +236,143 @@ func areaInSquareWah(site domain.Site) float64 {
 }
 
 func cabinetLimitFromLandArea(areaSqWah float64) int {
-	if areaSqWah <= 0 {
+	if areaSqWah < 200 {
 		return 1
 	}
-	return max(1, int(math.Floor(areaSqWah/100)))
+	if areaSqWah < 400 {
+		return 2
+	}
+	return 4
+}
+
+func cabinetLimitFromSite(site domain.Site, areaSqWah float64) int {
+	return franchiseLayoutForSite(site, areaSqWah).CabinetLimit
+}
+
+type franchiseLayoutPlan struct {
+	Code                 string
+	RecommendedAreaSqWah float64
+	CabinetLimit         int
+}
+
+func franchiseLayoutForSite(site domain.Site, areaSqWah float64) franchiseLayoutPlan {
+	plan := franchiseLayoutForArea(areaSqWah)
+	if site.FrontageMeters == nil {
+		return plan
+	}
+	switch {
+	case *site.FrontageMeters < 7:
+		plan.CabinetLimit = 1
+	case *site.FrontageMeters < 12 && plan.CabinetLimit > 2:
+		plan.CabinetLimit = 2
+	}
+	return plan
+}
+
+func franchiseLayoutForArea(areaSqWah float64) franchiseLayoutPlan {
+	switch {
+	case areaSqWah < 200:
+		return franchiseLayoutPlan{Code: "S", RecommendedAreaSqWah: 100, CabinetLimit: 1}
+	case areaSqWah < 400:
+		return franchiseLayoutPlan{Code: "M", RecommendedAreaSqWah: 200, CabinetLimit: 2}
+	default:
+		return franchiseLayoutPlan{Code: "L", RecommendedAreaSqWah: 400, CabinetLimit: 4}
+	}
+}
+
+func formatSqWah(value float64) string {
+	return strconv.FormatFloat(value, 'f', 0, 64)
+}
+
+var voltageNumberPattern = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*(?:k\s*v|kv)?`)
+
+// electricalPlanningCabinetLimit interprets only published voltage and the
+// distance to the same published feature. It intentionally returns a planning
+// ceiling, never a capacity estimate. A distant 22 kV line therefore cannot
+// inflate a recommendation just because it has a high voltage label.
+func electricalPlanningCabinetLimit(run domain.AnalysisRun) int {
+	bestLimit := 1
+	for _, metric := range run.Metrics {
+		if metric.Type != "electrical" || metric.Status == domain.DataMissing || len(metric.RawValue) == 0 {
+			continue
+		}
+		var value struct {
+			VoltageCode                  string   `json:"voltageCode"`
+			StationSecondaryVoltageKV    *float64 `json:"stationSecondaryVoltageKv"`
+			VoltageKV                    *float64 `json:"voltageKv"`
+			NearestHighVoltageLineMeters *float64 `json:"nearestHighVoltageLineMeters"`
+			NearestStationMeters         *float64 `json:"nearestStationMeters"`
+			DistanceToAreaMeters         *float64 `json:"distanceToAreaMeters"`
+		}
+		if json.Unmarshal(metric.RawValue, &value) != nil {
+			continue
+		}
+		voltage := maxVoltage(value.VoltageCode, value.StationSecondaryVoltageKV, value.VoltageKV)
+		distance := nearestDistance(value.NearestHighVoltageLineMeters, value.NearestStationMeters, value.DistanceToAreaMeters)
+		if voltage <= 0 || math.IsInf(distance, 1) {
+			continue
+		}
+		if limit := electricalLimitForEvidence(voltage, distance); limit > bestLimit {
+			bestLimit = limit
+		}
+	}
+	return bestLimit
+}
+
+func maxVoltage(code string, values ...*float64) float64 {
+	best := 0.0
+	for _, match := range voltageNumberPattern.FindAllStringSubmatch(code, -1) {
+		if value, err := strconv.ParseFloat(match[1], 64); err == nil && value > best {
+			best = value
+		}
+	}
+	for _, value := range values {
+		if value != nil && *value > best {
+			best = *value
+		}
+	}
+	return best
+}
+
+func nearestDistance(distances ...*float64) float64 {
+	best := math.Inf(1)
+	for _, distance := range distances {
+		if distance != nil && *distance >= 0 && *distance < best {
+			best = *distance
+		}
+	}
+	return best
+}
+
+func electricalLimitForEvidence(voltageKV, distanceMeters float64) int {
+	switch {
+	case distanceMeters > 5_000:
+		return 1
+	case distanceMeters > 1_000:
+		if voltageKV >= 22 {
+			return 2
+		}
+		return 1
+	case voltageKV >= 22:
+		return 4
+	case voltageKV >= 12:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func minCabinetLimit(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
 }
 
 func validStation(r StationRecommendation) bool {
-	return (r.PowerKW == 120 || r.PowerKW == 180 || r.PowerKW == 240) && r.ChargerCount >= 1 && r.ChargerCount <= 100 && strings.TrimSpace(r.TH.Reason) != "" && strings.TrimSpace(r.EN.Reason) != "" && r.TH.Assumptions != nil && r.EN.Assumptions != nil && r.TH.MissingData != nil && r.EN.MissingData != nil
+	textValid := strings.TrimSpace(r.TH.Reason) != "" && strings.TrimSpace(r.EN.Reason) != "" && r.TH.Assumptions != nil && r.EN.Assumptions != nil && r.TH.MissingData != nil && r.EN.MissingData != nil
+	if !r.RecommendationAvailable {
+		return r.PowerKW == 0 && r.ChargerCount == 0 && textValid
+	}
+	return (r.PowerKW == 120 || r.PowerKW == 180 || r.PowerKW == 240) && r.ChargerCount >= 1 && r.ChargerCount <= 100 && textValid
 }

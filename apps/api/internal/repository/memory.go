@@ -119,6 +119,15 @@ func (m *Memory) GetUserByEmail(_ context.Context, email string) (domain.User, s
 	}
 	return domain.User{}, "", ErrNotFound
 }
+func (m *Memory) GetUserByID(_ context.Context, id uuid.UUID) (domain.User, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	user, ok := m.users[id]
+	if !ok {
+		return domain.User{}, ErrNotFound
+	}
+	return user, nil
+}
 func (m *Memory) ListUsers(_ context.Context) ([]domain.User, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -127,6 +136,42 @@ func (m *Memory) ListUsers(_ context.Context) ([]domain.User, error) {
 		result = append(result, user)
 	}
 	return result, nil
+}
+func (m *Memory) UpdateUser(_ context.Context, user domain.User, passwordHash *string) (domain.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.users[user.ID]; !ok {
+		return domain.User{}, ErrNotFound
+	}
+	for id, existing := range m.users {
+		if id != user.ID && existing.Email == user.Email {
+			return domain.User{}, errorString("email already exists")
+		}
+	}
+	m.users[user.ID] = user
+	if passwordHash != nil {
+		m.passwords[user.ID] = *passwordHash
+	}
+	return user, nil
+}
+func (m *Memory) DeleteUser(_ context.Context, userID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.users[userID]; !ok {
+		return ErrNotFound
+	}
+	delete(m.users, userID)
+	delete(m.passwords, userID)
+	for siteID, grants := range m.access {
+		filtered := grants[:0]
+		for _, grant := range grants {
+			if grant.UserID != userID {
+				filtered = append(filtered, grant)
+			}
+		}
+		m.access[siteID] = filtered
+	}
+	return nil
 }
 func (m *Memory) SetLineNotificationRecipient(_ context.Context, recipientID string) error {
 	m.mu.Lock()

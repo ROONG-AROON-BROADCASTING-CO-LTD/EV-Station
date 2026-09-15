@@ -91,8 +91,8 @@ func (h *Handler) LiffSubmit(c *gin.Context) {
 		domain.CreateSiteInput
 		RequestID string `json:"requestId" binding:"required,uuid"`
 	}
-	if c.ShouldBindJSON(&in) != nil || strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.ContactName) == "" || strings.TrimSpace(in.ContactPhone) == "" {
-		writeError(c, 400, "INVALID_INPUT", "กรุณากรอกชื่อพื้นที่ ชื่อผู้ติดต่อ เบอร์โทร และขนาดพื้นที่ให้ครบ")
+	if c.ShouldBindJSON(&in) != nil || strings.TrimSpace(in.Name) == "" {
+		writeError(c, 400, "INVALID_INPUT", "กรุณากรอกชื่อพื้นที่และขนาดพื้นที่ให้ครบ")
 		return
 	}
 	// The customer-facing form accepts a Google Maps link. Resolve it on the
@@ -115,9 +115,11 @@ func (h *Handler) LiffSubmit(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	if _, err := store.UpsertLineCustomerProfile(c.Request.Context(), user, domain.LineCustomerProfile{ContactName: strings.TrimSpace(in.ContactName), ContactPhone: strings.TrimSpace(in.ContactPhone), UpdatedAt: now}); err != nil {
-		writeError(c, http.StatusInternalServerError, "PROFILE_SAVE_FAILED", "ไม่สามารถบันทึกข้อมูลผู้ติดต่อได้")
-		return
+	if strings.TrimSpace(in.ContactName) != "" || strings.TrimSpace(in.ContactPhone) != "" {
+		if _, err := store.UpsertLineCustomerProfile(c.Request.Context(), user, domain.LineCustomerProfile{ContactName: strings.TrimSpace(in.ContactName), ContactPhone: strings.TrimSpace(in.ContactPhone), UpdatedAt: now}); err != nil {
+			writeError(c, http.StatusInternalServerError, "PROFILE_SAVE_FAILED", "ไม่สามารถบันทึกข้อมูลผู้ติดต่อได้")
+			return
+		}
 	}
 	s := domain.Site{ID: uuid.New(), Name: strings.TrimSpace(in.Name), ContactName: strings.TrimSpace(in.ContactName), ContactPhone: strings.TrimSpace(in.ContactPhone), Address: in.Address, Latitude: in.Latitude, Longitude: in.Longitude, GoogleMapsURL: in.GoogleMapsURL, LandSize: in.LandSize, LandSizeUnit: in.LandSizeUnit, InternetAvailable: in.InternetAvailable, FrontageMeters: in.FrontageMeters, Notes: in.Notes, InputStatus: domain.DataPreliminary, CreatedAt: now, UpdatedAt: now}
 	s, err := store.SaveLineSubmission(c.Request.Context(), user, uuid.MustParse(in.RequestID), s)
@@ -214,6 +216,7 @@ func (h *Handler) LiffResolveGoogleMapsURL(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_GOOGLE_MAPS_URL", "ไม่สามารถอ่านพิกัดจากลิงก์ Google Maps นี้ได้")
 		return
 	}
+	h.addLocationNameSuggestion(c.Request.Context(), &result)
 	c.JSON(http.StatusOK, gin.H{"data": result})
 }
 

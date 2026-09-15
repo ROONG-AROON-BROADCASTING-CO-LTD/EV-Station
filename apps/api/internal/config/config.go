@@ -69,6 +69,7 @@ type Config struct {
 	GeminiBaseURL                        string
 	GeminiTimeout                        time.Duration
 	JWTSecret                            string
+	JWTTokenTTL                          time.Duration
 	AuthRequired                         bool
 	SMTPHost                             string
 	SMTPPort                             string
@@ -86,6 +87,10 @@ func Load() Config {
 	ttl, err := time.ParseDuration(getEnv("REDIS_CACHE_TTL", "15m"))
 	if err != nil {
 		ttl = 15 * time.Minute
+	}
+	jwtTokenTTL, err := time.ParseDuration(getEnv("JWT_TOKEN_TTL", "2160h"))
+	if err != nil || jwtTokenTTL <= 0 {
+		jwtTokenTTL = 90 * 24 * time.Hour
 	}
 
 	origins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"), ",")
@@ -243,6 +248,7 @@ func Load() Config {
 		GeminiBaseURL:                        getEnv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
 		GeminiTimeout:                        geminiTimeout,
 		JWTSecret:                            getEnv("JWT_SECRET", "development-only-change-this-secret"),
+		JWTTokenTTL:                          jwtTokenTTL,
 		AuthRequired:                         strings.EqualFold(getEnv("AUTH_REQUIRED", "false"), "true"),
 		SMTPHost:                             os.Getenv("SMTP_HOST"), SMTPPort: getEnv("SMTP_PORT", "587"), SMTPUsername: os.Getenv("SMTP_USERNAME"), SMTPPassword: os.Getenv("SMTP_PASSWORD"), SMTPFrom: os.Getenv("SMTP_FROM"), OTPTTL: otpTTL,
 		LINEChannelAccessToken: strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN")), LINEChannelSecret: strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET")), LINENotificationRecipientID: strings.TrimSpace(os.Getenv("LINE_NOTIFICATION_RECIPIENT_ID")), LINEAPIBaseURL: getEnv("LINE_API_BASE_URL", "https://api.line.me"),

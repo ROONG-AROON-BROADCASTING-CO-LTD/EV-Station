@@ -76,6 +76,8 @@ export const api = {
   register: (email: string, displayName: string, password: string, otp: string) => request<User>('/auth/register', { method: 'POST', body: JSON.stringify({ email, displayName, password, otp }) }),
 	createUser: (email: string, displayName: string, password: string, role: UserRole) => request<User>('/users', { method: 'POST', body: JSON.stringify({ email, displayName, password, role }) }),
 	listUsers: () => request<User[]>('/users'),
+	updateUser: (id: string, input: { email: string; displayName: string; password?: string; role: UserRole; isActive: boolean }) => request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+	deleteUser: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
 	 recommendStation: (id: string, refresh = false) => request<import('../components/StationRecommendation').StationProposal>(`/analyses/${id}/station-recommendation${refresh ? '?refresh=true' : ''}`, { method: 'POST' }),
   listSites: () => request<Site[]>('/sites'),
   getSite: (id: string) => request<Site>(`/sites/${id}`),

@@ -101,15 +101,15 @@ func TestGeminiServiceScoresOnlyEvidenceWithoutCoordinates(t *testing.T) {
 	}
 }
 
-func TestGeminiServiceAnalyzesSiteSurfaceImages(t *testing.T) {
+func TestGeminiServiceAnalyzesSiteSurfaceEvidence(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, _ := io.ReadAll(request.Body)
 		payload := string(body)
-		if !strings.Contains(payload, `"inline_data"`) || !strings.Contains(payload, `"mime_type":"image/jpeg"`) {
-			t.Fatalf("expected customer image as Gemini inline data: %s", payload)
+		if !strings.Contains(payload, `"inline_data"`) || !strings.Contains(payload, `"mime_type":"image/jpeg"`) || !strings.Contains(payload, `"mime_type":"application/pdf"`) {
+			t.Fatalf("expected customer image and PDF as Gemini inline data: %s", payload)
 		}
-		if !strings.Contains(payload, "entranceWidthEstimate") || !strings.Contains(payload, "must never be used as engineering approval") {
-			t.Fatalf("expected a safeguarded entrance-width prompt: %s", payload)
+		if !strings.Contains(payload, "PDF documents such as a title deed or parcel plan") || !strings.Contains(payload, "entranceWidthEstimate") || !strings.Contains(payload, "must never be used as engineering approval") {
+			t.Fatalf("expected a safeguarded multimodal prompt: %s", payload)
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"พื้นกรวดและดินปนหญ้า\",\"suitability\":\"moderate\",\"score\":55,\"surfaceTypes\":[\"กรวด\",\"ดิน\"],\"observedRisks\":[\"พื้นไม่เรียบ\"],\"recommendedImprovements\":[\"ปรับระดับและบดอัด\"],\"disclaimer\":\"ประเมินจากสิ่งที่เห็นในภาพเท่านั้น\",\"entranceWidthEstimate\":{\"minimumMeters\":5,\"maximumMeters\":6.5,\"confidence\":\"moderate\",\"visualEvidence\":\"เห็นขอบประตูทั้งสองด้าน\",\"obstructions\":[\"ประตูกั้น\"]}}"}]}}]}`))
@@ -117,7 +117,7 @@ func TestGeminiServiceAnalyzesSiteSurfaceImages(t *testing.T) {
 	defer server.Close()
 
 	service := NewGeminiService(GeminiConfig{APIKey: "test-key", Model: "test-model", BaseURL: server.URL, Timeout: time.Second}, server.Client())
-	result, err := service.AnalyzeSiteSurface(context.Background(), []domain.SiteImage{{MIMEType: "image/jpeg", Data: []byte("image-data")}}, "th")
+	result, err := service.AnalyzeSiteSurface(context.Background(), []domain.SiteImage{{MIMEType: "image/jpeg", Data: []byte("image-data")}, {MIMEType: "application/pdf", Data: []byte("pdf-data")}}, "th")
 	if err != nil {
 		t.Fatal(err)
 	}

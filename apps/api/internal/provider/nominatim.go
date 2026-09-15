@@ -25,6 +25,14 @@ type Geocoder interface {
 	Search(context.Context, string, int) ([]GeocodingResult, error)
 }
 
+// ReverseGeocoder is deliberately separate from Geocoder so callers that only
+// need address search (including tests and alternate providers) do not have to
+// implement reverse lookup.  A reverse lookup is used only to offer an
+// editable, human-readable site name after a customer has confirmed a pin.
+type ReverseGeocoder interface {
+	Reverse(context.Context, float64, float64) (ReverseGeocodingResult, error)
+}
+
 type NominatimConfig struct {
 	Endpoint     string
 	UserAgent    string
@@ -51,12 +59,22 @@ type GeocodingResult struct {
 	Assumptions []string          `json:"assumptions"`
 }
 
+type ReverseGeocodingResult struct {
+	Road     string `json:"road,omitempty"`
+	District string `json:"district,omitempty"`
+	Province string `json:"province,omitempty"`
+}
+
 type nominatimResult struct {
 	DisplayName string `json:"display_name"`
 	Latitude    string `json:"lat"`
 	Longitude   string `json:"lon"`
 	Category    string `json:"category"`
 	PlaceType   string `json:"type"`
+}
+
+type nominatimReverseResult struct {
+	Address map[string]string `json:"address"`
 }
 
 func NewNominatimGeocoder(config NominatimConfig, client *http.Client, externalCache cache.Cache) *NominatimGeocoder {
@@ -168,6 +186,88 @@ func (g *NominatimGeocoder) Search(ctx context.Context, query string, limit int)
 	return results, nil
 }
 
+// Reverse finds the nearest mapped address context for a confirmed pin. It is
+// not used to validate ownership or a legal parcel boundary; it only supplies
+// a practical default name such as "พื้นที่เสนอ · ทล.212 · เมืองบึงกาฬ".
+func (g *NominatimGeocoder) Reverse(ctx context.Context, latitude, longitude float64) (ReverseGeocodingResult, error) {
+	if latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 {
+		return ReverseGeocodingResult{}, errors.New("coordinates are out of range")
+	}
+	cacheKey := nominatimReverseCacheKey(latitude, longitude, g.config.CountryCodes)
+	if payload, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
+		var cached ReverseGeocodingResult
+		if json.Unmarshal(payload, &cached) == nil {
+			return cached, nil
+		}
+	}
+
+	g.waitForPublicRateLimit(ctx)
+	endpoint, err := reverseEndpoint(g.config.Endpoint)
+	if err != nil {
+		return ReverseGeocodingResult{}, err
+	}
+	params := endpoint.Query()
+	params.Set("lat", strconv.FormatFloat(latitude, 'f', 7, 64))
+	params.Set("lon", strconv.FormatFloat(longitude, 'f', 7, 64))
+	params.Set("format", "jsonv2")
+	params.Set("addressdetails", "1")
+	params.Set("accept-language", "th,en")
+	if g.config.CountryCodes != "" {
+		params.Set("countrycodes", g.config.CountryCodes)
+	}
+	endpoint.RawQuery = params.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return ReverseGeocodingResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", g.config.UserAgent)
+	response, err := g.client.Do(req)
+	if err != nil {
+		return ReverseGeocodingResult{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		return ReverseGeocodingResult{}, fmt.Errorf("Nominatim reverse returned status %d", response.StatusCode)
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 256<<10))
+	if err != nil {
+		return ReverseGeocodingResult{}, err
+	}
+	var raw nominatimReverseResult
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return ReverseGeocodingResult{}, fmt.Errorf("decode Nominatim reverse response: %w", err)
+	}
+	result := ReverseGeocodingResult{
+		Road:     firstAddress(raw.Address, "road", "pedestrian", "footway"),
+		District: firstAddress(raw.Address, "city_district", "district", "county", "municipality", "city", "town", "village"),
+		Province: firstAddress(raw.Address, "state", "province"),
+	}
+	if cachedPayload, marshalErr := json.Marshal(result); marshalErr == nil {
+		_ = g.cache.Set(ctx, cacheKey, cachedPayload, g.config.CacheTTL)
+	}
+	return result, nil
+}
+
+func reverseEndpoint(raw string) (*url.URL, error) {
+	endpoint, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Nominatim endpoint: %w", err)
+	}
+	endpoint.Path = strings.TrimSuffix(endpoint.Path, "/search") + "/reverse"
+	return endpoint, nil
+}
+
+func firstAddress(address map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(address[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func (g *NominatimGeocoder) waitForPublicRateLimit(ctx context.Context) {
 	g.requestMu.Lock()
 	defer g.requestMu.Unlock()
@@ -187,4 +287,10 @@ func nominatimCacheKey(query string, limit int, countryCodes string) string {
 	value := strings.ToLower(strings.TrimSpace(query)) + "|" + strconv.Itoa(limit) + "|" + countryCodes
 	hash := sha256.Sum256([]byte(value))
 	return "nominatim:search:" + hex.EncodeToString(hash[:])
+}
+
+func nominatimReverseCacheKey(latitude, longitude float64, countryCodes string) string {
+	value := strconv.FormatFloat(latitude, 'f', 5, 64) + "|" + strconv.FormatFloat(longitude, 'f', 5, 64) + "|" + countryCodes
+	hash := sha256.Sum256([]byte(value))
+	return "nominatim:reverse:" + hex.EncodeToString(hash[:])
 }

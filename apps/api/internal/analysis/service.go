@@ -244,38 +244,45 @@ func (s *Service) siteReadinessMetric(ctx context.Context, runID, siteID uuid.UU
 	now := time.Now().UTC()
 	metric := domain.Metric{ID: uuid.New(), AnalysisRunID: runID, Type: "site_readiness", Status: domain.DataMissing,
 		Source:      domain.DataSource{Name: "Customer / field survey — site condition", Type: "customer_supplied_site_survey", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now},
-		Assumptions: []string{"Site-condition photos are required before Gemini can assess the visible ground surface."}, CreatedAt: now}
+		Assumptions: []string{"Customer-supplied photos, map captures, or PDF documents are required before Gemini can assess this site."}, CreatedAt: now}
 	images, err := s.repo.GetSiteImages(ctx, siteID)
 	if err != nil {
 		return metric
 	}
-	visualEvidence := make([]domain.SiteImage, 0, len(images))
+	evidence := make([]domain.SiteImage, 0, len(images))
+	imageCount := 0
+	documentCount := 0
 	for _, image := range images {
-		if image.MIMEType == "image/jpeg" || image.MIMEType == "image/png" || image.MIMEType == "image/webp" {
-			visualEvidence = append(visualEvidence, image)
+		if image.MIMEType == "image/jpeg" || image.MIMEType == "image/png" || image.MIMEType == "image/webp" || image.MIMEType == "application/pdf" {
+			evidence = append(evidence, image)
+			if image.MIMEType == "application/pdf" {
+				documentCount++
+			} else {
+				imageCount++
+			}
 		}
 	}
-	if len(visualEvidence) == 0 {
-		metric.Assumptions = []string{"Site-condition photos are required before Gemini can assess the visible ground surface. PDF documents are retained as supporting evidence."}
+	if len(evidence) == 0 {
+		metric.Assumptions = []string{"Customer-supplied photos, map captures, or PDF documents are required before Gemini can assess this site."}
 		return metric
 	}
 	if s.aiScorer == nil {
-		metric.Assumptions = []string{"Site-condition photos were supplied, but Gemini is not configured to analyze them."}
+		metric.Assumptions = []string{"Customer-supplied photos or PDF documents were supplied, but Gemini is not configured to analyze them."}
 		return metric
 	}
-	assessment, err := s.aiScorer.AnalyzeSiteSurface(ctx, visualEvidence, "th")
+	assessment, err := s.aiScorer.AnalyzeSiteSurface(ctx, evidence, "th")
 	if err != nil {
-		metric.Assumptions = []string{"Site-condition photos were supplied, but Gemini could not analyze them right now."}
+		metric.Assumptions = []string{"Customer-supplied photos or PDF documents were supplied, but Gemini could not analyze them right now."}
 		return metric
 	}
-	rawValue, err := json.Marshal(map[string]any{"analysisScope": "visible_site_conditions", "imageCount": len(visualEvidence), "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "entranceWidthEstimate": assessment.EntranceWidthEstimate, "model": assessment.Model})
+	rawValue, err := json.Marshal(map[string]any{"analysisScope": "visible_site_conditions", "imageCount": imageCount, "documentCount": documentCount, "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "entranceWidthEstimate": assessment.EntranceWidthEstimate, "model": assessment.Model})
 	if err != nil {
 		return metric
 	}
 	metric.RawValue = rawValue
 	metric.Status = domain.DataPreliminary
-	metric.Source = domain.DataSource{Name: "Customer-supplied site photos analyzed by Gemini", Type: "customer_supplied_image_analysis", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now, Methodology: "Gemini assessed visible site conditions and, when evidence allowed, an approximate entrance-width range from customer-supplied images only."}
-	metric.Assumptions = []string{"This is a preliminary visual assessment; it is not part of the location score.", "Any entrance-width range is an image estimate only and requires an on-site measurement before engineering review.", "Photos cannot confirm soil bearing capacity, underground conditions, drainage capacity, or engineering suitability."}
+	metric.Source = domain.DataSource{Name: "Customer-supplied site evidence analyzed by Gemini", Type: "customer_supplied_multimodal_analysis", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now, Methodology: "Gemini assessed customer-supplied photos, map captures, and PDF documents together for preliminary visible site conditions and, when evidence allowed, an approximate entrance-width range."}
+	metric.Assumptions = []string{"This is a preliminary assessment from customer-supplied evidence; it is not part of the location score.", "A PDF title deed or map capture can support context, but does not verify a legal boundary, road frontage, or current right of access.", "Any entrance-width range is an image/document estimate only and requires an on-site measurement before engineering review.", "Photos and documents cannot confirm soil bearing capacity, underground conditions, drainage capacity, or engineering suitability."}
 	return metric
 }
 

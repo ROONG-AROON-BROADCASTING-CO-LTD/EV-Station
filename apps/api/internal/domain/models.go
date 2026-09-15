@@ -73,6 +73,7 @@ type Site struct {
 	LandLevelingRequired  *bool      `json:"landLevelingRequired,omitempty"`
 	FrontageMeters        *float64   `json:"frontageMeters,omitempty"`
 	ElectricalExtensionKM *float64   `json:"electricalExtensionKm,omitempty"`
+	ElectricalSupplyType  string     `json:"electricalSupplyType"`
 	InputStatus           DataStatus `json:"inputStatus"`
 	CreatedAt             time.Time  `json:"createdAt"`
 	UpdatedAt             time.Time  `json:"updatedAt"`
@@ -94,11 +95,13 @@ type CreateSiteInput struct {
 	LandLevelingRequired  *bool    `json:"landLevelingRequired"`
 	FrontageMeters        *float64 `json:"frontageMeters" binding:"omitempty,gte=0,lte=100"`
 	ElectricalExtensionKM *float64 `json:"electricalExtensionKm" binding:"omitempty,gte=0,lte=50"`
+	ElectricalSupplyType  string   `json:"electricalSupplyType" binding:"omitempty,oneof=unknown overhead underground"`
 }
 
 // SiteImage stores customer-supplied visual or PDF evidence for a submitted
-// plot. Image bytes can be used for the site-condition assessment; PDFs are
-// retained as supporting documents and are not sent to the image assessor.
+// plot. Supported images and PDFs can be used together for the preliminary
+// site-condition assessment. They are not an engineering survey or legal
+// boundary verification.
 type SiteImage struct {
 	ID        uuid.UUID
 	SiteID    uuid.UUID
@@ -108,9 +111,9 @@ type SiteImage struct {
 	CreatedAt time.Time
 }
 
-// SiteSurfaceAssessment is an image-based, preliminary assessment of visible
-// site conditions. It is intentionally not a location-score input and is not
-// an engineering measurement.
+// SiteSurfaceAssessment is an evidence-based, preliminary assessment of site
+// conditions. It is intentionally not a location-score input and is not an
+// engineering measurement or legal boundary verification.
 type SiteSurfaceAssessment struct {
 	Summary                 string                 `json:"summary"`
 	Suitability             string                 `json:"suitability"`

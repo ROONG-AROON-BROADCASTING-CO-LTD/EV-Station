@@ -34,13 +34,17 @@ func (s *Service) save(ctx context.Context, id uuid.UUID, input domain.CreateSit
 		return domain.Site{}, err
 	}
 	now := time.Now().UTC()
+	electricalSupplyType := input.ElectricalSupplyType
+	if electricalSupplyType == "" {
+		electricalSupplyType = "unknown"
+	}
 	site := domain.Site{
 		ID: id, Name: strings.TrimSpace(input.Name), ContactName: strings.TrimSpace(input.ContactName), ContactPhone: strings.TrimSpace(input.ContactPhone), Address: strings.TrimSpace(input.Address),
 		Latitude: input.Latitude, Longitude: input.Longitude, LandSize: input.LandSize,
 		LandSizeUnit: input.LandSizeUnit, GoogleMapsURL: input.GoogleMapsURL, Notes: input.Notes,
 		InternetAvailable: input.InternetAvailable, InternetSupports24GHz: input.InternetSupports24GHz,
 		LandLevelingRequired: input.LandLevelingRequired, FrontageMeters: input.FrontageMeters,
-		ElectricalExtensionKM: input.ElectricalExtensionKM,
+		ElectricalExtensionKM: input.ElectricalExtensionKM, ElectricalSupplyType: electricalSupplyType,
 		InputStatus: domain.DataPreliminary, CreatedAt: createdAt, UpdatedAt: now,
 	}
 	if !isNew {

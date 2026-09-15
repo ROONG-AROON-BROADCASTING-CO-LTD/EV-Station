@@ -249,8 +249,9 @@ func (s *Service) Score(ctx context.Context, run domain.AnalysisRun, language st
 	return domain.AIScoring{MetricScores: metricScores, Recommendation: result.Recommendation, Disclaimer: result.Disclaimer, Language: language, Model: s.config.Model, GeneratedAt: time.Now().UTC()}, nil
 }
 
-// AnalyzeSiteSurface assesses only visible ground conditions in customer-supplied
-// images. The returned score is intentionally separate from the location score.
+// AnalyzeSiteSurface assesses preliminary visible site conditions from
+// customer-supplied images, map captures, and PDF documents. The returned
+// score is intentionally separate from the location score.
 func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteImage, language string) (domain.SiteSurfaceAssessment, error) {
 	if strings.TrimSpace(s.config.APIKey) == "" {
 		return domain.SiteSurfaceAssessment{}, ErrNotConfigured
@@ -262,7 +263,7 @@ func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteIm
 		language = "th"
 	}
 	languageName := map[string]string{"th": "Thai", "en": "English"}[language]
-	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze the visible ground surface in the supplied site photos: surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. Also, ONLY when a clear entrance boundary and a reasonably reliable visual scale/reference are visible, provide entranceWidthEstimate as an approximate meter range. Never provide a single exact width; use confidence low, moderate, or high; identify visible obstructions. Omit entranceWidthEstimate when the entrance, boundaries, perspective, or scale are insufficient. A vehicle or a photo alone is not confirmed scale. This estimate is not a survey, does not prove two-way access, and must never be used as engineering approval. Do NOT assess or mention electricity, traffic, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
+	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze the supplied customer evidence together: site photos, map captures, and PDF documents such as a title deed or parcel plan. Assess visible ground surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. A PDF title deed or parcel plan may support parcel shape, printed dimensions, and context only when those details are legible; do not repeat owner names, national IDs, deed numbers, or any personal information. Never claim that a document verifies a legal boundary, current road access, or ownership. Also, ONLY when a clear entrance boundary and a reasonably reliable visual scale/reference are visible across the evidence, provide entranceWidthEstimate as an approximate meter range. Never provide a single exact width; use confidence low, moderate, or high; identify visible obstructions. Omit entranceWidthEstimate when the entrance, boundaries, perspective, document scale, or map alignment are insufficient. A vehicle, a photo, or a parcel diagram alone is not confirmed scale. This estimate is not a survey, does not prove two-way access, and must never be used as engineering approval. Do NOT assess or mention electricity, traffic, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
 	parts := make([]map[string]any, 0, len(images)+1)
 	parts = append(parts, map[string]any{"text": prompt})
 	for _, image := range images {

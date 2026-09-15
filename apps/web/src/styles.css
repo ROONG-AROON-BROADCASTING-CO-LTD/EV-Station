@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #10254a; background: #f5f7fa; font-synthesis: none; text-rendering: optimizeLegibility; }
+:root { font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #10254a; background: #f5f7fa; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #f5f7fa; }
 button, input, select, textarea { font: inherit; }
@@ -22,7 +24,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .upload-area strong { @apply block text-sm font-semibold text-ink; }
   .upload-area small { @apply mt-1 block text-xs; }
   .language-switcher { @apply inline-flex items-center rounded-xl border border-line bg-slate-100 p-1; }
-  .language-switcher button { @apply min-w-9 rounded-md px-2 py-1 text-xs font-bold text-muted transition hover:text-ink; }
+  .language-switcher button { @apply min-h-11 min-w-11 rounded-md px-2 py-1 text-xs font-bold text-muted transition hover:text-ink; }
   .language-switcher button.active { @apply bg-white text-brand shadow-sm; }
   .input { @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100; }
 }
@@ -38,7 +40,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media print {
   @page { size: A4; margin: 12mm 10mm; }
   html, body { background: #fff !important; }
-  aside, header, .print-hide, .screen-map { display: none !important; }
+  .app-shell, .app-shell > div { display: block !important; min-height: 0 !important; background: #fff !important; }
+  .app-shell > aside, .app-shell > div > header, .app-shell > div > nav, .print-hide, .screen-map { display: none !important; }
   main { max-width: none !important; padding: 0 !important; }
   .analysis-print-report { color: #10254a; }
   .analysis-print-report .print-company-header { display: flex !important; align-items: center; gap: 12px; margin: 0 0 18px; padding: 0 0 12px; border-bottom: 2px solid #009b4c; color: #334155; font-size: 9pt; line-height: 1.55; }
@@ -48,14 +51,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .analysis-print-report .page-title { font-size: 24pt; }
   .analysis-print-report .print-site-location { display: block; }
   .analysis-print-report .print-location-map { margin: 0; overflow: hidden; border: 1px solid #d9e2ec; border-radius: 10px; background: #f8fafc; }
-  .analysis-print-report .print-location-map-tiles { position: relative; overflow: hidden; aspect-ratio: 3 / 2; background: #eef3f7; }
-  .analysis-print-report .print-location-map-canvas { position: absolute; width: calc(100% * 5 / 3); height: calc(100% * 2); display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(4, 1fr); }
-  .analysis-print-report .print-location-map-canvas img { display: block; width: 100%; height: 100%; }
-  .analysis-print-report .print-location-pin { position: absolute; z-index: 1; display: grid; place-items: center; color: white; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 2px rgba(15, 23, 42, .42)); }
+  .analysis-print-report .print-location-map-image { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; background: #eef3f7; }
+  .analysis-print-report .print-location-map-unavailable { display: grid; aspect-ratio: 3 / 2; place-items: center; background: #eef3f7; color: #475569; font-size: 10pt; }
   .analysis-print-report .print-location-map figcaption { padding: 8px 10px; font-size: 9pt; color: #475569; }
   .analysis-print-report section { break-inside: avoid; box-shadow: none !important; }
+  .analysis-print-report .print-breakable-table { break-before: page; break-inside: auto; }
   .analysis-print-report .overflow-x-auto { overflow: visible !important; }
   .analysis-print-report table { min-width: 0 !important; font-size: 9pt; }
+  .analysis-print-report thead { display: table-header-group; }
+  .analysis-print-report tr { break-inside: avoid; break-after: auto; }
   .analysis-print-report th, .analysis-print-report td { padding: 8px 10px !important; }
   .analysis-print-report .text-6xl { font-size: 48pt; }
   .analysis-print-report .mt-8 { margin-top: 18px; }
@@ -66,3 +70,223 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .analysis-print-report .flex-1 { flex: none !important; }
   .analysis-print-report .map-grid { transform: none; }
 }
+
+/* Global climate-tech application system: shared by the portfolio, analysis,
+   site-submission, and settings surfaces without changing their workflows. */
+:root {
+  --rbc-ink: #1f3a5f;
+  --rbc-navy: #1f3a5f;
+  --rbc-green: #008080;
+  --rbc-teal-deep: #005b5b;
+  --rbc-teal-soft: #e5f5f4;
+  --rbc-coral: #ff7a59;
+  --rbc-coral-deep: #e86344;
+  --rbc-blue: #367bed;
+  --rbc-canvas: #f7f9fc;
+  --rbc-border: #dce4ee;
+  --rbc-muted: #63738a;
+  color: var(--rbc-ink);
+  background: var(--rbc-canvas);
+}
+
+html { background: var(--rbc-canvas); }
+body {
+  background: #fff;
+  color: var(--rbc-ink);
+  letter-spacing: -0.01em;
+}
+::selection { background: #b9e4e1; color: var(--rbc-ink); }
+* { scrollbar-color: #c2cedc transparent; scrollbar-width: thin; }
+
+.app-shell { background: var(--rbc-canvas) !important; }
+.app-shell > aside {
+  position: relative;
+  width: 218px;
+  background: linear-gradient(180deg, #071c34 0%, #061a31 100%) !important;
+  border-right: 1px solid rgba(255,255,255,.08);
+  color: #fff !important;
+}
+@media (min-width: 1024px) {
+  .app-shell {
+    grid-template-columns: 218px minmax(0, 1fr);
+    transition: grid-template-columns 420ms cubic-bezier(.22, 1, .36, 1);
+  }
+  .app-shell[data-sidebar='collapsed'] { grid-template-columns: 72px minmax(0, 1fr); }
+  .app-shell > aside {
+    position: sticky;
+    top: 0;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    align-self: start;
+  }
+  /* The Portfolio workspace owns the desktop canvas. Avoid a redundant
+     global-command header above it. */
+  .app-shell > div > header { display: none !important; }
+  .app-shell > div > main { padding-top: 26px !important; }
+}
+.app-shell[data-sidebar='collapsed'] > aside { width: 72px; }
+.sidebar-rail {
+  position: relative;
+  overflow: visible !important;
+  transition: width 420ms cubic-bezier(.22, 1, .36, 1);
+  will-change: width;
+}
+.sidebar-brand,
+.sidebar-navigation,
+.sidebar-account {
+  overflow: hidden;
+}
+.sidebar-copy {
+  display: block;
+  max-width: 154px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: max-width 280ms cubic-bezier(.22, 1, .36, 1), opacity 150ms ease, transform 280ms cubic-bezier(.22, 1, .36, 1);
+}
+.sidebar-toggle {
+  position: absolute;
+  z-index: 20;
+  top: 26px;
+  right: -15px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #dce4ee;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #1f3a5f !important;
+  box-shadow: 0 4px 14px rgba(15, 35, 70, .14);
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.sidebar-toggle:hover {
+  background: #f1faf9 !important;
+  color: #008080 !important;
+  box-shadow: 0 6px 18px rgba(15, 35, 70, .18);
+}
+.sidebar-toggle:active { box-shadow: 0 2px 8px rgba(15, 35, 70, .12); }
+.app-shell[data-sidebar='collapsed'] .sidebar-brand { padding-inline: 5px; justify-content: center; }
+.app-shell[data-sidebar='collapsed'] .sidebar-brand > div { gap: 0; }
+.app-shell[data-sidebar='collapsed'] .sidebar-copy {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+.app-shell[data-sidebar='collapsed'] .sidebar-navigation { padding-inline: 10px; }
+.app-shell[data-sidebar='collapsed'] .sidebar-nav-link { padding-inline: 16px; }
+.app-shell[data-sidebar='collapsed'] .sidebar-account { padding-inline: 10px; }
+.app-shell[data-sidebar='collapsed'] .sidebar-user-card { height: 0; padding-block: 0; opacity: 0; border-width: 0 !important; }
+.sidebar-user-card { transition: height 280ms cubic-bezier(.22, 1, .36, 1), padding 280ms cubic-bezier(.22, 1, .36, 1), opacity 150ms ease; }
+.app-shell > aside > div:first-child { min-height: 112px; }
+.app-shell > aside nav a,
+.app-shell > aside button:not(.sidebar-toggle) {
+  border-radius: 8px !important;
+  letter-spacing: 0;
+  color: #d4deea !important;
+}
+.app-shell > aside .text-white,
+.app-shell > aside .text-slate-300 { color: #d4deea !important; }
+.app-shell > aside .text-\[\#8bd7d2\] { color: #7de6b1 !important; }
+.app-shell > aside .bg-white\/10 { background-color: rgba(255,255,255,.10) !important; }
+.app-shell > aside .border-white\/10 { border-color: rgba(255,255,255,.10) !important; }
+.app-shell > aside nav a:hover,
+.app-shell > aside button:not(.sidebar-toggle):hover { background-color: rgba(255,255,255,.08) !important; }
+.app-shell > aside nav a[aria-current='page'] { background: rgba(255,255,255,.10) !important; color: #fff !important; }
+.app-shell > aside nav a[aria-current='page']::before { background: #10d88b !important; }
+.app-shell > aside [class*='rounded-xl'][class*='bg-white'] { border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.10) !important; }
+.app-shell > div > header {
+  height: 72px !important;
+  border-color: var(--rbc-border) !important;
+  background: rgba(255,255,255,.96) !important;
+}
+.app-shell > div > header { background: #fff !important; }
+.app-shell main { max-width: 1680px; }
+
+.page-title,
+.app-shell h1 {
+  color: var(--rbc-ink) !important;
+  letter-spacing: -0.035em !important;
+  font-weight: 750 !important;
+}
+.section-title { color: var(--rbc-ink) !important; font-weight: 720 !important; }
+.text-muted { color: var(--rbc-muted) !important; }
+
+.button-primary {
+  border-radius: 8px !important;
+  background: var(--rbc-green) !important;
+  box-shadow: 0 7px 16px rgba(0,112,112,.18) !important;
+}
+.button-primary:hover { background: var(--rbc-teal-deep) !important; transform: translateY(-1px); }
+.button-cta { background: var(--rbc-coral) !important; box-shadow: 0 7px 16px rgba(255,122,89,.22) !important; }
+.button-cta:hover { background: var(--rbc-coral-deep) !important; }
+.button-primary, .button-cta { position: relative; overflow: hidden; }
+.button-primary::after, .button-cta::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.24) 45%, transparent 63%); transform: translateX(-130%); transition: transform 500ms ease; }
+.button-primary:hover::after, .button-cta:hover::after { transform: translateX(130%); }
+.button-secondary,
+.input,
+.field > input,
+.field > select,
+.field > textarea {
+  border-color: var(--rbc-border) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+.input:focus,
+.field > input:focus,
+.field > select:focus,
+.field > textarea:focus { border-color: var(--rbc-green) !important; }
+
+.app-shell :is(section, article, aside)[class*='border'][class*='bg-white'] {
+  border-color: var(--rbc-border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+.app-shell :is(section, article, aside)[class*='border'][class*='bg-white']:hover { border-color: #cad6e3 !important; }
+.app-shell table thead { background: #f8fafc !important; }
+.app-shell table th {
+  color: #56677e !important;
+  font-size: 11px !important;
+  letter-spacing: .02em !important;
+}
+.app-shell table tr { transition: background-color 150ms ease; }
+.app-shell table tbody tr:hover { background: #f1faf9 !important; }
+.app-shell [class*='bg-emerald-50'] { background-color: var(--rbc-teal-soft); }
+
+/* The portfolio’s pipeline should read as one delivery system, not four metric cards. */
+.app-shell main > .space-y-4 > section:first-of-type {
+  border-radius: 10px !important;
+  padding: 8px !important;
+}
+.app-shell main > .space-y-4 > section:first-of-type button {
+  min-height: 104px;
+  border-radius: 8px;
+}
+.app-shell main > .portfolio-workspace > section:first-of-type button > .workflow-stage-icon {
+  border-width: 0 !important;
+  background: #eef3f8;
+  color: #607088;
+}
+.app-shell main > .portfolio-workspace > section:first-of-type button:hover > .workflow-stage-icon { background: var(--rbc-teal-soft); color: var(--rbc-green); }
+
+.language-switcher { border-color: var(--rbc-border) !important; border-radius: 8px !important; background: #f7f9fc !important; }
+.language-switcher button { min-height: 34px !important; border-radius: 6px !important; }
+.language-switcher button.active { color: var(--rbc-ink) !important; }
+
+@media (max-width: 1023px) {
+  .app-shell > div > header { height: 64px !important; }
+  .app-shell main { padding-bottom: 104px !important; }
+  .app-shell > div > nav {
+    border-color: var(--rbc-border) !important;
+    background: rgba(255,255,255,.98) !important;
+    box-shadow: 0 -8px 20px rgba(8,27,51,.06) !important;
+  }
+  .app-shell > div > nav a { border-radius: 8px !important; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .button-primary,
+  .app-shell :is(a, button, tr) { transition-duration: 160ms; transition-timing-function: cubic-bezier(.2,.8,.2,1); }
+}
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

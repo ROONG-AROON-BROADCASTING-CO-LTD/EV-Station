@@ -149,12 +149,142 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
 		return
 	}
+	if _, _, err := h.repo.GetUserByEmail(c.Request.Context(), strings.ToLower(strings.TrimSpace(input.Email))); err == nil {
+		writeError(c, http.StatusConflict, "USER_EMAIL_EXISTS", "An account already uses this email address.")
+		return
+	} else if !errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusInternalServerError, "USERS_UNAVAILABLE", "Unable to check the email address.")
+		return
+	}
 	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, input.Role)
 	if err != nil {
 		writeError(c, http.StatusConflict, "USER_CREATE_FAILED", "Unable to create this user.")
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": user})
+}
+func (h *Handler) UpdateUser(c *gin.Context) {
+	actorID, actorRole, ok := requestUser(c)
+	if !ok || actorRole != domain.RoleSuperAdmin {
+		if ok {
+			writeError(c, http.StatusForbidden, "SUPER_ADMIN_REQUIRED", "Only a super admin can manage team accounts.")
+		}
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID.")
+		return
+	}
+	target, err := h.repo.GetUserByID(c.Request.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "USER_UPDATE_FAILED", "Unable to load this user.")
+		return
+	}
+	var input struct {
+		Email       string          `json:"email" binding:"required,email"`
+		DisplayName string          `json:"displayName" binding:"required,max=160"`
+		Password    string          `json:"password" binding:"omitempty,min=8"`
+		Role        domain.UserRole `json:"role" binding:"required,oneof=super_admin admin sales customer"`
+		IsActive    bool            `json:"isActive"`
+	}
+	if err = c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
+		return
+	}
+	// Full account management remains available to super admins. The only guard
+	// preserves one active super-admin account, so the system cannot lose its
+	// final administrator through an accidental edit.
+	if target.Role == domain.RoleSuperAdmin && (input.Role != domain.RoleSuperAdmin || !input.IsActive) {
+		users, listErr := h.repo.ListUsers(c.Request.Context())
+		if listErr != nil {
+			writeError(c, http.StatusInternalServerError, "USERS_UNAVAILABLE", "Unable to verify administrator access.")
+			return
+		}
+		activeSuperAdmins := 0
+		for _, existing := range users {
+			if existing.Role == domain.RoleSuperAdmin && existing.IsActive {
+				activeSuperAdmins++
+			}
+		}
+		if activeSuperAdmins <= 1 {
+			writeError(c, http.StatusConflict, "LAST_SUPER_ADMIN_REQUIRED", "At least one active super admin account is required.")
+			return
+		}
+	}
+	if target.ID == actorID && (!input.IsActive || input.Role != domain.RoleSuperAdmin) {
+		writeError(c, http.StatusConflict, "SELF_SUPER_ADMIN_REQUIRED", "Keep your current account active as a super admin while signed in.")
+		return
+	}
+	target.Email, target.DisplayName, target.Role, target.IsActive = input.Email, input.DisplayName, input.Role, input.IsActive
+	user, err := h.auth.UpdateUser(c.Request.Context(), target, input.Password)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusConflict, "USER_UPDATE_FAILED", "Unable to update this user. Check whether the email is already in use.")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": user})
+}
+
+func (h *Handler) DeleteUser(c *gin.Context) {
+	actorID, actorRole, ok := requestUser(c)
+	if !ok || actorRole != domain.RoleSuperAdmin {
+		if ok {
+			writeError(c, http.StatusForbidden, "SUPER_ADMIN_REQUIRED", "Only a super admin can delete an account.")
+		}
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID.")
+		return
+	}
+	if id == actorID {
+		writeError(c, http.StatusConflict, "SELF_ACCOUNT_DELETE_FORBIDDEN", "You cannot delete the account you are currently using.")
+		return
+	}
+	target, err := h.repo.GetUserByID(c.Request.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found.")
+		return
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "USER_DELETE_FAILED", "Unable to load this user.")
+		return
+	}
+	if target.Role == domain.RoleSuperAdmin && target.IsActive {
+		users, listErr := h.repo.ListUsers(c.Request.Context())
+		if listErr != nil {
+			writeError(c, http.StatusInternalServerError, "USERS_UNAVAILABLE", "Unable to verify administrator access.")
+			return
+		}
+		activeSuperAdmins := 0
+		for _, existing := range users {
+			if existing.Role == domain.RoleSuperAdmin && existing.IsActive {
+				activeSuperAdmins++
+			}
+		}
+		if activeSuperAdmins <= 1 {
+			writeError(c, http.StatusConflict, "LAST_SUPER_ADMIN_REQUIRED", "At least one active super admin account is required.")
+			return
+		}
+	}
+	if err = h.repo.DeleteUser(c.Request.Context(), id); errors.Is(err, repository.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found.")
+		return
+	} else if err != nil {
+		writeError(c, http.StatusInternalServerError, "USER_DELETE_FAILED", "Unable to delete this user.")
+		return
+	}
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
 }
 func (h *Handler) RequireAuth(c *gin.Context) {
 	value := c.GetHeader("Authorization")
@@ -190,7 +320,11 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"user": user, "token": token}})
 }
 func (h *Handler) ListUsers(c *gin.Context) {
-	if !h.requireAdmin(c) {
+	_, role, ok := requestUser(c)
+	if !ok || role != domain.RoleSuperAdmin {
+		if ok {
+			writeError(c, http.StatusForbidden, "SUPER_ADMIN_REQUIRED", "Only a super admin can view team accounts.")
+		}
 		return
 	}
 	users, err := h.repo.ListUsers(c.Request.Context())
@@ -340,7 +474,19 @@ func (h *Handler) ResolveGoogleMapsURL(c *gin.Context) {
 		writeError(c, http.StatusBadGateway, "GOOGLE_MAPS_UNAVAILABLE", "Google Maps link could not be resolved right now.")
 		return
 	}
+	h.addLocationNameSuggestion(c.Request.Context(), &result)
 	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *Handler) addLocationNameSuggestion(ctx context.Context, result *provider.GoogleMapsResolution) {
+	suggestion, err := provider.SuggestSiteName(ctx, h.geocoder, result.Latitude, result.Longitude)
+	if err != nil {
+		return
+	}
+	result.SuggestedName = suggestion.SuggestedName
+	result.NearestRoad = suggestion.NearestRoad
+	result.District = suggestion.District
+	result.Province = suggestion.Province
 }
 
 func (h *Handler) CreateSite(c *gin.Context) {
@@ -668,6 +814,13 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "ANALYSIS_FAILED", "Unable to complete the analysis.")
 		return
+	}
+	// The S/M/L planning result belongs to the analysis itself.  Generate it as
+	// part of the same workflow so staff do not need a second click after every
+	// completed analysis.  A failed optional recommendation must not discard a
+	// completed screening result.
+	if _, persisted, recommendationErr := h.generateAndStoreStationRecommendation(analysisCtx, result); recommendationErr == nil {
+		result.StationRecommendation = persisted
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": result})
 }

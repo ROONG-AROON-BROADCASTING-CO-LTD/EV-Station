@@ -10,29 +10,10 @@ export function PrintableLocationMap({ latitude, longitude }: Pick<MapPanelProps
 	const { t } = useI18n()
   if (latitude === undefined || longitude === undefined) return null
   const center = `${latitude.toFixed(6)},${longitude.toFixed(6)}`
-  const zoom = 14
-  const tileCount = 2 ** zoom
-  const exactX = ((longitude + 180) / 360) * tileCount
-  const latitudeRadians = latitude * Math.PI / 180
-  const exactY = (1 - Math.asinh(Math.tan(latitudeRadians)) / Math.PI) / 2 * tileCount
-  const centerX = Math.floor(exactX)
-  const centerY = Math.floor(exactY)
-  const fractionX = exactX - centerX
-  const fractionY = exactY - centerY
-  const tiles = [-2, -1, 0, 1].flatMap(offsetY => [-2, -1, 0, 1, 2].map(offsetX => ({
-    x: (centerX + offsetX + tileCount) % tileCount,
-    y: Math.min(Math.max(centerY + offsetY, 0), tileCount - 1),
-    key: `${offsetX}:${offsetY}`,
-  })))
-  // The tile canvas is intentionally larger than the printed viewport, so the
-  // customer pin remains exactly in the centre even when it falls near a tile edge.
-  const canvasOffsetX = ((0.5 - (2 + fractionX) / 3) / (5 / 3)) * 100
-  const canvasOffsetY = ((0.5 - (2 + fractionY) / 2) / 2) * 100
+  const key = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_API_KEY
+  const parameters = new URLSearchParams({ center, zoom: '16', size: '640x420', scale: '2', maptype: 'satellite', markers: `color:red|${center}`, key })
   return <figure className="print-location-map">
-    <div className="print-location-map-tiles">
-      <div className="print-location-map-canvas" style={{ transform: `translate(${canvasOffsetX}%, ${canvasOffsetY}%)` }}>{tiles.map(tile => <img key={tile.key} src={`https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`} alt="" />)}</div>
-	  <span className="print-location-pin" style={{ left: '50%', top: '50%' }} aria-label={`${t('Customer site location')} ${center}`}><MapPin size={38} fill="#e5484d" strokeWidth={2.5} /></span>
-    </div>
+		{key ? <img className="print-location-map-image" src={`https://maps.googleapis.com/maps/api/staticmap?${parameters.toString()}`} alt={`${t('Customer site location')} ${center}`} /> : <div className="print-location-map-unavailable">{t('Map preview unavailable')}</div>}
 	<figcaption>{t('Customer site pin')} · {t('Coordinates')} {center}</figcaption>
   </figure>
 }
@@ -89,6 +70,6 @@ export function RadiusLabel({ meters }: { meters: number }) {
 export function RadiusSelector({ value, onChange }: { value: number; onChange: (meters: number) => void }) {
   const { t } = useI18n()
   return <div className="inline-flex rounded-lg border border-line bg-white p-1" role="group" aria-label={t('Analysis radius')}>
-    {[1000, 2000, 3000].map(meters => <button key={meters} type="button" aria-pressed={value === meters} onClick={() => onChange(meters)} className={`min-h-9 rounded-md px-3 text-sm font-bold transition ${value === meters ? 'bg-brand text-white shadow-sm' : 'text-muted hover:bg-slate-100 hover:text-ink'}`}>{meters / 1000} {t('km')}</button>)}
+    {[1000, 2000, 3000].map(meters => <button key={meters} type="button" aria-pressed={value === meters} onClick={() => onChange(meters)} className={`min-h-11 rounded-md px-3 text-sm font-bold transition ${value === meters ? 'bg-brand text-white shadow-sm' : 'text-muted hover:bg-slate-100 hover:text-ink'}`}>{meters / 1000} {t('km')}</button>)}
   </div>
 }

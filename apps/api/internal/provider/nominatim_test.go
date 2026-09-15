@@ -44,3 +44,23 @@ func TestNominatimRejectsShortQuery(t *testing.T) {
 		t.Fatalf("expected ErrInvalidGeocodingQuery, got %v", err)
 	}
 }
+
+func TestNominatimReverseReturnsNearestRoadAndArea(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/reverse" || r.URL.Query().Get("lat") != "18.4171102" || r.URL.Query().Get("lon") != "103.4999855" {
+			t.Fatalf("unexpected reverse request: %s", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"address":{"road":"ทางหลวงแผ่นดินหมายเลข 212","city_district":"เมืองบึงกาฬ","state":"บึงกาฬ"}}`))
+	}))
+	defer server.Close()
+
+	geocoder := NewNominatimGeocoder(NominatimConfig{Endpoint: server.URL + "/search", UserAgent: "rbc-test", CountryCodes: "th", CacheTTL: time.Hour}, server.Client(), cache.Noop{})
+	result, err := geocoder.Reverse(context.Background(), 18.4171102, 103.4999855)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Road != "ทางหลวงแผ่นดินหมายเลข 212" || result.District != "เมืองบึงกาฬ" || result.Province != "บึงกาฬ" {
+		t.Fatalf("unexpected reverse result: %#v", result)
+	}
+}

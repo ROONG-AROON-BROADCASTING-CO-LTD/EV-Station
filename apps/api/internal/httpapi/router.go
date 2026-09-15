@@ -40,6 +40,8 @@ func NewRouter(cfg config.Config, handler *Handler) *gin.Engine {
 	}
 	api.GET("/users", handler.ListUsers)
 	api.POST("/users", handler.CreateUser)
+	api.PUT("/users/:id", handler.UpdateUser)
+	api.DELETE("/users/:id", handler.DeleteUser)
 	api.POST("/sites", handler.CreateSite)
 	api.GET("/sites", handler.ListSites)
 	api.POST("/maps/resolve", handler.ResolveGoogleMapsURL)

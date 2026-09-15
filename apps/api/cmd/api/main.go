@@ -132,7 +132,7 @@ func main() {
 		Endpoint: cfg.NominatimURL, UserAgent: cfg.ExternalUserAgent,
 		CountryCodes: cfg.NominatimCountryCodes, CacheTTL: cfg.GeocodingCacheTTL,
 	}, &http.Client{Timeout: cfg.ExternalHTTPTimeout}, externalCache)
-	authService := auth.New(repo, cfg.JWTSecret)
+	authService := auth.New(repo, cfg.JWTSecret, cfg.JWTTokenTTL)
 	otpService := auth.NewOTPService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.OTPTTL)
 	lineNotifier := lineapi.NewNotifier(cfg.LINEChannelAccessToken, cfg.LINEChannelSecret, cfg.LINENotificationRecipientID, cfg.LINEAPIBaseURL, repo, nil)
 	handler := httpapi.NewHandler(siteService, analysisService, repo, geocoder, geminiAdvisory, authService, otpService, lineNotifier, scoring.DefaultWeights)

@@ -1,6 +1,16 @@
 package provider
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+type reverseGeocoderFixture struct{}
+
+func (reverseGeocoderFixture) Search(context.Context, string, int) ([]GeocodingResult, error) { return nil, nil }
+func (reverseGeocoderFixture) Reverse(context.Context, float64, float64) (ReverseGeocodingResult, error) {
+	return ReverseGeocodingResult{Road: "ทล.212", District: "เมืองบึงกาฬ", Province: "บึงกาฬ"}, nil
+}
 
 func TestExtractGoogleMapsCoordinates(t *testing.T) {
 	cases := []struct {
@@ -52,5 +62,15 @@ func TestIsGoogleMapsURL(t *testing.T) {
 	}
 	if IsGoogleMapsURL("http://maps.app.goo.gl/example") || IsGoogleMapsURL("https://example.com/maps") {
 		t.Fatal("only HTTPS Google Maps links should be accepted")
+	}
+}
+
+func TestSuggestSiteNameUsesRoadThenDistrict(t *testing.T) {
+	result, err := SuggestSiteName(context.Background(), reverseGeocoderFixture{}, 18.4171102, 103.4999855)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SuggestedName != "พื้นที่เสนอ · ทล.212 · เมืองบึงกาฬ" {
+		t.Fatalf("unexpected suggested name: %#v", result)
 	}
 }

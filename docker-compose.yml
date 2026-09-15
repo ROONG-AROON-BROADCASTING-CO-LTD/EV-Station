@@ -101,6 +101,9 @@ services:
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
       GEMINI_TIMEOUT: ${GEMINI_TIMEOUT:-20s}
       JWT_SECRET: ${JWT_SECRET:-change-this-before-production}
+      # Keeps a signed-in user across browser and computer restarts. It is
+      # intentionally finite; logout clears it immediately in that browser.
+      JWT_TOKEN_TTL: ${JWT_TOKEN_TTL:-2160h}
       AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

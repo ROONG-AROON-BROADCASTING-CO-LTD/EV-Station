@@ -17,7 +17,10 @@ func (e errorString) Error() string { return string(e) }
 type Repository interface {
 	CreateUser(context.Context, domain.User, string) (domain.User, error)
 	GetUserByEmail(context.Context, string) (domain.User, string, error)
+	GetUserByID(context.Context, uuid.UUID) (domain.User, error)
 	ListUsers(context.Context) ([]domain.User, error)
+	UpdateUser(context.Context, domain.User, *string) (domain.User, error)
+	DeleteUser(context.Context, uuid.UUID) error
 	SetLineNotificationRecipient(context.Context, string) error
 	GetLineNotificationRecipient(context.Context) (string, error)
 	SetSiteAccess(context.Context, domain.SiteAccess) error
