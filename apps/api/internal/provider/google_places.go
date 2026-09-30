@@ -14,6 +14,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const googlePlacesMaxResults = 20
@@ -153,6 +154,7 @@ func (p *GooglePlacesProvider) Collect(ctx context.Context, site domain.Site, ra
 }
 
 func (p *GooglePlacesProvider) search(ctx context.Context, latitude, longitude float64, radius int, placeType string) (googlePlacesResponse, error) {
+	ctx = telemetry.WithCategory(telemetry.WithOperation(ctx, "google_places_search"), placeType)
 	payload, err := json.Marshal(map[string]any{
 		"includedTypes":       []string{placeType},
 		"maxResultCount":      googlePlacesMaxResults,

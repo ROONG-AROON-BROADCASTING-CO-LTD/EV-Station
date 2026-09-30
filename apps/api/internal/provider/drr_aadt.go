@@ -13,6 +13,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const drrAADTReference = "https://datagov.mot.go.th/th/dataset/aadt1"
@@ -137,6 +138,7 @@ func (p *DRRAADTProvider) Collect(ctx context.Context, site domain.Site, radius 
 }
 
 func (p *DRRAADTProvider) fetchAADT(ctx context.Context) (map[string][]drrAADTRecord, error) {
+	ctx = telemetry.WithOperation(ctx, "drr_aadt_download")
 	key := "drr:aadt:" + hashText(p.config.CSVURL)
 	if value, found, err := p.cache.Get(ctx, key); err == nil && found {
 		return parseDRRAADT(value)
@@ -167,6 +169,7 @@ func (p *DRRAADTProvider) fetchAADT(ctx context.Context) (map[string][]drrAADTRe
 }
 
 func (p *DRRAADTProvider) fetchNearbyRoads(ctx context.Context, latitude, longitude float64, radius int) ([]drrRoadFeature, error) {
+	ctx = telemetry.WithOperation(ctx, "drr_road_lookup")
 	return fetchTrafficRoads[drrRoadFeature](ctx, p.client, p.cache, p.config.RoadLayerURL, "road_code,route_name", "OBJECTID", p.config.UserAgent, p.config.CacheTTL, latitude, longitude, radius)
 }
 

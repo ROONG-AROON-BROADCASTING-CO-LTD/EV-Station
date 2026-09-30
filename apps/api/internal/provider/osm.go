@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type OSMConfig struct {
@@ -24,12 +26,41 @@ type OSMConfig struct {
 	FallbackEndpoints []string
 	UserAgent         string
 	CacheTTL          time.Duration
+	EndpointCooldown  time.Duration
+	RequestBudget     time.Duration
+	AttemptTimeout    time.Duration
 }
 
 type OSMProvider struct {
 	config OSMConfig
 	client *http.Client
 	cache  cache.Cache
+	health *overpassHealthTracker
+	now    func() time.Time
+}
+
+const defaultOverpassEndpointCooldown = 2 * time.Minute
+
+type overpassEndpointState struct {
+	consecutiveFailures int
+	cooldownUntil       time.Time
+	averageLatency      time.Duration
+}
+
+type overpassEndpointCandidate struct {
+	endpoint           string
+	health             string
+	cooldownRemaining  time.Duration
+	probeAfterCooldown bool
+	averageLatency     time.Duration
+}
+
+// overpassHealthTracker is deliberately process-local. A restart begins with
+// the configured endpoint order and lets fresh requests establish health again;
+// endpoint incidents are transient and should not be persisted indefinitely.
+type overpassHealthTracker struct {
+	mu     sync.Mutex
+	states map[string]overpassEndpointState
 }
 
 type osmResponse struct {
@@ -62,24 +93,13 @@ type osmPlace struct {
 	Longitude float64 `json:"longitude,omitempty"`
 }
 
-type osmMetricValue struct {
-	Count                        int            `json:"count"`
-	RadiusMeters                 int            `json:"radiusMeters"`
-	CoverageComplete             bool           `json:"coverageComplete"`
-	Places                       []osmPlace     `json:"places"`
-	CategoryCounts               map[string]int `json:"categoryCounts,omitempty"`
-	ExcludedChargingStationCount int            `json:"excludedChargingStationCount"`
-	ResidentialBuildingCount     int            `json:"residentialBuildingCount,omitempty"`
-	CommunityAreaCount           int            `json:"communityAreaCount,omitempty"`
-}
-
 type osmRoadMetricValue struct {
 	RadiusMeters           int            `json:"radiusMeters"`
 	MappedMajorRoadCount   int            `json:"mappedMajorRoadCount"`
 	NearestMajorRoadMeters *float64       `json:"nearestMajorRoadMeters,omitempty"`
-	NearestRoadName         string         `json:"nearestRoadName,omitempty"`
-	NearestRoadRef          string         `json:"nearestRoadRef,omitempty"`
-	NearestRoadClass        string         `json:"nearestRoadClass,omitempty"`
+	NearestRoadName        string         `json:"nearestRoadName,omitempty"`
+	NearestRoadRef         string         `json:"nearestRoadRef,omitempty"`
+	NearestRoadClass       string         `json:"nearestRoadClass,omitempty"`
 	RoadClassCounts        map[string]int `json:"roadClassCounts"`
 }
 
@@ -93,9 +113,9 @@ type osmTrafficPotentialValue struct {
 	RadiusMeters           int            `json:"radiusMeters"`
 	MappedMajorRoadCount   int            `json:"mappedMajorRoadCount"`
 	NearestMajorRoadMeters *float64       `json:"nearestMajorRoadMeters,omitempty"`
-	NearestRoadName         string         `json:"nearestRoadName,omitempty"`
-	NearestRoadRef          string         `json:"nearestRoadRef,omitempty"`
-	NearestRoadClass        string         `json:"nearestRoadClass,omitempty"`
+	NearestRoadName        string         `json:"nearestRoadName,omitempty"`
+	NearestRoadRef         string         `json:"nearestRoadRef,omitempty"`
+	NearestRoadClass       string         `json:"nearestRoadClass,omitempty"`
 	RoadClassCounts        map[string]int `json:"roadClassCounts"`
 }
 
@@ -109,14 +129,25 @@ func NewOSMProvider(config OSMConfig, client *http.Client, externalCache cache.C
 	if config.CacheTTL <= 0 {
 		config.CacheTTL = 15 * time.Minute
 	}
-	return &OSMProvider{config: config, client: client, cache: externalCache}
+	if config.EndpointCooldown <= 0 {
+		config.EndpointCooldown = defaultOverpassEndpointCooldown
+	}
+	if config.RequestBudget <= 0 {
+		config.RequestBudget = 8 * time.Second
+	}
+	if config.AttemptTimeout <= 0 {
+		config.AttemptTimeout = 4 * time.Second
+	}
+	return &OSMProvider{
+		config: config, client: client, cache: externalCache,
+		health: &overpassHealthTracker{states: make(map[string]overpassEndpointState)}, now: time.Now,
+	}
 }
 
 func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int) ([]Observation, error) {
 	observations, positions := unavailableObservations()
 	if site.Latitude == nil || site.Longitude == nil {
 		setMissingOSMObservation(observations, positions, "road_accessibility", "Valid coordinates are required to query OpenStreetMap road-accessibility data.")
-		setMissingOSMObservation(observations, positions, "poi", "Valid coordinates are required to query OpenStreetMap POI data.")
 		setMissingOSMObservation(observations, positions, "competition", "Valid coordinates are required to query OpenStreetMap charging stations.")
 		return observations, nil
 	}
@@ -138,7 +169,7 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		wait.Add(1)
 		go func(kind, query string) {
 			defer wait.Done()
-			payload, err := p.fetch(ctx, query)
+			payload, err := p.fetch(telemetry.WithOperation(ctx, "overpass_"+kind), query)
 			results <- queryResult{kind: kind, payload: payload, err: err}
 		}(kind, query)
 	}
@@ -160,7 +191,6 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 			if result.kind == "roads" {
 				setMissingOSMObservation(observations, positions, "road_accessibility", "OpenStreetMap road query was unavailable; no road-accessibility value or score was produced.")
 			} else {
-				setMissingOSMObservation(observations, positions, "poi", "OpenStreetMap place query was unavailable; no POI value or score was produced.")
 				setMissingOSMObservation(observations, positions, "competition", "OpenStreetMap charging-station query was unavailable; no competitor value or score was produced.")
 			}
 			continue
@@ -170,7 +200,6 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 			if result.kind == "roads" {
 				setMissingOSMObservation(observations, positions, "road_accessibility", "OpenStreetMap returned an unreadable road response; no road-accessibility value or score was produced.")
 			} else {
-				setMissingOSMObservation(observations, positions, "poi", "OpenStreetMap returned an unreadable place response; no POI value or score was produced.")
 				setMissingOSMObservation(observations, positions, "competition", "OpenStreetMap returned an unreadable charging-station response; no competitor value or score was produced.")
 			}
 			continue
@@ -184,11 +213,7 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 			observations[positions["traffic"]] = osmTrafficPotentialObservation(roadObservation, roadSource)
 			continue
 		}
-		poi, chargers, communities := classifyOSMElements(response.Elements)
-		observations[positions["poi"]] = osmObservation("poi", poi, radius, source, []string{
-			"Coverage depends on voluntary OpenStreetMap contributions and may be incomplete.",
-			"This is a factual count of returned tagged elements, not a normalized suitability score.",
-		}, communities, len(chargers))
+		chargers := classifyOSMChargingStations(response.Elements)
 		competitionRadius := 1000
 		nearbyChargers := make([]osmPlace, 0, len(chargers))
 		for _, charger := range chargers {
@@ -196,12 +221,12 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 				nearbyChargers = append(nearbyChargers, charger)
 			}
 		}
-		competition := osmObservation("competition", nearbyChargers, competitionRadius, source, []string{
+		competition := osmCompetitionObservation(nearbyChargers, competitionRadius, source, []string{
 			"Only charging stations mapped in OpenStreetMap are included; unmapped operators may be missing.",
 			"Competition is counted only within 1 kilometre of the submitted coordinates.",
 			"Connector availability, power, pricing, and operational status are not verified by this query.",
 			"The provider supplies evidence only; deterministic preliminary-v1 scoring is applied separately by backend logic.",
-		}, osmCommunityEvidence{}, 0)
+		})
 		// OSM can provide evidence of mapped competitors, but an empty OSM
 		// result cannot establish that a province has no competitors.
 		if len(nearbyChargers) == 0 {
@@ -240,11 +265,15 @@ func osmTrafficPotentialObservation(road Observation, source domain.DataSource) 
 	return Observation{MetricType: "traffic", RawValue: raw, Status: domain.DataEstimated, Source: source, Assumptions: []string{
 		"Road-based traffic potential is shown when usable official counts are unavailable. Review source results for coverage or retrieval failures.",
 		"Road classes and geometry come from OpenStreetMap and can be incomplete or differently classified from official Thai roads.",
-		"The provider supplies evidence only; deterministic preliminary-v2 scoring uses this estimated potential only when official AADT is unavailable.",
+		"The provider supplies evidence only; deterministic preliminary screening uses this estimated potential only when official AADT is unavailable.",
 	}}
 }
 
 func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
+	// The budget includes all mirrors, cache I/O and response-body reads.
+	// Sequential retries must never multiply the user's waiting time.
+	ctx, cancelBudget := context.WithTimeout(ctx, p.config.RequestBudget)
+	defer cancelBudget()
 	hash := sha256.Sum256([]byte(query))
 	cacheKey := "osm:overpass:" + hex.EncodeToString(hash[:])
 	if value, found, err := p.cache.Get(ctx, cacheKey); err == nil && found {
@@ -252,16 +281,37 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 	}
 
 	form := url.Values{"data": {query}}
+	operation := strings.TrimPrefix(telemetry.Operation(ctx), "overpass_")
+	if operation == "" {
+		operation = "unknown"
+	}
 	endpoints := append([]string{p.config.Endpoint}, p.config.FallbackEndpoints...)
+	candidates := p.endpointCandidates(operation, endpoints)
 	var lastErr error
-	for _, endpoint := range endpoints {
-		endpoint = strings.TrimSpace(endpoint)
-		if endpoint == "" {
-			continue
+	for index, candidate := range candidates {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+		endpoint := candidate.endpoint
+		started := p.now().UTC()
+		fallbackReason := ""
+		if index > 0 {
+			fallbackReason = "previous_endpoint_failed"
+		}
+		telemetry.Record(ctx, telemetry.Event{
+			Provider: "osm", Operation: "overpass_endpoint_attempt", Endpoint: telemetry.Endpoint(endpoint),
+			SelectedEndpoint: telemetry.Endpoint(endpoint), EndpointHealth: candidate.health,
+			FallbackTriggered: index > 0, FallbackReason: fallbackReason,
+			CooldownRemainingMS: candidate.cooldownRemaining.Milliseconds(), StartedAt: started, FinishedAt: started,
+			Status: "started",
+		})
+		attemptCtx, cancelAttempt := context.WithTimeout(ctx, p.config.AttemptTimeout)
+		req, err := http.NewRequestWithContext(attemptCtx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 		if err != nil {
+			cancelAttempt()
 			lastErr = err
+			p.recordEndpointFailure(operation, endpoint)
+			p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, 0, err, 0)
 			continue
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -269,20 +319,47 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 		req.Header.Set("User-Agent", p.config.UserAgent)
 		response, err := p.client.Do(req)
 		if err != nil {
+			cancelAttempt()
 			lastErr = err
+			p.recordEndpointFailure(operation, endpoint)
+			p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, p.now().UTC().Sub(started), err, 0)
 			continue
 		}
 		payload, readErr := io.ReadAll(io.LimitReader(response.Body, 10<<20))
 		response.Body.Close()
+		cancelAttempt()
 		if readErr != nil {
 			lastErr = readErr
+			p.recordEndpointFailure(operation, endpoint)
+			p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, p.now().UTC().Sub(started), readErr, response.StatusCode)
 			continue
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			lastErr = fmt.Errorf("overpass returned status %d", response.StatusCode)
+			if shouldCooldownOverpassStatus(response.StatusCode) {
+				p.recordEndpointFailure(operation, endpoint)
+			}
+			p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, p.now().UTC().Sub(started), lastErr, response.StatusCode)
 			continue
 		}
-		_ = p.cache.Set(ctx, cacheKey, payload, p.config.CacheTTL)
+		// Overpass can return HTTP 200 with a runtime-error remark. Never cache
+		// that response as successful evidence (or as zero competitors).
+		var valid struct {
+			Elements json.RawMessage `json:"elements"`
+			Remark   string          `json:"remark"`
+		}
+		if json.Unmarshal(payload, &valid) != nil || len(valid.Elements) == 0 || valid.Elements[0] != '[' || valid.Remark != "" {
+			lastErr = fmt.Errorf("overpass returned incomplete or invalid evidence")
+			p.recordEndpointFailure(operation, endpoint)
+			p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, p.now().UTC().Sub(started), lastErr, response.StatusCode)
+			continue
+		}
+		p.recordEndpointSuccess(operation, endpoint, p.now().UTC().Sub(started))
+		p.recordEndpointResult(ctx, endpoint, candidate, index > 0, fallbackReason, started, p.now().UTC().Sub(started), nil, response.StatusCode)
+		if err := p.cache.Set(ctx, cacheKey, payload, p.config.CacheTTL); err != nil {
+			// Cache failures must not turn a successful public-data lookup into a missing observation.
+			telemetry.Record(ctx, telemetry.Event{Provider: "osm", Operation: "overpass_cache_set", StartedAt: p.now().UTC(), FinishedAt: p.now().UTC(), Status: "error", ErrorType: telemetry.ErrorType(err)})
+		}
 		return payload, nil
 	}
 	if lastErr == nil {
@@ -291,21 +368,113 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 	return nil, lastErr
 }
 
+func shouldCooldownOverpassStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusBadGateway || status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout
+}
+
+func (p *OSMProvider) endpointCandidates(operation string, configured []string) []overpassEndpointCandidate {
+	now := p.now().UTC()
+	p.health.mu.Lock()
+	defer p.health.mu.Unlock()
+
+	probes, healthy, cooling := make([]overpassEndpointCandidate, 0, len(configured)), make([]overpassEndpointCandidate, 0, len(configured)), make([]overpassEndpointCandidate, 0, len(configured))
+	for _, rawEndpoint := range configured {
+		endpoint := strings.TrimSpace(rawEndpoint)
+		if endpoint == "" {
+			continue
+		}
+		key := operation + ":" + telemetry.Endpoint(endpoint)
+		state := p.health.states[key]
+		candidate := overpassEndpointCandidate{endpoint: endpoint, health: "healthy", averageLatency: state.averageLatency}
+		if state.cooldownUntil.After(now) {
+			candidate.health = "temporarily_unavailable"
+			candidate.cooldownRemaining = state.cooldownUntil.Sub(now)
+			cooling = append(cooling, candidate)
+			continue
+		}
+		if state.consecutiveFailures > 0 {
+			candidate.health = "probe"
+			candidate.probeAfterCooldown = true
+			probes = append(probes, candidate)
+			continue
+		}
+		healthy = append(healthy, candidate)
+	}
+	if len(probes) > 0 {
+		return append(append(probes, healthy...), cooling...)
+	}
+	if len(healthy) > 0 {
+		// Preserve the configured order until both endpoints have real measurements.
+		// Afterwards prefer the quicker healthy endpoint without hard-coding a provider.
+		sort.SliceStable(healthy, func(i, j int) bool {
+			if healthy[i].averageLatency == 0 || healthy[j].averageLatency == 0 {
+				return false
+			}
+			return healthy[i].averageLatency < healthy[j].averageLatency
+		})
+		return append(healthy, cooling...)
+	}
+	// Do not make an analysis fail solely because all known endpoints are cooling down.
+	// Probe the one that recovers soonest, then retain the other endpoints as fallbacks.
+	if len(cooling) > 0 {
+		sort.SliceStable(cooling, func(i, j int) bool {
+			return cooling[i].cooldownRemaining < cooling[j].cooldownRemaining
+		})
+		return cooling
+	}
+	return nil
+}
+
+func (p *OSMProvider) recordEndpointFailure(operation, endpoint string) {
+	p.health.mu.Lock()
+	defer p.health.mu.Unlock()
+	key := operation + ":" + telemetry.Endpoint(endpoint)
+	state := p.health.states[key]
+	state.consecutiveFailures++
+	state.cooldownUntil = p.now().UTC().Add(p.config.EndpointCooldown)
+	p.health.states[key] = state
+}
+
+func (p *OSMProvider) recordEndpointSuccess(operation, endpoint string, latency time.Duration) {
+	p.health.mu.Lock()
+	defer p.health.mu.Unlock()
+	key := operation + ":" + telemetry.Endpoint(endpoint)
+	state := p.health.states[key]
+	state.consecutiveFailures = 0
+	state.cooldownUntil = time.Time{}
+	if state.averageLatency == 0 {
+		state.averageLatency = latency
+	} else {
+		state.averageLatency = (state.averageLatency + latency) / 2
+	}
+	p.health.states[key] = state
+}
+
+func (p *OSMProvider) recordEndpointResult(ctx context.Context, endpoint string, candidate overpassEndpointCandidate, fallback bool, fallbackReason string, started time.Time, duration time.Duration, err error, httpStatus int) {
+	finished := started.Add(duration)
+	status := "success"
+	if err != nil || httpStatus < 200 || httpStatus >= 300 {
+		status = "error"
+	}
+	errorType := telemetry.ErrorType(err)
+	if errorType == "" && status == "error" {
+		errorType = "http_status"
+	}
+	telemetry.Record(ctx, telemetry.Event{
+		Provider: "osm", Operation: "overpass_endpoint_result", Endpoint: telemetry.Endpoint(endpoint),
+		SelectedEndpoint: telemetry.Endpoint(endpoint), EndpointHealth: candidate.health,
+		FallbackTriggered: fallback, FallbackReason: fallbackReason, CooldownRemainingMS: candidate.cooldownRemaining.Milliseconds(),
+		StartedAt: started, FinishedAt: finished, DurationMS: duration.Milliseconds(), Status: status,
+		ErrorType: errorType, HTTPStatus: httpStatus,
+	})
+}
+
 func buildOverpassContextQuery(latitude, longitude float64, radius int) string {
 	lat := strconv.FormatFloat(latitude, 'f', 6, 64)
 	lon := strconv.FormatFloat(longitude, 'f', 6, 64)
 	r := strconv.Itoa(radius)
 	return `[out:json][timeout:20];(` +
 		`nwr(around:` + r + `,` + lat + `,` + lon + `)["amenity"="charging_station"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["amenity"~"^(restaurant|cafe|fast_food|hospital|clinic|university|college|school|marketplace)$"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["shop"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["tourism"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["leisure"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["office"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["building"~"^(commercial|office|apartments|dormitory|condominium|hotel)$"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["building"="residential"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["landuse"="residential"];` +
-		`nwr(around:` + r + `,` + lat + `,` + lon + `)["place"~"^(neighbourhood|suburb|quarter|village|town)$"];` +
 		`);out center tags;`
 }
 
@@ -316,15 +485,11 @@ func buildOverpassRoadQuery(latitude, longitude float64, radius int) string {
 	return `[out:json][timeout:20];way(around:` + r + `,` + lat + `,` + lon + `)["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"];out geom tags;`
 }
 
-type osmCommunityEvidence struct {
-	ResidentialBuildingCount int
-	CommunityAreaCount       int
-}
-
-func classifyOSMElements(elements []osmElement) (poi []osmPlace, chargers []osmPlace, communities osmCommunityEvidence) {
+func classifyOSMChargingStations(elements []osmElement) []osmPlace {
+	chargers := make([]osmPlace, 0)
 	seen := make(map[string]struct{}, len(elements))
 	for _, element := range elements {
-		if element.Tags["highway"] != "" {
+		if element.Tags["amenity"] != "charging_station" {
 			continue
 		}
 		key := element.Type + ":" + strconv.FormatInt(element.ID, 10)
@@ -332,43 +497,13 @@ func classifyOSMElements(elements []osmElement) (poi []osmPlace, chargers []osmP
 			continue
 		}
 		seen[key] = struct{}{}
-		if element.Tags["building"] == "residential" {
-			communities.ResidentialBuildingCount++
-			continue
-		}
-		if element.Tags["landuse"] == "residential" || element.Tags["place"] == "neighbourhood" || element.Tags["place"] == "suburb" || element.Tags["place"] == "quarter" || element.Tags["place"] == "village" || element.Tags["place"] == "town" {
-			communities.CommunityAreaCount++
-			continue
-		}
-		category := osmCategory(element.Tags)
-		if building := element.Tags["building"]; building != "" && building != "yes" {
-			for _, buildingType := range strings.Split(building, ";") {
-				if isDetailedBuildingType(buildingType) {
-					category = "building:" + buildingType
-					break
-				}
-			}
-		}
-		place := osmPlace{OSMType: element.Type, OSMID: element.ID, Name: element.Tags["name"], Category: category, Latitude: element.Lat, Longitude: element.Lon}
+		place := osmPlace{OSMType: element.Type, OSMID: element.ID, Name: element.Tags["name"], Category: "amenity:charging_station", Latitude: element.Lat, Longitude: element.Lon}
 		if element.Center != nil {
 			place.Latitude, place.Longitude = element.Center.Lat, element.Center.Lon
 		}
-		if element.Tags["amenity"] == "charging_station" {
-			chargers = append(chargers, place)
-			continue
-		}
-		poi = append(poi, place)
+		chargers = append(chargers, place)
 	}
-	return poi, chargers, communities
-}
-
-func isDetailedBuildingType(building string) bool {
-	switch building {
-	case "commercial", "office", "apartments", "dormitory", "condominium", "hotel":
-		return true
-	default:
-		return false
-	}
+	return chargers
 }
 
 func classifyOSMRoads(elements []osmElement) []osmElement {
@@ -424,37 +559,13 @@ func haversineMeters(latitude1, longitude1, latitude2, longitude2 float64) float
 	return earthRadius * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
-func osmCategory(tags map[string]string) string {
-	for _, key := range []string{"amenity", "shop", "tourism", "leisure", "office"} {
-		if value := tags[key]; value != "" {
-			return key + ":" + value
-		}
-	}
-	return "other"
-}
-
-func osmObservation(metricType string, places []osmPlace, radius int, source domain.DataSource, assumptions []string, communities osmCommunityEvidence, excludedChargingStationCount int) Observation {
-	count := len(places)
-	coverageComplete := true
-	status := domain.DataVerified
-	if metricType == "poi" && count == 0 {
-		// An empty community-maintained map response is not enough evidence to
-		// conclude that there are no places around a Thai site. Keep the count
-		// visible, but exclude it from the screening score until it is rerun.
-		coverageComplete = false
-		status = domain.DataPreliminary
-		assumptions = append(assumptions, "The place query returned zero mapped records. This is treated as incomplete map coverage, not evidence that no important places exist, and is excluded from scoring.")
-	}
-	categoryCounts := make(map[string]int)
-	for _, place := range places {
-		categoryCounts[place.Category]++
-	}
-	if len(places) > 100 {
-		places = places[:100]
-		assumptions = append(assumptions, "The response preserves at most 100 example places; count remains the full deduplicated total.")
-	}
-	raw, _ := json.Marshal(osmMetricValue{Count: count, RadiusMeters: radius, CoverageComplete: coverageComplete, Places: places, CategoryCounts: categoryCounts, ExcludedChargingStationCount: excludedChargingStationCount, ResidentialBuildingCount: communities.ResidentialBuildingCount, CommunityAreaCount: communities.CommunityAreaCount})
-	return Observation{MetricType: metricType, RawValue: raw, Status: status, Source: source, Assumptions: assumptions}
+func osmCompetitionObservation(places []osmPlace, radius int, source domain.DataSource, assumptions []string) Observation {
+	raw, _ := json.Marshal(struct {
+		Count        int        `json:"count"`
+		RadiusMeters int        `json:"radiusMeters"`
+		Places       []osmPlace `json:"places"`
+	}{Count: len(places), RadiusMeters: radius, Places: places})
+	return Observation{MetricType: "competition", RawValue: raw, Status: domain.DataVerified, Source: source, Assumptions: assumptions}
 }
 
 func unavailableObservations() ([]Observation, map[string]int) {

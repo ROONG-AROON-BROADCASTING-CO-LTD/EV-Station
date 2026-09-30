@@ -19,6 +19,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const (
@@ -272,6 +273,7 @@ func (p *ProvincialChargerProvider) loadSaraburi(ctx context.Context) (provincia
 }
 
 func (p *ProvincialChargerProvider) fetch(ctx context.Context, endpoint string) ([]byte, time.Time, error) {
+	ctx = telemetry.WithOperation(ctx, "provincial_charger_download")
 	hash := sha256.Sum256([]byte(endpoint))
 	key := "provincial-chargers:" + hex.EncodeToString(hash[:])
 	if payload, found, err := p.cache.Get(ctx, key); err == nil && found {

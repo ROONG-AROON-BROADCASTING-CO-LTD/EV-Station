@@ -20,10 +20,13 @@ func TestStationUsesCombinedEvidenceBeforeUtilityCapacityIsConfirmed(t *testing.
 			t.Fatal(err)
 		}
 		request := string(body)
-		for _, fact := range []string{"traffic", "ev_demand", "population", "competition", "preliminaryCabinetLimit"} {
+		for _, fact := range []string{"traffic", "ev_demand", "population", "competition", "layoutCabinetLimit"} {
 			if !strings.Contains(request, fact) {
 				t.Fatalf("AI request did not include %q", fact)
 			}
+		}
+		if !strings.Contains(request, "Do not describe or label the recommendation as preliminary or เบื้องต้น") {
+			t.Fatal("AI prompt must present the result as a recommendation without calling it preliminary")
 		}
 		result, err := json.Marshal(map[string]any{"powerKw": 120, "chargerCount": 1, "th": map[string]any{"reason": "ข้อมูลทำเลสนับสนุนให้เริ่มหนึ่งตู้", "assumptions": []string{}, "missingData": []string{}}, "en": map[string]any{"reason": "Site evidence supports starting with one cabinet.", "assumptions": []string{}, "missingData": []string{}}})
 		if err != nil {
@@ -68,10 +71,13 @@ func TestStationRejectsUnsupportedAndContradictorySizes(t *testing.T) {
 	}
 }
 
-func TestStationKeepsLayoutQuantityWhenGridEvidenceIsPreliminary(t *testing.T) {
+func TestStationKeepsLayoutQuantityWhenGridEvidenceIsUnconfirmed(t *testing.T) {
 	result := initialPhaseStationRecommendation(7_600, franchiseLayoutPlan{Code: "L", RecommendedAreaSqWah: 400, CabinetLimit: 4}, 1, 4)
 	if !result.RecommendationAvailable || result.CapacityConfirmed || result.PowerKW != 120 || result.ChargerCount != 4 || result.TotalPowerKW != 480 || !validStation(result) {
 		t.Fatalf("expected a valid L-layout recommendation, got %+v", result)
+	}
+	if strings.Contains(result.TH.Reason, "เบื้องต้น") || strings.Contains(result.EN.Reason, "preliminary") {
+		t.Fatalf("recommendation text should not be labelled preliminary: %+v", result)
 	}
 	confirmed := domain.AnalysisRun{Metrics: []domain.Metric{{Type: "electrical", Status: domain.DataVerified, Source: domain.DataSource{SiteVerification: "utility_capacity_confirmed"}}}}
 	if !hasConfirmedElectricalCapacity(confirmed) {
@@ -82,38 +88,29 @@ func TestStationKeepsLayoutQuantityWhenGridEvidenceIsPreliminary(t *testing.T) {
 	}
 }
 
-func TestStationBlocksUndergroundAndNarrowEntrances(t *testing.T) {
+func TestStationBlocksUndergroundButNotNarrowEntrance(t *testing.T) {
 	narrow := 6.9
-	for _, tc := range []struct {
-		name string
-		site domain.Site
-		want string
-	}{
-		{name: "underground", site: domain.Site{ElectricalSupplyType: "underground"}, want: "underground_electricity"},
-		{name: "narrow entrance", site: domain.Site{FrontageMeters: &narrow}, want: "entrance_below_7m"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got := StationBlocker(tc.site)
-			if got != tc.want {
-				t.Fatalf("StationBlocker() = %q, want %q", got, tc.want)
-			}
-			result := blockedStationRecommendation(400, franchiseLayoutPlan{Code: "L", RecommendedAreaSqWah: 400, CabinetLimit: 4}, got)
-			if result.RecommendationAvailable || result.Blocker != tc.want || !validStation(result) {
-				t.Fatalf("expected a valid blocked recommendation, got %+v", result)
-			}
-		})
+	if got := StationBlocker(domain.Site{ElectricalSupplyType: "underground"}); got != "underground_electricity" {
+		t.Fatalf("StationBlocker() = %q, want underground_electricity", got)
+	}
+	if got := StationBlocker(domain.Site{FrontageMeters: &narrow}); got != "" {
+		t.Fatalf("StationBlocker() = %q, want empty for an informational entrance recommendation", got)
+	}
+	result := blockedStationRecommendation(400, franchiseLayoutPlan{Code: "L", RecommendedAreaSqWah: 400, CabinetLimit: 4}, "underground_electricity")
+	if result.RecommendationAvailable || result.Blocker != "underground_electricity" || !validStation(result) {
+		t.Fatalf("expected a valid blocked recommendation, got %+v", result)
 	}
 }
 
-func TestCabinetLimitUsesLandFrontageVoltageAndDistance(t *testing.T) {
+func TestCabinetLimitUsesLandAreaRegardlessOfFrontage(t *testing.T) {
 	frontage5 := 5.0
 	frontage10 := 10.0
 	frontage12 := 12.0
-	if got := cabinetLimitFromSite(domain.Site{FrontageMeters: &frontage5}, 800); got != 1 {
-		t.Fatalf("5m frontage got %d, want 1", got)
+	if got := cabinetLimitFromSite(domain.Site{FrontageMeters: &frontage5}, 800); got != 4 {
+		t.Fatalf("5m frontage got %d, want 4", got)
 	}
-	if got := cabinetLimitFromSite(domain.Site{FrontageMeters: &frontage10}, 800); got != 2 {
-		t.Fatalf("10m frontage got %d, want 2", got)
+	if got := cabinetLimitFromSite(domain.Site{FrontageMeters: &frontage10}, 800); got != 4 {
+		t.Fatalf("10m frontage got %d, want 4", got)
 	}
 	if got := cabinetLimitFromSite(domain.Site{FrontageMeters: &frontage12}, 800); got != 4 {
 		t.Fatalf("12m frontage got %d, want 4 for the L format", got)

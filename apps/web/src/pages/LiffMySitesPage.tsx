@@ -3,23 +3,9 @@ import { ClipboardList, MapPin, Plus } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider'
 import type { Site } from '../types/domain'
 import { api } from '../services/api'
+import { loadLiffConfig, loadLiffSDK } from '../services/liff'
 
 type CustomerSite = Site & { customerStatus: 'pending_review' | 'analysis_completed' }
-type LiffSDK = { init: (options: { liffId: string }) => Promise<void>; isLoggedIn: () => boolean; login: (options: { redirectUri: string }) => void; getIDToken: () => string | null }
-declare global { interface Window { liff?: LiffSDK } }
-
-function loadLiffSDK(): Promise<LiffSDK> {
-  if (window.liff) return Promise.resolve(window.liff)
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'
-    script.async = true
-    script.onload = () => window.liff ? resolve(window.liff) : reject(new Error('error.LIFF_SDK_LOAD'))
-    script.onerror = () => reject(new Error('error.LIFF_CONNECTION'))
-    document.head.appendChild(script)
-  })
-}
-
 export function LiffMySitesPage() {
   const { t } = useI18n()
   const [sites, setSites] = useState<CustomerSite[]>()
@@ -28,7 +14,7 @@ export function LiffMySitesPage() {
     let active = true
     const initialise = async () => {
       try {
-        const [sdk, configResponse] = await Promise.all([loadLiffSDK(), fetch('/api/v1/liff/config').then(async response => { if (!response.ok) throw new Error('error.LIFF_CONFIGURATION'); return response.json() as Promise<{ liffId?: string }> })])
+        const [sdk, configResponse] = await Promise.all([loadLiffSDK(), loadLiffConfig()])
         if (!configResponse.liffId) throw new Error('error.LIFF_NOT_READY')
         await sdk.init({ liffId: configResponse.liffId })
         if (!sdk.isLoggedIn()) { sdk.login({ redirectUri: location.href }); return }

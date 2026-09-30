@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '../i18n/I18nProvider'
 import { api } from '../services/api'
 import { LoginPage } from './LoginPage'
@@ -19,7 +20,7 @@ const mockedAPI = api as unknown as {
 }
 
 function renderLogin(onAuthenticated = vi.fn()) {
-  render(<I18nProvider><LoginPage onAuthenticated={onAuthenticated} /></I18nProvider>)
+  render(<MemoryRouter><I18nProvider><LoginPage onAuthenticated={onAuthenticated} /></I18nProvider></MemoryRouter>)
   return onAuthenticated
 }
 

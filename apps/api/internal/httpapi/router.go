@@ -27,6 +27,7 @@ func NewRouter(cfg config.Config, handler *Handler) *gin.Engine {
 	api.POST("/auth/register", handler.Register)
 	api.POST("/auth/register/request-otp", handler.RequestRegistrationOTP)
 	api.POST("/auth/login", handler.Login)
+	api.POST("/public/visitor-ordinal", handler.RegisterVisitorOrdinal)
 	api.POST("/line/webhook", handler.LineWebhook)
 	api.GET("/liff/config", handler.LiffConfig)
 	api.GET("/liff/customer-profile", handler.LiffCustomerProfile)

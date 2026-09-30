@@ -27,80 +27,11 @@ import { ErrorState, LoadingState } from "../components/PageState";
 import { useI18n } from "../i18n/I18nProvider";
 import { api } from "../services/api";
 import type { AnalysisRun, Site, UserRole } from "../types/domain";
+import { WORKFLOW, copy, formatDate, locationText, stageFor, type WorkflowStage } from './dashboard/workflow'
+import { getSiteInspectorModel } from './dashboard/siteInspectorModel'
 
-type WorkflowStage = "submitted" | "documents" | "analysing" | "ready";
+const EMPTY_SITES: Site[] = [];
 
-const WORKFLOW: Array<{
-  id: WorkflowStage;
-  icon: typeof Check;
-  th: string;
-  en: string;
-  tone: string;
-  activeTone: string;
-}> = [
-  {
-    id: "submitted",
-    icon: Check,
-    th: "ส่งข้อมูลแล้ว",
-    en: "Submitted",
-    tone: "text-emerald-600",
-    activeTone: "bg-emerald-50 ring-emerald-200",
-  },
-  {
-    id: "documents",
-    icon: FileText,
-    th: "ต้องตรวจเพิ่ม",
-    en: "Needs review",
-    tone: "text-orange-500",
-    activeTone: "bg-orange-50 ring-orange-200",
-  },
-  {
-    id: "analysing",
-    icon: TrendingUp,
-    th: "กำลังวิเคราะห์",
-    en: "Analysing",
-    tone: "text-blue-600",
-    activeTone: "bg-blue-50 ring-blue-200",
-  },
-  {
-    id: "ready",
-    icon: Phone,
-    th: "พร้อมติดตาม",
-    en: "Ready to follow up",
-    tone: "text-emerald-600",
-    activeTone: "bg-emerald-50 ring-emerald-200",
-  },
-];
-
-function stageFor(site: Site, run?: AnalysisRun | null): WorkflowStage {
-  if (site.inputStatus === "missing") return "documents";
-  if (!run) return "submitted";
-  if (run.status === "pending" || run.status === "running") return "analysing";
-  if (run.status === "failed") return "documents";
-  return "ready";
-}
-
-function copy(language: "th" | "en", th: string, en: string) {
-  return language === "th" ? th : en;
-}
-
-function formatDate(value: string, language: "th" | "en") {
-  return new Date(value).toLocaleDateString(
-    language === "th" ? "th-TH" : "en-GB",
-    {
-      day: "numeric",
-      month: "short",
-      year: language === "th" ? "numeric" : "2-digit",
-    },
-  );
-}
-
-function locationText(site: Site, language: "th" | "en") {
-  if (site.address) return site.address;
-  if (site.latitude !== undefined && site.longitude !== undefined)
-    return `${site.latitude.toFixed(5)}, ${site.longitude.toFixed(5)}`;
-  return copy(language, "ยังไม่มีตำแหน่ง", "Location pending");
-}
 
 export function DashboardPage({ role }: { role: UserRole }) {
   const { language } = useI18n();
@@ -133,7 +64,7 @@ export function DashboardPage({ role }: { role: UserRole }) {
       ),
     [latestAnalyses, sites.data],
   );
-  const siteList = sites.data ?? [];
+  const siteList = sites.data ?? EMPTY_SITES;
   const stageCounts = useMemo(
     () =>
       siteList.reduce<Record<WorkflowStage, number>>(
@@ -174,7 +105,6 @@ export function DashboardPage({ role }: { role: UserRole }) {
   const selectedAnalysis = selectedSite
     ? analysisBySite.get(selectedSite.id)
     : undefined;
-  const isAdmin = role === "admin" || role === "super_admin";
   const title = "Portfolio";
   const subtitle = copy(
     language,
@@ -965,30 +895,7 @@ function SiteInspector({
       </aside>
     );
   const stage = stageFor(site, run);
-  const score = Math.round(run?.overallScore ?? 0);
-  const destination = run ? `/analysis/${run.id}` : `/sites/${site.id}`;
-  const canEdit =
-    role === "super_admin" || role === "admin" || role === "sales";
-  const canDelete = role === "super_admin";
-  const checklist = [
-    {
-      done: Boolean(site.contactName && site.contactPhone),
-      th: "ข้อมูลผู้ติดต่อ",
-      en: "Contact details",
-    },
-    {
-      done: site.latitude !== undefined && site.longitude !== undefined,
-      th: "ตำแหน่งพื้นที่",
-      en: "Site location",
-    },
-    {
-      done: run?.status === "completed",
-      th: "ผลคัดกรองเบื้องต้น",
-      en: "Screening result",
-    },
-  ];
-  const readinessTone =
-    score >= 60 ? "#009b68" : score >= 45 ? "#f1b63d" : "#ff7a59";
+  const { score, destination, canEdit, canDelete, checklist, readinessTone } = getSiteInspectorModel(site, run, role)
   return (
     <aside className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,35,70,0.04)] xl:sticky xl:top-6 xl:self-start">
       <div className="px-5 pb-3 pt-5">

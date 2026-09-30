@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,15 +11,84 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
-func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T) {
+func TestOSMProviderSkipsCoolingEndpointAndProbesItAfterCooldown(t *testing.T) {
+	var primaryCalls, fallbackCalls int
+	primaryFails := true
+	primary := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		primaryCalls++
+		if primaryFails {
+			writer.WriteHeader(http.StatusGatewayTimeout)
+			return
+		}
+		_, _ = writer.Write([]byte(`{"elements":[]}`))
+	}))
+	defer primary.Close()
+	fallback := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		fallbackCalls++
+		_, _ = writer.Write([]byte(`{"elements":[]}`))
+	}))
+	defer fallback.Close()
+
+	now := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	provider := NewOSMProvider(OSMConfig{Endpoint: primary.URL, FallbackEndpoints: []string{fallback.URL}, EndpointCooldown: time.Minute}, primary.Client(), cache.Noop{})
+	provider.now = func() time.Time { return now }
+	ctx := telemetry.WithOperation(context.Background(), "overpass_context")
+
+	if _, err := provider.fetch(ctx, "first"); err != nil {
+		t.Fatal(err)
+	}
+	if primaryCalls != 1 || fallbackCalls != 1 {
+		t.Fatalf("first request should fall back after 504: primary=%d fallback=%d", primaryCalls, fallbackCalls)
+	}
+	if _, err := provider.fetch(ctx, "second"); err != nil {
+		t.Fatal(err)
+	}
+	if primaryCalls != 1 || fallbackCalls != 2 {
+		t.Fatalf("cooldown should skip primary: primary=%d fallback=%d", primaryCalls, fallbackCalls)
+	}
+
+	now = now.Add(time.Minute)
+	primaryFails = false
+	if _, err := provider.fetch(ctx, "third"); err != nil {
+		t.Fatal(err)
+	}
+	if primaryCalls != 2 {
+		t.Fatalf("expired cooldown should probe the primary again, got %d calls", primaryCalls)
+	}
+}
+
+func TestOSMProviderKeepsAnEndpointAvailableWhenAllAreCooling(t *testing.T) {
+	provider := NewOSMProvider(OSMConfig{Endpoint: "https://primary.example/api", FallbackEndpoints: []string{"https://fallback.example/api"}, EndpointCooldown: time.Minute}, nil, cache.Noop{})
+	now := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	provider.now = func() time.Time { return now }
+	for _, endpoint := range []string{"https://primary.example/api", "https://fallback.example/api"} {
+		provider.recordEndpointFailure("context", endpoint)
+	}
+	candidates := provider.endpointCandidates("context", []string{provider.config.Endpoint, provider.config.FallbackEndpoints[0]})
+	if len(candidates) != 2 {
+		t.Fatalf("all cooling endpoints must remain available for recovery, got %d", len(candidates))
+	}
+	for _, candidate := range candidates {
+		if candidate.health != "temporarily_unavailable" {
+			t.Fatalf("expected cooling endpoint state, got %s for %s", candidate.health, candidate.endpoint)
+		}
+	}
+}
+
+func TestOSMProviderCollectsRoadsAndCompetitionWithoutDuplicatingGooglePOI(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			t.Fatalf("expected POST, got %s", request.Method)
 		}
 		if request.Header.Get("User-Agent") != "rbc-test" {
 			t.Fatalf("unexpected user agent %q", request.Header.Get("User-Agent"))
+		}
+		query, _ := io.ReadAll(request.Body)
+		if strings.Contains(string(query), "restaurant") || strings.Contains(string(query), "landuse") {
+			t.Fatalf("Overpass must not request POI or land-use data covered by Google Places: %s", query)
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write([]byte(`{"version":0.6,"generator":"Overpass API","elements":[
@@ -41,17 +111,12 @@ func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T
 	for _, observation := range observations {
 		byType[observation.MetricType] = observation
 	}
-	for _, metricType := range []string{"poi", "competition"} {
-		observation := byType[metricType]
-		if observation.Status != domain.DataVerified {
-			t.Fatalf("expected %s to be verified, got %s", metricType, observation.Status)
-		}
-		if observation.NormalizedScore != nil {
-			t.Fatalf("expected %s score to remain absent", metricType)
-		}
-		if !strings.Contains(string(observation.RawValue), `"count":1`) {
-			t.Fatalf("expected deduplicated count for %s, got %s", metricType, observation.RawValue)
-		}
+	if byType["poi"].Status != domain.DataMissing {
+		t.Fatalf("OSM must leave commercial POI collection to Google Places, got %+v", byType["poi"])
+	}
+	competition := byType["competition"]
+	if competition.Status != domain.DataVerified || competition.NormalizedScore != nil || !strings.Contains(string(competition.RawValue), `"count":1`) {
+		t.Fatalf("expected one unscored OSM charging competitor, got %+v", competition)
 	}
 	if byType["road_accessibility"].Status != domain.DataPreliminary || byType["road_accessibility"].NormalizedScore != nil {
 		t.Fatalf("road accessibility must be a preliminary road proxy without a score: %+v", byType["road_accessibility"])
@@ -64,13 +129,6 @@ func TestOSMProviderCollectsPOIAndCompetitionWithoutInventingScores(t *testing.T
 	}
 	if !strings.Contains(string(byType["traffic"].RawValue), `"nearestRoadName":"Main Road"`) || !strings.Contains(string(byType["traffic"].RawValue), `"nearestRoadClass":"primary"`) {
 		t.Fatalf("expected the nearest mapped road identity, got %s", byType["traffic"].RawValue)
-	}
-	poiRaw := string(byType["poi"].RawValue)
-	if !strings.Contains(poiRaw, `"categoryCounts":{"amenity:restaurant":1}`) {
-		t.Fatalf("expected exact POI category totals, got %s", poiRaw)
-	}
-	if !strings.Contains(poiRaw, `"excludedChargingStationCount":1`) {
-		t.Fatalf("expected charging station to be excluded from POI total, got %s", poiRaw)
 	}
 }
 
@@ -87,7 +145,59 @@ func TestOSMProviderRequiresCoordinates(t *testing.T) {
 	}
 }
 
-func TestClassifyOSMElementsSeparatesRequestedBuildingCategories(t *testing.T) {
+func TestOverpassStalledPrimaryFallsBackWithinBudget(t *testing.T) {
+	stalled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+	}))
+	defer stalled.Close()
+	backup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"elements":[]}`))
+	}))
+	defer backup.Close()
+	p := NewOSMProvider(OSMConfig{Endpoint: stalled.URL, FallbackEndpoints: []string{backup.URL}, RequestBudget: time.Second, AttemptTimeout: 50 * time.Millisecond}, stalled.Client(), cache.Noop{})
+	started := time.Now()
+	if _, err := p.fetch(context.Background(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatal("fallback exceeded the combined request budget")
+	}
+}
+
+func TestOverpassAllMirrorsShareOneDeadline(t *testing.T) {
+	stalled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+	}))
+	defer stalled.Close()
+	p := NewOSMProvider(OSMConfig{Endpoint: stalled.URL, FallbackEndpoints: []string{stalled.URL + "/backup", stalled.URL + "/third"}, RequestBudget: 120 * time.Millisecond, AttemptTimeout: 80 * time.Millisecond}, stalled.Client(), cache.Noop{})
+	started := time.Now()
+	if _, err := p.fetch(context.Background(), "test"); err == nil {
+		t.Fatal("stalled mirrors must report missing evidence")
+	}
+	if time.Since(started) > 500*time.Millisecond {
+		t.Fatal("mirror timeouts multiplied instead of sharing a deadline")
+	}
+}
+
+func TestOverpassRuntimeErrorFallsBackInsteadOfReportingZero(t *testing.T) {
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"elements":[],"remark":"runtime error: Query timed out"}`))
+	}))
+	defer primary.Close()
+	backup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"elements":[{"type":"node","id":1}]}`))
+	}))
+	defer backup.Close()
+	p := NewOSMProvider(OSMConfig{Endpoint: primary.URL, FallbackEndpoints: []string{backup.URL}}, primary.Client(), cache.Noop{})
+	payload, err := p.fetch(context.Background(), "test")
+	if err != nil || !strings.Contains(string(payload), `"id":1`) {
+		t.Fatalf("expected usable backup evidence, got %s, %v", payload, err)
+	}
+}
+
+func TestClassifyOSMChargingStationsIgnoresGooglePlacesCategories(t *testing.T) {
 	elements := []osmElement{
 		{Type: "way", ID: 1, Tags: map[string]string{"amenity": "hospital"}},
 		{Type: "way", ID: 2, Tags: map[string]string{"building": "commercial"}},
@@ -99,17 +209,8 @@ func TestClassifyOSMElementsSeparatesRequestedBuildingCategories(t *testing.T) {
 		{Type: "way", ID: 8, Tags: map[string]string{"building": "office"}},
 		{Type: "node", ID: 9, Tags: map[string]string{"amenity": "charging_station"}},
 	}
-	places, chargers, _ := classifyOSMElements(elements)
-	counts := make(map[string]int)
-	for _, place := range places {
-		counts[place.Category]++
-	}
-	for _, category := range []string{"amenity:hospital", "building:commercial", "tourism:hotel", "building:apartments", "building:dormitory", "building:condominium", "tourism:attraction", "building:office"} {
-		if counts[category] != 1 {
-			t.Fatalf("expected one %s, got %d (%+v)", category, counts[category], counts)
-		}
-	}
-	if len(chargers) != 1 || len(places) != 8 {
-		t.Fatalf("expected EV station to be separated from 8 POIs: places=%d chargers=%d", len(places), len(chargers))
+	chargers := classifyOSMChargingStations(elements)
+	if len(chargers) != 1 || chargers[0].Category != "amenity:charging_station" {
+		t.Fatalf("expected only the charging station, got %+v", chargers)
 	}
 }

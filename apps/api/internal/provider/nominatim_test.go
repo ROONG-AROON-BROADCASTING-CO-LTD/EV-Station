@@ -64,3 +64,28 @@ func TestNominatimReverseReturnsNearestRoadAndArea(t *testing.T) {
 		t.Fatalf("unexpected reverse result: %#v", result)
 	}
 }
+
+func TestNominatimReverseUsesCountyForFloodDistrictMatching(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"address":{"road":"ถนนศรีธรรมไตรปิฎก","city_district":"ตำบลในเมือง","city":"เทศบาลนครพิษณุโลก","municipality":"อรัญญิก","county":"อำเภอเมืองพิษณุโลก","province":"จังหวัดพิษณุโลก"}}`))
+	}))
+	defer server.Close()
+	geocoder := NewNominatimGeocoder(NominatimConfig{Endpoint: server.URL, CountryCodes: "th"}, server.Client(), cache.Noop{})
+	result, err := geocoder.Reverse(context.Background(), 16.798026, 100.264773)
+	if err != nil || result.District != "อำเภอเมืองพิษณุโลก" {
+		t.Fatalf("must select administrative district rather than tambon: %+v, %v", result, err)
+	}
+	snapshot, err := loadDPMFloodSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	areas := make(map[string]dpmFloodAreaSummary)
+	for _, area := range snapshot.Districts {
+		areas[dpmFloodAreaKey(area.Province, area.District)] = area
+	}
+	area, found := findDPMFloodArea(areas, result.Province, result.District)
+	if !found || len(area.ReportedYears) == 0 {
+		t.Fatalf("real Phitsanulok address must match embedded DDPM history: %+v", result)
+	}
+}

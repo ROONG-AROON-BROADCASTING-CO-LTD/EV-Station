@@ -139,7 +139,7 @@ export interface StationRecommendationText {
 
 export interface StationRecommendation {
 	recommendationAvailable: boolean
-	blocker?: 'utility_capacity_not_confirmed' | 'entrance_below_7m' | 'underground_electricity'
+	blocker?: 'utility_capacity_not_confirmed' | 'underground_electricity'
 	capacityConfirmed: boolean
 	recommendationStage: 'initial_phase' | 'screening_evidence' | 'utility_confirmed' | 'blocked'
   powerKw: number
@@ -167,6 +167,7 @@ export interface AIAssessment {
   language: 'th' | 'en'
   model: string
   generatedAt: string
+  decisionPolicy: string
 }
 
 export interface GeocodingResult {

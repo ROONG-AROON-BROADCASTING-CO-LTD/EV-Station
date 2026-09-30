@@ -16,6 +16,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const peaGridReference = "https://gisportal.pea.co.th/arcgis/rest/services/PEA_PAPD/PAPD_T_Station/FeatureServer"
@@ -179,6 +180,7 @@ func (p *PEAGridProvider) Collect(ctx context.Context, site domain.Site, _ int) 
 }
 
 func (p *PEAGridProvider) query(ctx context.Context, endpoint string, latitude, longitude float64, fields string) ([]byte, error) {
+	ctx = telemetry.WithOperation(ctx, "pea_grid_lookup")
 	if strings.TrimSpace(endpoint) == "" {
 		return nil, fmt.Errorf("PEA GIS endpoint is not configured")
 	}

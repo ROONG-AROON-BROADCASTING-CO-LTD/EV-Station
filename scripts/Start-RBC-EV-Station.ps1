@@ -90,7 +90,10 @@ Wait-ForDocker
 Write-RbcStatus 'Starting database, API and web...'
 Push-Location $ProjectRoot
 try {
-    docker compose up -d --wait
+    docker compose up -d --build --wait
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Docker build/start failed. The updated application was not started.'
+    }
 } finally {
     Pop-Location
 }

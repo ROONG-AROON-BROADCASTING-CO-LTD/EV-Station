@@ -15,6 +15,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const gistdaFloodRiskReference = "https://gistdaportal.gistda.or.th/arcgis/rest/services/app/GISTDA_flood/MapServer/1"
@@ -105,6 +106,7 @@ func (p *GISTDAFloodProvider) Collect(ctx context.Context, site domain.Site, rad
 }
 
 func (p *GISTDAFloodProvider) fetchCount(ctx context.Context, latitude, longitude float64, radius int) (int, error) {
+	ctx = telemetry.WithOperation(ctx, "gistda_flood_lookup")
 	values := url.Values{
 		"f":               {"json"},
 		"where":           {"1=1"},

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PreliminaryVersion        = "preliminary-v2"
+	PreliminaryVersion        = "preliminary-v3"
 	MinimumCoveragePercentage = 60.0
 )
 
@@ -35,6 +35,7 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 				"This score is a deterministic preliminary screening indicator, not an investment approval.",
 				"Missing metrics are excluded and the available weights are renormalized; review coverage before comparing sites.",
 				"Electrical readiness uses only published-grid proximity or service-area evidence; it does not confirm capacity, a connection point, or three-phase supply for the plot.",
+				"Flood scoring uses reported history at district scope where the public dataset has records; it does not confirm parcel flooding, and missing records do not mean flood-free.",
 			},
 		},
 	}
@@ -75,6 +76,41 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 }
 
 func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
+	if metric.Type == "flood" {
+		var history struct {
+			AssessmentType         string `json:"assessmentType"`
+			ReportedFloodYearCount int    `json:"reportedFloodYearCount"`
+			PeriodStartYear        int    `json:"periodStartYear"`
+			PeriodEndYear          int    `json:"periodEndYear"`
+		}
+		if metric.Status == domain.DataMissing {
+			return 0, "", false
+		}
+		if json.Unmarshal(metric.RawValue, &history) == nil {
+			if history.AssessmentType == "provincial_year_summary" {
+				return 0, "", false
+			}
+			if history.AssessmentType == "administrative_district_historical_reports" {
+				// Legacy stored reports did not always include period metadata.
+				if history.PeriodStartYear == 0 && history.PeriodEndYear == 0 {
+					history.PeriodStartYear, history.PeriodEndYear = 2562, 2567
+				}
+				period := history.PeriodEndYear - history.PeriodStartYear + 1
+				if history.PeriodStartYear < 2500 || period < 1 || period > 50 || history.ReportedFloodYearCount < 1 || history.ReportedFloodYearCount > period {
+					return 0, "", false
+				}
+				return 100 - float64(history.ReportedFloodYearCount)*10, "DDPM district-history screen: deducts 10 points per reported flood year within the stated district-history period, on a 100-point base. This area-level history indicator is not a parcel-flood probability or an investment decision.", true
+			}
+		}
+		if metric.Source.Type != "fixture" {
+			var layer struct {
+				Count *float64 `json:"mappedFloodRiskAreaCount"`
+			}
+			if history.AssessmentType != "" || json.Unmarshal(metric.RawValue, &layer) != nil || layer.Count == nil || *layer.Count < 0 {
+				return 0, "", false
+			}
+		}
+	}
 	// Older reports can already have a normalized POI score persisted.  Do not
 	// let that stale score survive recalculation when the map response was empty
 	// or did not declare complete coverage.
@@ -147,13 +183,13 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 		}
 	case "flood":
 		var value struct {
-			Count float64 `json:"mappedFloodRiskAreaCount"`
+			Count *float64 `json:"mappedFloodRiskAreaCount"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.Count >= 0 {
-			if value.Count == 0 {
+		if json.Unmarshal(metric.RawValue, &value) == nil && value.Count != nil && *value.Count >= 0 {
+			if *value.Count == 0 {
 				return 80, "Flood-layer rule: 80 when no published risk polygon overlaps the radius; this does not mean zero flood risk.", true
 			}
-			return 40 - (value.Count-1)*5, "Flood-layer rule: 40 for one overlapping published risk polygon, minus 5 for each additional polygon.", true
+			return 40 - (*value.Count-1)*5, "Flood-layer rule: 40 for one overlapping published risk polygon, minus 5 for each additional polygon.", true
 		}
 	case "electrical":
 		var value struct {

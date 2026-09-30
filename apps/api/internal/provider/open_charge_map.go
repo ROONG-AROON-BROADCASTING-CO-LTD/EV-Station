@@ -15,6 +15,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type OpenChargeMapConfig struct {
@@ -59,6 +60,7 @@ func NewOpenChargeMapProvider(config OpenChargeMapConfig, client *http.Client, e
 }
 
 func (p *OpenChargeMapProvider) Collect(ctx context.Context, site domain.Site, _ int) ([]Observation, error) {
+	ctx = telemetry.WithOperation(ctx, "open_charge_map_lookup")
 	observations, positions := unavailableObservations()
 	if site.Latitude == nil || site.Longitude == nil {
 		observations[positions["competition"]] = p.missing("Valid coordinates are required to query Open Charge Map.")

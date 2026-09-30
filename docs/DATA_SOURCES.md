@@ -4,6 +4,12 @@ The 30-day MVP enables free and open providers before any provider that requires
 
 ## Enabled without payment
 
+Flood screening now uses an embedded DDPM GD015 district-history snapshot
+(2562–2567), with GD027 provincial context for 2568. The provincial totals are
+excluded from district scoring. See [flood data scope and refresh](FLOOD_DATA.md)
+for the inspected workbook schema, provenance and licence review. The optional
+GISTDA flood-layer reader in the table below is not in the default provider list.
+
 | Provider | Purpose | Credential | Result status | Operational constraints |
 |---|---|---|---|---|
 | OpenStreetMap Overpass | POIs, mapped charging stations and road-accessibility proxy | None | POI/charger observations verified; road proxy preliminary; no score | Road classes and nearest mapped geometry are not vehicle counts, speeds, congestion or AADT |

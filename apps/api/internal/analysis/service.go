@@ -3,6 +3,8 @@ package analysis
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +13,7 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/provider"
 	"github.com/rbc/ev-station/apps/api/internal/repository"
 	"github.com/rbc/ev-station/apps/api/internal/scoring"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type Service struct {
@@ -44,19 +47,93 @@ func (s *Service) Run(ctx context.Context, siteID uuid.UUID, radius int) (domain
 	if _, err = s.repo.CreateAnalysis(ctx, run); err != nil {
 		return domain.AnalysisRun{}, err
 	}
+	return s.execute(ctx, site, run)
+}
 
-	observations, err := s.provider.Collect(ctx, site, radius)
+// Enqueue saves the request before returning. A database-backed worker claims
+// pending runs; no work depends on the lifetime of the browser connection.
+func (s *Service) Enqueue(ctx context.Context, siteID uuid.UUID, radius int) (domain.AnalysisRun, error) {
+	if _, err := s.repo.GetSite(ctx, siteID); err != nil {
+		return domain.AnalysisRun{}, err
+	}
+	if radius == 0 {
+		radius = 3000
+	}
+	now := time.Now().UTC()
+	run := domain.AnalysisRun{
+		ID: uuid.New(), SiteID: siteID, Status: "pending", AnalysisRadiusMeters: radius,
+		AssessmentStatus: domain.DataPreliminary, Recommendation: "Analysis queued.", StartedAt: now, CreatedAt: now,
+	}
+	return s.repo.CreateAnalysis(ctx, run)
+}
+
+func (s *Service) StartWorker(ctx context.Context, logger *slog.Logger) {
+	for range 2 {
+		go s.work(ctx, logger)
+	}
+}
+
+func (s *Service) work(ctx context.Context, logger *slog.Logger) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		run, err := s.repo.ClaimNextAnalysis(ctx)
+		if err == nil {
+			started := time.Now()
+			logger.Info("analysis job started", "analysis_id", run.ID, "queue_wait_ms", started.Sub(run.CreatedAt).Milliseconds())
+			workCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+			site, siteErr := s.repo.GetSite(workCtx, run.SiteID)
+			if siteErr == nil {
+				_, siteErr = s.execute(workCtx, site, run)
+			} else {
+				run.Status = "failed"
+				run.Recommendation = "Analysis failed while loading site."
+				completed := time.Now().UTC()
+				run.CompletedAt = &completed
+				_ = s.completeRun(workCtx, run)
+			}
+			cancel()
+			if siteErr != nil {
+				logger.Error("analysis job failed", "analysis_id", run.ID, "error", siteErr)
+			} else {
+				logger.Info("analysis job completed", "analysis_id", run.ID, "duration_ms", time.Since(started).Milliseconds())
+			}
+			continue
+		}
+		if !errors.Is(err, repository.ErrNotFound) && ctx.Err() == nil {
+			logger.Error("analysis queue claim failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func (s *Service) execute(ctx context.Context, site domain.Site, run domain.AnalysisRun) (domain.AnalysisRun, error) {
+	// Site photos and public map providers are independent. Start the visual
+	// assessment immediately so their network waits overlap, while still
+	// persisting one complete report only after both have finished.
+	analysisCtx := telemetry.WithAnalysisID(ctx, run.ID.String())
+	readinessCtx, cancelReadiness := context.WithCancel(analysisCtx)
+	defer cancelReadiness()
+	readiness := make(chan domain.Metric, 1)
+	go func() {
+		readiness <- s.siteReadinessMetric(readinessCtx, run.ID, run.SiteID)
+	}()
+	// Provider data is preliminary. A slow source must leave its metric missing
+	// rather than block the whole report or claim verified data.
+	providerCtx, cancel := context.WithTimeout(analysisCtx, 35*time.Second)
+	observations, err := s.provider.Collect(providerCtx, site, run.AnalysisRadiusMeters)
+	cancel()
 	if err != nil {
 		run.Status = "failed"
 		run.Recommendation = "Analysis failed while collecting provider data."
 		completed := time.Now().UTC()
 		run.CompletedAt = &completed
-		// The request context may already be cancelled when an upstream source
-		// times out. Persist the terminal state with a short-lived context so a
-		// run can never remain "running" just because the browser disconnected.
-		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = s.repo.CompleteAnalysis(persistCtx, run)
+		_ = s.completeRun(ctx, run)
 		return run, err
 	}
 
@@ -68,7 +145,7 @@ func (s *Service) Run(ctx context.Context, siteID uuid.UUID, radius int) (domain
 		}
 		run.Metrics = append(run.Metrics, metric)
 	}
-	run.Metrics = append(run.Metrics, s.siteReadinessMetric(ctx, run.ID, siteID))
+	run.Metrics = append(run.Metrics, <-readiness)
 	s.refreshSiteRequirementsMetric(&run)
 
 	result := s.scoring.EvaluatePreliminary(run.Metrics)
@@ -80,10 +157,20 @@ func (s *Service) Run(ctx context.Context, siteID uuid.UUID, radius int) (domain
 	run.Status = "completed"
 	completed := time.Now().UTC()
 	run.CompletedAt = &completed
-	if err = s.repo.CompleteAnalysis(ctx, run); err != nil {
+	if err = s.completeRun(ctx, run); err != nil {
 		return domain.AnalysisRun{}, err
 	}
 	return run, nil
+}
+
+// completeRun persists a terminal state even when the request deadline has
+// expired. Provider timeouts must result in a completed report with explicitly
+// missing evidence, or a visible failed report; neither case may leave a run
+// permanently marked as running.
+func (s *Service) completeRun(ctx context.Context, run domain.AnalysisRun) error {
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	return s.repo.CompleteAnalysis(persistCtx, run)
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (domain.AnalysisRun, error) {
@@ -245,7 +332,13 @@ func (s *Service) siteReadinessMetric(ctx context.Context, runID, siteID uuid.UU
 	metric := domain.Metric{ID: uuid.New(), AnalysisRunID: runID, Type: "site_readiness", Status: domain.DataMissing,
 		Source:      domain.DataSource{Name: "Customer / field survey — site condition", Type: "customer_supplied_site_survey", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now},
 		Assumptions: []string{"Customer-supplied photos, map captures, or PDF documents are required before Gemini can assess this site."}, CreatedAt: now}
-	images, err := s.repo.GetSiteImages(ctx, siteID)
+	// Provider collection may have consumed the request deadline already.  The
+	// submitted evidence lives in our own database, so read it with a brief,
+	// independent context.  This prevents a slow public map provider from being
+	// misreported to the user as "no photos supplied".
+	evidenceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	images, err := s.repo.GetSiteImages(evidenceCtx, siteID)
+	cancel()
 	if err != nil {
 		return metric
 	}

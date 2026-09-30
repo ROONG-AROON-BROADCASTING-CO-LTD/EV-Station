@@ -1,4 +1,5 @@
-import type { AIAssessment, AnalysisRun, APIUsageSummary, AuthSession, CreateSiteInput, DataSourceCatalogEntry, FranchisePlan, GeocodingResult, GoogleMapsResolution, LineCustomerProfile, Site, SiteAccess, SiteAttachment, User, UserRole } from '../types/domain'
+import type { AIAssessment, AnalysisRun, APIUsageSummary, AuthSession, CreateSiteInput, DataSourceCatalogEntry, FranchisePlan, GeocodingResult, GoogleMapsResolution, LineCustomerProfile, Site, SiteAccess, SiteAttachment, StationRecommendation, User, UserRole } from '../types/domain'
+import { clearSession, getSessionToken } from './session'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
@@ -12,8 +13,7 @@ export class APIError extends Error {
 const authExpiredEvent = 'rbc:auth-expired'
 
 function clearExpiredSession() {
-  localStorage.removeItem('rbc-session')
-  localStorage.removeItem('rbc-session-token')
+  clearSession()
   window.dispatchEvent(new Event(authExpiredEvent))
 }
 
@@ -27,50 +27,56 @@ export function errorMessageKey(error: unknown) {
   return error instanceof APIError ? `error.${error.code}` : 'error.REQUEST_FAILED'
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('rbc-session-token')
-  const response = await fetch(`${baseURL}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
-  })
+async function readEnvelope<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => ({})) as Envelope<T> & ErrorEnvelope
   if (!response.ok) throwAPIError(response, body)
   return body.data
+}
+
+type APIRequestOptions = { json?: boolean }
+
+function headerRecord(headers?: HeadersInit) {
+  if (!headers) return {}
+  if (headers instanceof Headers) return Object.fromEntries(headers.entries())
+  return Object.fromEntries(Array.isArray(headers) ? headers : Object.entries(headers))
+}
+
+async function authenticatedRequest<T>(path: string, token: string | null, init?: RequestInit, options: APIRequestOptions = {}): Promise<T> {
+  const { json = true } = options
+  const response = await fetch(`${baseURL}${path}`, {
+    ...init,
+    headers: { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headerRecord(init?.headers) },
+  })
+  return readEnvelope<T>(response)
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return authenticatedRequest<T>(path, getSessionToken(), init)
 }
 
 async function upload<T>(path: string, form: FormData): Promise<T> {
-  const token = localStorage.getItem('rbc-session-token')
-  const response = await fetch(`${baseURL}${path}`, { method: 'POST', body: form, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-  const body = await response.json().catch(() => ({})) as Envelope<T> & ErrorEnvelope
-  if (!response.ok) throwAPIError(response, body)
-  return body.data
+  return authenticatedRequest<T>(path, getSessionToken(), { method: 'POST', body: form }, { json: false })
 }
 
 async function download(path: string): Promise<Blob> {
-  const token = localStorage.getItem('rbc-session-token')
+  const token = getSessionToken()
   const response = await fetch(`${baseURL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
   if (!response.ok) throw new APIError('SITE_IMAGE_LOAD_FAILED', 'Unable to load site evidence file.', response.status)
   return response.blob()
 }
 
 async function liffRequest<T>(path: string, idToken: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseURL}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}`, ...init?.headers },
-  })
-  const body = await response.json().catch(() => ({})) as Envelope<T> & ErrorEnvelope
-  if (!response.ok) throwAPIError(response, body)
-  return body.data
+  return authenticatedRequest<T>(path, idToken, init)
 }
 
 async function liffUpload<T>(path: string, idToken: string, form: FormData): Promise<T> {
-  const response = await fetch(`${baseURL}${path}`, { method: 'POST', body: form, headers: { Authorization: `Bearer ${idToken}` } })
-  const body = await response.json().catch(() => ({})) as Envelope<T> & ErrorEnvelope
-  if (!response.ok) throwAPIError(response, body)
-  return body.data
+  return authenticatedRequest<T>(path, idToken, { method: 'POST', body: form }, { json: false })
 }
 
+function createImageUploadForm(photos: File[], documents: File[]) { const form = new FormData(); photos.forEach(file => form.append('photos', file)); documents.forEach(file => form.append('images', file)); return form }
+
 export const api = {
+  registerVisitorOrdinal: () => request<{ ordinal: number }>('/public/visitor-ordinal', { method: 'POST' }),
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   requestRegistrationOTP: (email: string) => request<{ sent: boolean }>('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   register: (email: string, displayName: string, password: string, otp: string) => request<User>('/auth/register', { method: 'POST', body: JSON.stringify({ email, displayName, password, otp }) }),
@@ -78,7 +84,7 @@ export const api = {
 	listUsers: () => request<User[]>('/users'),
 	updateUser: (id: string, input: { email: string; displayName: string; password?: string; role: UserRole; isActive: boolean }) => request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
 	deleteUser: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
-	 recommendStation: (id: string, refresh = false) => request<import('../components/StationRecommendation').StationProposal>(`/analyses/${id}/station-recommendation${refresh ? '?refresh=true' : ''}`, { method: 'POST' }),
+	 recommendStation: (id: string, refresh = false) => request<StationRecommendation>(`/analyses/${id}/station-recommendation${refresh ? '?refresh=true' : ''}`, { method: 'POST' }),
   listSites: () => request<Site[]>('/sites'),
   getSite: (id: string) => request<Site>(`/sites/${id}`),
 	getLatestAnalysisForSite: (id: string) => request<AnalysisRun | null>(`/sites/${id}/latest-analysis`),
@@ -90,9 +96,9 @@ export const api = {
 	completeLiffSite: (id: string, idToken: string) => liffRequest<{ notificationAccepted: boolean }>(`/liff/sites/${id}/complete`, idToken, { method: 'POST' }),
 	listLiffSites: (idToken: string) => liffRequest<Array<Site & { customerStatus: 'pending_review' | 'analysis_completed' }>>('/liff/sites', idToken),
 	resolveLiffGoogleMapsUrl: (url: string, idToken: string) => liffRequest<GoogleMapsResolution>('/liff/maps/resolve', idToken, { method: 'POST', body: JSON.stringify({ url }) }),
-	uploadLiffSiteImages: (id: string, files: File[], idToken: string) => { const form = new FormData(); files.forEach(file => form.append('images', file)); return liffUpload<{ count: number }>(`/liff/sites/${id}/images`, idToken, form) },
+	uploadLiffSiteImages: (id: string, photos: File[], documents: File[], idToken: string) => liffUpload<{ count: number }>(`/liff/sites/${id}/images`, idToken, createImageUploadForm(photos, documents)),
 	updateSite: (id: string, input: CreateSiteInput) => request<Site>(`/sites/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-	uploadSiteImages: (id: string, files: File[]) => { const form = new FormData(); files.forEach(file => form.append('images', file)); return upload<{ count: number }>(`/sites/${id}/images`, form) },
+	uploadSiteImages: (id: string, photos: File[], documents: File[]) => upload<{ count: number }>(`/sites/${id}/images`, createImageUploadForm(photos, documents)),
 	deleteSite: (id: string) => request<void>(`/sites/${id}`, { method: 'DELETE' }),
 	listSiteAccess: (id: string) => request<SiteAccess[]>(`/sites/${id}/access`),
 	setSiteAccess: (id: string, userId: string, role: UserRole) => request<void>(`/sites/${id}/access`, { method: 'PUT', body: JSON.stringify({ userId, role }) }),
@@ -101,8 +107,7 @@ export const api = {
   getAnalysis: (id: string) => request<AnalysisRun>(`/analyses/${id}`),
   recalculatePreliminary: (id: string) => request<AnalysisRun>(`/analyses/${id}/recalculate-preliminary`, { method: 'POST' }),
   generateAIAssessment: (id: string, language: 'th' | 'en', refresh = false) => request<AIAssessment>(`/analyses/${id}/ai-assessment${refresh ? '?refresh=true' : ''}`, { method: 'POST', body: JSON.stringify({ language }) }),
-  generateBilingualAssessment: async (id: string, refresh = false) => {
-    const languages = ['th', 'en'] as const
+  generateAIAssessments: async (id: string, languages: readonly ('th' | 'en')[], refresh = false) => {
     const results = await Promise.allSettled(languages.map(language => api.generateAIAssessment(id, language, refresh)))
     const assessments: Partial<Record<'th' | 'en', AIAssessment>> = {}
     const errors: Partial<Record<'th' | 'en', unknown>> = {}

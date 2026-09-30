@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/repository"
 	"github.com/rbc/ev-station/apps/api/internal/scoring"
 	"github.com/rbc/ev-station/apps/api/internal/site"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type Handler struct {
@@ -34,6 +36,7 @@ type Handler struct {
 	auth     *auth.Service
 	otp      *auth.OTPService
 	notifier SiteSubmissionNotifier
+	visitors *visitorCounter
 }
 
 // SiteSubmissionNotifier delivers a notification after a customer submits a
@@ -44,31 +47,7 @@ type SiteSubmissionNotifier interface {
 }
 
 func NewHandler(sites *site.Service, analyses *analysis.Service, repo repository.Repository, geocoder provider.Geocoder, advisoryService *advisory.Service, authService *auth.Service, otpService *auth.OTPService, notifier SiteSubmissionNotifier, weights map[string]float64) *Handler {
-	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, otp: otpService, notifier: notifier, weights: weights}
-}
-
-func (h *Handler) LineWebhook(c *gin.Context) {
-	if h.notifier == nil {
-		writeError(c, http.StatusServiceUnavailable, "LINE_NOT_CONFIGURED", "LINE webhook is not configured.")
-		return
-	}
-	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1024*1024))
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "INVALID_LINE_WEBHOOK", "Unable to read LINE webhook.")
-		return
-	}
-	recorder, ok := h.notifier.(interface {
-		RecordWebhook(context.Context, []byte, string) error
-	})
-	if !ok {
-		writeError(c, http.StatusServiceUnavailable, "LINE_NOT_CONFIGURED", "LINE webhook is not configured.")
-		return
-	}
-	if err = recorder.RecordWebhook(c.Request.Context(), body, c.GetHeader("X-Line-Signature")); err != nil {
-		writeError(c, http.StatusUnauthorized, "INVALID_LINE_WEBHOOK", "LINE webhook signature is invalid.")
-		return
-	}
-	c.Status(http.StatusOK)
+	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, otp: otpService, notifier: notifier, visitors: newVisitorCounter(200000), weights: weights}
 }
 
 func (h *Handler) RequestRegistrationOTP(c *gin.Context) {
@@ -538,22 +517,30 @@ func (h *Handler) ListSites(c *gin.Context) {
 		return
 	}
 	if role != domain.RoleSuperAdmin && role != domain.RoleAdmin {
-		allowed := make([]domain.Site, 0, len(result))
-		for _, candidate := range result {
-			access, accessErr := h.repo.ListSiteAccess(c.Request.Context(), candidate.ID)
-			if accessErr != nil {
-				continue
+		allowedIDs, accessErr := h.repo.ListAccessibleSiteIDs(c.Request.Context(), userID)
+		if accessErr != nil {
+			// Preserve the previous fail-closed behavior: when access records
+			// cannot be loaded, do not expose any site to a limited-role user.
+			result = []domain.Site{}
+		} else {
+			allowed := make(map[uuid.UUID]struct{}, len(allowedIDs))
+			for _, siteID := range allowedIDs {
+				allowed[siteID] = struct{}{}
 			}
-			for _, grant := range access {
-				if grant.UserID == userID {
-					allowed = append(allowed, candidate)
-					break
-				}
-			}
+			result = filterSitesByID(result, allowed)
 		}
-		result = allowed
 	}
 	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func filterSitesByID(sites []domain.Site, allowed map[uuid.UUID]struct{}) []domain.Site {
+	result := make([]domain.Site, 0, len(sites))
+	for _, candidate := range sites {
+		if _, ok := allowed[candidate.ID]; ok {
+			result = append(result, candidate)
+		}
+	}
+	return result
 }
 
 func (h *Handler) GetSite(c *gin.Context) {
@@ -590,12 +577,13 @@ func (h *Handler) UploadSiteImages(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Upload up to 10 JPEG, PNG, WebP, or PDF files with a maximum size of 10 MB each.")
 		return
 	}
-	files := form.File["images"]
+	defer form.RemoveAll()
+	files := append(append([]*multipart.FileHeader{}, form.File["photos"]...), form.File["images"]...)
 	if len(files) == 0 || len(files) > maxSiteImages {
 		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Upload between 1 and 10 images.")
 		return
 	}
-	existing, err := h.repo.GetSiteImages(c.Request.Context(), id)
+	existing, err := h.repo.ListSiteImages(c.Request.Context(), id)
 	if errors.Is(err, repository.ErrNotFound) {
 		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
 		return
@@ -608,8 +596,12 @@ func (h *Handler) UploadSiteImages(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "A site can have no more than 10 images. Remove existing images or upload fewer images.")
 		return
 	}
+	var existingBytes int64
+	for _, image := range existing {
+		existingBytes += image.SizeBytes
+	}
 	images := make([]domain.SiteImage, 0, len(files))
-	for _, file := range files {
+	for fileIndex, file := range files {
 		if file.Size <= 0 || file.Size > maxSitePDFBytes {
 			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Each file must be no larger than 10 MB.")
 			return
@@ -638,11 +630,27 @@ func (h *Handler) UploadSiteImages(c *gin.Context) {
 			writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Each file must be no larger than 10 MB.")
 			return
 		}
+		if fileIndex < len(form.File["photos"]) {
+			data, err = optimizeSitePhoto(mimeType, data)
+			if err != nil {
+				writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "An uploaded photo could not be processed.")
+				return
+			}
+		}
+		existingBytes += int64(len(data))
+		if existingBytes > repository.MaxSiteEvidenceBytes {
+			writeError(c, http.StatusBadRequest, "SITE_EVIDENCE_LIMIT", "A site can store up to 50 MB of photos and documents.")
+			return
+		}
 		images = append(images, domain.SiteImage{ID: uuid.New(), SiteID: id, MIMEType: mimeType, Data: data, CreatedAt: time.Now().UTC()})
 	}
 	if err = h.repo.AddSiteImages(c.Request.Context(), id, images); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
+			return
+		}
+		if errors.Is(err, repository.ErrSiteEvidenceLimit) {
+			writeError(c, http.StatusBadRequest, "SITE_EVIDENCE_LIMIT", "A site can store up to 10 files and 50 MB in total.")
 			return
 		}
 		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_UPLOAD_FAILED", "Unable to save site evidence files.")
@@ -802,11 +810,7 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_RADIUS", "Radius must be 1000, 2000, or 3000 meters.")
 		return
 	}
-	// Keep the analysis alive long enough to save a completed or failed result
-	// even if the browser or tunnel closes the original HTTP request.
-	analysisCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 90*time.Second)
-	defer cancel()
-	result, err := h.analyses.Run(analysisCtx, siteID, body.RadiusMeters)
+	result, err := h.analyses.Enqueue(c.Request.Context(), siteID, body.RadiusMeters)
 	if errors.Is(err, repository.ErrNotFound) {
 		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
 		return
@@ -815,14 +819,8 @@ func (h *Handler) RunAnalysis(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, "ANALYSIS_FAILED", "Unable to complete the analysis.")
 		return
 	}
-	// The S/M/L planning result belongs to the analysis itself.  Generate it as
-	// part of the same workflow so staff do not need a second click after every
-	// completed analysis.  A failed optional recommendation must not discard a
-	// completed screening result.
-	if _, persisted, recommendationErr := h.generateAndStoreStationRecommendation(analysisCtx, result); recommendationErr == nil {
-		result.StationRecommendation = persisted
-	}
-	c.JSON(http.StatusCreated, gin.H{"data": result})
+	c.Header("Location", "/api/v1/analyses/"+result.ID.String())
+	c.JSON(http.StatusAccepted, gin.H{"data": result})
 }
 
 func (h *Handler) GetAnalysis(c *gin.Context) {
@@ -915,7 +913,7 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 		writeError(c, http.StatusServiceUnavailable, "AI_NOT_CONFIGURED", "AI assessment is not configured.")
 		return
 	}
-	result, err := h.advisory.Generate(c.Request.Context(), run, language)
+	result, err := h.advisory.Generate(telemetry.WithAnalysisID(c.Request.Context(), run.ID.String()), run, language)
 	if errors.Is(err, advisory.ErrNotConfigured) {
 		writeError(c, http.StatusServiceUnavailable, "AI_NOT_CONFIGURED", "Set GEMINI_API_KEY on the API server before generating an AI assessment.")
 		return

@@ -3,6 +3,8 @@ package analysis
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,6 +38,124 @@ func TestNormalizeIncompleteLegacyPOIMarksZeroCountAsPreliminary(t *testing.T) {
 }
 
 func floatPointer(value float64) *float64 { return &value }
+
+type waitingProvider struct {
+	started chan<- struct{}
+	release <-chan struct{}
+}
+
+func (p waitingProvider) Collect(ctx context.Context, site domain.Site, radius int) ([]provider.Observation, error) {
+	p.started <- struct{}{}
+	select {
+	case <-p.release:
+		return provider.FixtureProvider{}.Collect(ctx, site, radius)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestAnalysisOverlapsSitePhotosWithProviderCollection(t *testing.T) {
+	repo := repository.NewMemory()
+	now := time.Now().UTC()
+	site := domain.Site{ID: uuid.New(), Name: "Site with photos", LandSize: 100, LandSizeUnit: "sqm", CreatedAt: now, UpdatedAt: now}
+	if _, err := repo.CreateSite(context.Background(), site); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddSiteImages(context.Background(), site.ID, []domain.SiteImage{{ID: uuid.New(), SiteID: site.ID, MIMEType: "image/jpeg", Data: []byte("photo"), CreatedAt: now}}); err != nil {
+		t.Fatal(err)
+	}
+	providerStarted := make(chan struct{}, 1)
+	geminiStarted := make(chan struct{}, 1)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		geminiStarted <- struct{}{}
+		select {
+		case <-release:
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"Visible gravel\",\"suitability\":\"moderate\",\"score\":55,\"disclaimer\":\"Photo only\"}"}]}}]}`))
+		case <-request.Context().Done():
+		}
+	}))
+	defer server.Close()
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	engine, _ := scoring.New(scoring.DefaultWeights)
+	gemini := advisory.NewGeminiService(advisory.GeminiConfig{APIKey: "test-key", Model: "test-model", BaseURL: server.URL, Timeout: 3 * time.Second}, server.Client())
+	service := NewService(repo, waitingProvider{started: providerStarted, release: release}, engine, gemini)
+	result := make(chan domain.AnalysisRun, 1)
+	go func() {
+		run, _ := service.Run(context.Background(), site.ID, 3000)
+		result <- run
+	}()
+	for _, started := range []<-chan struct{}{providerStarted, geminiStarted} {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatal("provider collection and site-photo analysis did not start concurrently")
+		}
+	}
+	close(release)
+	select {
+	case run := <-result:
+		if run.Status != "completed" {
+			t.Fatalf("expected completed run, got %s", run.Status)
+		}
+		found := false
+		for _, metric := range run.Metrics {
+			if metric.Type == "site_readiness" {
+				found = metric.Status == domain.DataPreliminary
+			}
+		}
+		if !found {
+			t.Fatal("parallel visual assessment was not persisted")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("analysis did not finish after both independent calls completed")
+	}
+}
+
+func TestQueuedAnalysisCompletesAfterRequestContextEnds(t *testing.T) {
+	repo := repository.NewMemory()
+	now := time.Now().UTC()
+	site := domain.Site{ID: uuid.New(), Name: "Queued site", LandSize: 100, LandSizeUnit: "sqm", CreatedAt: now, UpdatedAt: now}
+	if _, err := repo.CreateSite(context.Background(), site); err != nil {
+		t.Fatal(err)
+	}
+	engine, _ := scoring.New(scoring.DefaultWeights)
+	service := NewService(repo, provider.FixtureProvider{}, engine)
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	queued, err := service.Enqueue(requestCtx, site.ID, 3000)
+	if err != nil || queued.Status != "pending" {
+		t.Fatalf("expected pending job: %+v, %v", queued, err)
+	}
+	cancelRequest()
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	defer stopWorker()
+	service.StartWorker(workerCtx, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	deadline := time.After(2 * time.Second)
+	for {
+		stored, getErr := service.Get(context.Background(), queued.ID)
+		if getErr != nil {
+			t.Fatal(getErr)
+		}
+		if stored.Status == "completed" {
+			if stored.OverallScore == nil {
+				t.Fatal("completed job did not persist its score")
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("queued job never completed, status=%s", stored.Status)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
 
 func TestRunWithExplicitFixtureProvider(t *testing.T) {
 	repo := repository.NewMemory()
@@ -168,6 +288,9 @@ func TestRecalculatePreliminaryUpgradesLegacyEvidenceWithoutReplacingIt(t *testi
 		}
 		if run.Metrics[index].Type == "electrical" {
 			run.Metrics[index].RawValue = []byte(`{"assessmentType":"pea_public_grid_evidence","nearestHighVoltageLineMeters":3674}`)
+		}
+		if run.Metrics[index].Type == "flood" {
+			run.Metrics[index].RawValue = []byte(`{"assessmentType":"administrative_district_historical_reports","periodStartYear":2562,"periodEndYear":2567,"reportedFloodYearCount":3}`)
 		}
 	}
 	if err = repo.UpdateAnalysisScoring(context.Background(), run); err != nil {

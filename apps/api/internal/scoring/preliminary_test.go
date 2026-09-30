@@ -2,6 +2,7 @@ package scoring
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
@@ -29,6 +30,62 @@ func TestPreliminaryScoreUsesAvailableEvidenceAndReportsCoverage(t *testing.T) {
 	}
 	if result.MetricScores["electrical"] != 63.26 {
 		t.Fatalf("expected public-grid proximity score, got %v", result.MetricScores["electrical"])
+	}
+}
+
+func TestPreliminaryFloodScoreUsesDistrictReportedYearsAsAnAdvisory(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	result := engine.EvaluatePreliminary([]domain.Metric{{
+		Type: "flood", Status: domain.DataEstimated,
+		RawValue: json.RawMessage(`{"assessmentType":"administrative_district_historical_reports","reportedFloodYearCount":3}`),
+	}})
+	if result.MetricScores["flood"] != 70 {
+		t.Fatalf("three reported years should produce the transparent 70-point screening score, got %+v", result)
+	}
+	if !strings.Contains(result.Rules["flood"], "not a parcel-flood probability") {
+		t.Fatalf("flood rule must state its geographic and calibration limits: %q", result.Rules["flood"])
+	}
+}
+
+func TestPreliminaryFloodScoreKeepsMissingHistoryOutOfScore(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	result := engine.EvaluatePreliminary([]domain.Metric{{Type: "flood", Status: domain.DataMissing}})
+	if _, found := result.MetricScores["flood"]; found {
+		t.Fatal("missing flood-history records must not be scored as low risk")
+	}
+}
+
+func TestPreliminaryFloodScoreExcludesProvincialContextEvenWithStaleScore(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	staleScore := 100.0
+	for _, status := range []domain.DataStatus{domain.DataMissing, domain.DataEstimated} {
+		result := engine.EvaluatePreliminary([]domain.Metric{{Type: "flood", Status: status, NormalizedScore: &staleScore,
+			RawValue: json.RawMessage(`{"assessmentType":"provincial_year_summary","latestProvinceReport":{"year":2568,"reportedOccurrences":11}}`),
+		}})
+		if _, found := result.MetricScores["flood"]; found {
+			t.Fatal("province context must not receive or retain a district flood score")
+		}
+	}
+}
+
+func TestPreliminaryFloodScoreValidatesStatedHistoryPeriod(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	for _, test := range []struct {
+		raw    string
+		scored bool
+		score  float64
+	}{
+		{`{"assessmentType":"administrative_district_historical_reports","periodStartYear":2562,"periodEndYear":2567,"reportedFloodYearCount":7}`, false, 0},
+		{`{"assessmentType":"administrative_district_historical_reports","periodStartYear":2562,"periodEndYear":2568,"reportedFloodYearCount":7}`, true, 30},
+		{`{"assessmentType":"administrative_district_historical_reports","periodStartYear":2568,"periodEndYear":2562,"reportedFloodYearCount":1}`, false, 0},
+		{`{"assessmentType":"administrative_district_historical_reports","reportedFloodYearCount":0}`, false, 0},
+		{`{"latestProvinceReport":{"year":2568}}`, false, 0},
+	} {
+		result := engine.EvaluatePreliminary([]domain.Metric{{Type: "flood", Status: domain.DataEstimated, RawValue: json.RawMessage(test.raw)}})
+		score, scored := result.MetricScores["flood"]
+		if scored != test.scored || score != test.score {
+			t.Fatalf("period validation failed for %s: %v", test.raw, result.MetricScores)
+		}
 	}
 }
 
@@ -61,7 +118,7 @@ func TestPreliminaryScoreExcludesIncompleteZeroPOIAndRenormalizesWeights(t *test
 		// coverage safeguards were added.
 		{Type: "poi", Status: domain.DataVerified, NormalizedScore: &stalePOIScore, RawValue: json.RawMessage(`{"count":0,"radiusMeters":3000}`)},
 		{Type: "competition", Status: domain.DataVerified, NormalizedScore: &fullScore},
-		{Type: "flood", Status: domain.DataVerified, NormalizedScore: &fullScore},
+		{Type: "flood", Status: domain.DataVerified, NormalizedScore: &fullScore, RawValue: json.RawMessage(`{"mappedFloodRiskAreaCount":0}`)},
 		{Type: "electrical", Status: domain.DataPreliminary, NormalizedScore: &fullScore},
 	}
 
@@ -74,6 +131,15 @@ func TestPreliminaryScoreExcludesIncompleteZeroPOIAndRenormalizesWeights(t *test
 	}
 	if result.Overall == nil || *result.Overall != 100 {
 		t.Fatalf("expected renormalized score of 100, got %+v", result.Overall)
+	}
+}
+
+func TestPreliminaryFloodScoreDropsStaleScoreWithoutFloodEvidence(t *testing.T) {
+	engine, _ := New(DefaultWeights)
+	staleScore := 80.0
+	result := engine.EvaluatePreliminary([]domain.Metric{{Type: "flood", Status: domain.DataEstimated, NormalizedScore: &staleScore, RawValue: json.RawMessage(`{}`)}})
+	if _, found := result.MetricScores["flood"]; found {
+		t.Fatal("a stored score with empty flood evidence must be excluded")
 	}
 }
 

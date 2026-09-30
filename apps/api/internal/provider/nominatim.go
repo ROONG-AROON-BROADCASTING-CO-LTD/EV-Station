@@ -240,8 +240,10 @@ func (g *NominatimGeocoder) Reverse(ctx context.Context, latitude, longitude flo
 		return ReverseGeocodingResult{}, fmt.Errorf("decode Nominatim reverse response: %w", err)
 	}
 	result := ReverseGeocodingResult{
-		Road:     firstAddress(raw.Address, "road", "pedestrian", "footway"),
-		District: firstAddress(raw.Address, "city_district", "district", "county", "municipality", "city", "town", "village"),
+		Road: firstAddress(raw.Address, "road", "pedestrian", "footway"),
+		// In Thailand city_district often identifies a tambon, while county
+		// identifies the amphoe required by district-level official datasets.
+		District: firstAddress(raw.Address, "county", "district", "city_district", "municipality", "city", "town", "village"),
 		Province: firstAddress(raw.Address, "state", "province"),
 	}
 	if cachedPayload, marshalErr := json.Marshal(result); marshalErr == nil {
@@ -292,5 +294,6 @@ func nominatimCacheKey(query string, limit int, countryCodes string) string {
 func nominatimReverseCacheKey(latitude, longitude float64, countryCodes string) string {
 	value := strconv.FormatFloat(latitude, 'f', 5, 64) + "|" + strconv.FormatFloat(longitude, 'f', 5, 64) + "|" + countryCodes
 	hash := sha256.Sum256([]byte(value))
-	return "nominatim:reverse:" + hex.EncodeToString(hash[:])
+	// Older cached results could select a subdistrict instead of the county.
+	return "nominatim:reverse:v2:" + hex.EncodeToString(hash[:])
 }

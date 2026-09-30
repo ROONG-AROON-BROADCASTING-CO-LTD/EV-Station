@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -29,8 +30,8 @@ type Config struct {
 	GISTDAAPIKey                         string
 	GISTDAElevationURL                   string
 	GISTDAElevationCacheTTL              time.Duration
-	GISTDAFloodRiskURL                   string
-	GISTDAFloodCacheTTL                  time.Duration
+	DPMFloodHistoryCSVURLs               []string
+	DPMFloodHistoryCacheTTL              time.Duration
 	DOHAADTCSVURL                        string
 	DOHAADTRoadLayerURL                  string
 	DOHAADTYear                          int
@@ -83,7 +84,15 @@ type Config struct {
 	LINEAPIBaseURL                       string
 }
 
-func Load() Config {
+func Load() (Config, error) {
+	environment := getEnv("APP_ENV", "development")
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if jwtSecret == "" {
+		if strings.EqualFold(environment, "production") {
+			return Config{}, errors.New("JWT_SECRET must be set when APP_ENV is production")
+		}
+		jwtSecret = "development-only-change-this-secret"
+	}
 	ttl, err := time.ParseDuration(getEnv("REDIS_CACHE_TTL", "15m"))
 	if err != nil {
 		ttl = 15 * time.Minute
@@ -113,9 +122,9 @@ func Load() Config {
 	if err != nil {
 		worldPopTTL = 30 * 24 * time.Hour
 	}
-	gistdaFloodTTL, err := time.ParseDuration(getEnv("GISTDA_FLOOD_CACHE_TTL", "24h"))
+	dpmFloodHistoryTTL, err := time.ParseDuration(getEnv("DPM_FLOOD_HISTORY_CACHE_TTL", "720h"))
 	if err != nil {
-		gistdaFloodTTL = 24 * time.Hour
+		dpmFloodHistoryTTL = 30 * 24 * time.Hour
 	}
 	gistdaElevationTTL, err := time.ParseDuration(getEnv("GISTDA_ELEVATION_CACHE_TTL", "24h"))
 	if err != nil {
@@ -185,9 +194,10 @@ func Load() Config {
 	if parsed, parseErr := strconv.Atoi(getEnv("WORLDPOP_YEAR", strconv.Itoa(worldPopYear))); parseErr == nil {
 		worldPopYear = parsed
 	}
+	dpmFloodHistoryCSVURLs := splitCSVURLs(getEnv("DPM_FLOOD_HISTORY_CSV_URLS", getEnv("DPM_FLOOD_HISTORY_CSV_URL", "")))
 
 	return Config{
-		Environment:                          getEnv("APP_ENV", "development"),
+		Environment:                          environment,
 		Port:                                 getEnv("API_PORT", "8080"),
 		DatabaseURL:                          os.Getenv("DATABASE_URL"),
 		RedisURL:                             os.Getenv("REDIS_URL"),
@@ -208,8 +218,8 @@ func Load() Config {
 		GISTDAAPIKey:                         os.Getenv("GISTDA_API_KEY"),
 		GISTDAElevationURL:                   getEnv("GISTDA_ELEVATION_URL", "https://api.sphere.gistda.or.th/services/geo/elevation"),
 		GISTDAElevationCacheTTL:              gistdaElevationTTL,
-		GISTDAFloodRiskURL:                   getEnv("GISTDA_FLOOD_RISK_URL", "https://gistdaportal.gistda.or.th/arcgis/rest/services/app/GISTDA_flood/MapServer/1/query"),
-		GISTDAFloodCacheTTL:                  gistdaFloodTTL,
+		DPMFloodHistoryCSVURLs:               dpmFloodHistoryCSVURLs,
+		DPMFloodHistoryCacheTTL:              dpmFloodHistoryTTL,
 		DOHAADTCSVURL:                        getEnv("DOH_AADT_CSV_URL", "https://opendata.doh.go.th/dataset/ed101df4-f0a1-4d7f-b9d9-76859b2ca73e/resource/f88f9c4e-b32e-4cd1-bf51-4e1f84ba7b16/download/aadt-68.csv"),
 		DOHAADTRoadLayerURL:                  getEnv("DOH_AADT_ROAD_LAYER_URL", "https://giportal.mot.go.th/arcgis/rest/services/Hosted/%E0%B9%80%E0%B8%AA%E0%B9%89%E0%B8%99%E0%B8%97%E0%B8%B2%E0%B8%87%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87%E0%B9%81%E0%B8%9C%E0%B9%88%E0%B8%99%E0%B8%94%E0%B8%B4%E0%B8%99_%E0%B8%97%E0%B8%A5/FeatureServer/0/query"),
 		DOHAADTYear:                          dohAADTYear,
@@ -247,12 +257,23 @@ func Load() Config {
 		GeminiModel:                          getEnv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
 		GeminiBaseURL:                        getEnv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
 		GeminiTimeout:                        geminiTimeout,
-		JWTSecret:                            getEnv("JWT_SECRET", "development-only-change-this-secret"),
+		JWTSecret:                            jwtSecret,
 		JWTTokenTTL:                          jwtTokenTTL,
 		AuthRequired:                         strings.EqualFold(getEnv("AUTH_REQUIRED", "false"), "true"),
 		SMTPHost:                             os.Getenv("SMTP_HOST"), SMTPPort: getEnv("SMTP_PORT", "587"), SMTPUsername: os.Getenv("SMTP_USERNAME"), SMTPPassword: os.Getenv("SMTP_PASSWORD"), SMTPFrom: os.Getenv("SMTP_FROM"), OTPTTL: otpTTL,
 		LINEChannelAccessToken: strings.TrimSpace(os.Getenv("LINE_CHANNEL_ACCESS_TOKEN")), LINEChannelSecret: strings.TrimSpace(os.Getenv("LINE_CHANNEL_SECRET")), LINENotificationRecipientID: strings.TrimSpace(os.Getenv("LINE_NOTIFICATION_RECIPIENT_ID")), LINEAPIBaseURL: getEnv("LINE_API_BASE_URL", "https://api.line.me"),
+	}, nil
+}
+
+func splitCSVURLs(value string) []string {
+	parts := strings.Split(value, ",")
+	urls := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if url := strings.TrimSpace(part); url != "" {
+			urls = append(urls, url)
+		}
 	}
+	return urls
 }
 
 func splitURLs(value string) []string {

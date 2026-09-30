@@ -64,8 +64,8 @@ services:
       GISTDA_API_KEY: ${GISTDA_API_KEY:-}
       GISTDA_ELEVATION_URL: ${GISTDA_ELEVATION_URL:-https://api.sphere.gistda.or.th/services/geo/elevation}
       GISTDA_ELEVATION_CACHE_TTL: ${GISTDA_ELEVATION_CACHE_TTL:-24h}
-      GISTDA_FLOOD_RISK_URL: ${GISTDA_FLOOD_RISK_URL:-https://gistdaportal.gistda.or.th/arcgis/rest/services/app/GISTDA_flood/MapServer/1/query}
-      GISTDA_FLOOD_CACHE_TTL: ${GISTDA_FLOOD_CACHE_TTL:-24h}
+      DPM_FLOOD_HISTORY_CSV_URLS: ${DPM_FLOOD_HISTORY_CSV_URLS:-${DPM_FLOOD_HISTORY_CSV_URL:-}}
+      DPM_FLOOD_HISTORY_CACHE_TTL: ${DPM_FLOOD_HISTORY_CACHE_TTL:-720h}
       DOH_AADT_CSV_URL: ${DOH_AADT_CSV_URL:-https://opendata.doh.go.th/dataset/ed101df4-f0a1-4d7f-b9d9-76859b2ca73e/resource/f88f9c4e-b32e-4cd1-bf51-4e1f84ba7b16/download/aadt-68.csv}
       DOH_AADT_ROAD_LAYER_URL: ${DOH_AADT_ROAD_LAYER_URL:-https://giportal.mot.go.th/arcgis/rest/services/Hosted/%E0%B9%80%E0%B8%AA%E0%B9%89%E0%B8%99%E0%B8%97%E0%B8%B2%E0%B8%87%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87%E0%B9%81%E0%B8%9C%E0%B9%88%E0%B8%99%E0%B8%94%E0%B8%B4%E0%B8%99_%E0%B8%97%E0%B8%A5/FeatureServer/0/query}
       DOH_AADT_YEAR: ${DOH_AADT_YEAR:-2568}

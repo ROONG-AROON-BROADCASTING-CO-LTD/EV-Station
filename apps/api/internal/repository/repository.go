@@ -9,6 +9,10 @@ import (
 )
 
 var ErrNotFound = errorString("not found")
+var ErrSiteEvidenceLimit = errorString("site evidence limit exceeded")
+
+const MaxSiteEvidenceFiles = 10
+const MaxSiteEvidenceBytes = 50 << 20
 
 type errorString string
 
@@ -25,6 +29,7 @@ type Repository interface {
 	GetLineNotificationRecipient(context.Context) (string, error)
 	SetSiteAccess(context.Context, domain.SiteAccess) error
 	ListSiteAccess(context.Context, uuid.UUID) ([]domain.SiteAccess, error)
+	ListAccessibleSiteIDs(context.Context, uuid.UUID) ([]uuid.UUID, error)
 	DeleteSiteAccess(context.Context, uuid.UUID, uuid.UUID) error
 	CreateSite(context.Context, domain.Site) (domain.Site, error)
 	ListSites(context.Context) ([]domain.Site, error)
@@ -36,6 +41,7 @@ type Repository interface {
 	ListSiteImages(context.Context, uuid.UUID) ([]domain.SiteImage, error)
 	GetSiteImage(context.Context, uuid.UUID, uuid.UUID) (domain.SiteImage, error)
 	CreateAnalysis(context.Context, domain.AnalysisRun) (domain.AnalysisRun, error)
+	ClaimNextAnalysis(context.Context) (domain.AnalysisRun, error)
 	CompleteAnalysis(context.Context, domain.AnalysisRun) error
 	UpdateAnalysisScoring(context.Context, domain.AnalysisRun) error
 	UpdateAnalysisStationRecommendation(context.Context, uuid.UUID, []byte) error

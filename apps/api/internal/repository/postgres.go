@@ -153,6 +153,23 @@ func (p *Postgres) ListSiteAccess(ctx context.Context, siteID uuid.UUID) ([]doma
 	return result, rows.Err()
 }
 
+func (p *Postgres) ListAccessibleSiteIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := p.pool.Query(ctx, `SELECT site_id FROM site_access WHERE user_id=$1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var siteID uuid.UUID
+		if err = rows.Scan(&siteID); err != nil {
+			return nil, err
+		}
+		result = append(result, siteID)
+	}
+	return result, rows.Err()
+}
+
 func (p *Postgres) DeleteSiteAccess(ctx context.Context, siteID, userID uuid.UUID) error {
 	command, err := p.pool.Exec(ctx, `DELETE FROM site_access WHERE site_id=$1 AND user_id=$2`, siteID, userID)
 	if err != nil {
@@ -252,12 +269,23 @@ func (p *Postgres) AddSiteImages(ctx context.Context, siteID uuid.UUID, images [
 		return err
 	}
 	defer tx.Rollback(ctx)
-	var exists bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sites WHERE id=$1)`, siteID).Scan(&exists); err != nil {
+	// Lock the parent site so concurrent uploads cannot both pass the quota.
+	var lockedID uuid.UUID
+	if err = tx.QueryRow(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, siteID).Scan(&lockedID); errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	} else if err != nil {
 		return err
 	}
-	if !exists {
-		return ErrNotFound
+	var existingCount int
+	var existingBytes int64
+	if err = tx.QueryRow(ctx, `SELECT count(*),COALESCE(sum(octet_length(image_data)),0) FROM site_images WHERE site_id=$1`, siteID).Scan(&existingCount, &existingBytes); err != nil {
+		return err
+	}
+	for _, image := range images {
+		existingBytes += int64(len(image.Data))
+	}
+	if existingCount+len(images) > MaxSiteEvidenceFiles || existingBytes > MaxSiteEvidenceBytes {
+		return ErrSiteEvidenceLimit
 	}
 	for _, image := range images {
 		_, err = tx.Exec(ctx, `INSERT INTO site_images (id,site_id,mime_type,image_data,created_at) VALUES ($1,$2,$3,$4,$5)`, image.ID, siteID, image.MIMEType, image.Data, image.CreatedAt)
@@ -323,6 +351,29 @@ func (p *Postgres) CreateAnalysis(ctx context.Context, run domain.AnalysisRun) (
 	return run, err
 }
 
+// ClaimNextAnalysis uses a database lease so a queued job survives an API
+// restart and only one worker can claim it at a time.
+func (p *Postgres) ClaimNextAnalysis(ctx context.Context) (domain.AnalysisRun, error) {
+	var run domain.AnalysisRun
+	err := p.pool.QueryRow(ctx, `WITH next_job AS (
+		SELECT id FROM analysis_runs
+		WHERE status='pending' OR (status='running' AND lease_expires_at < now())
+		ORDER BY created_at
+		FOR UPDATE SKIP LOCKED LIMIT 1
+	)
+	UPDATE analysis_runs AS r
+	SET status='running', started_at=now(), lease_expires_at=now()+interval '3 minutes'
+	FROM next_job WHERE r.id=next_job.id
+	RETURNING r.id,r.site_id,r.status,r.analysis_radius_meters,r.assessment_status,r.recommendation,r.started_at,r.created_at`).Scan(
+		&run.ID, &run.SiteID, &run.Status, &run.AnalysisRadiusMeters, &run.AssessmentStatus,
+		&run.Recommendation, &run.StartedAt, &run.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.AnalysisRun{}, ErrNotFound
+	}
+	return run, err
+}
+
 func (p *Postgres) CompleteAnalysis(ctx context.Context, run domain.AnalysisRun) error {
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
@@ -331,7 +382,7 @@ func (p *Postgres) CompleteAnalysis(ctx context.Context, run domain.AnalysisRun)
 	defer tx.Rollback(ctx)
 	financialJSON, _ := json.Marshal(run.Financial)
 	scoringJSON, _ := json.Marshal(run.Scoring)
-	_, err = tx.Exec(ctx, `UPDATE analysis_runs SET status=$2,overall_score=$3,assessment_status=$4,recommendation=$5,financial_result=$6,completed_at=$7,scoring_summary=$8 WHERE id=$1`, run.ID, run.Status, run.OverallScore, run.AssessmentStatus, run.Recommendation, financialJSON, run.CompletedAt, scoringJSON)
+	_, err = tx.Exec(ctx, `UPDATE analysis_runs SET status=$2,overall_score=$3,assessment_status=$4,recommendation=$5,financial_result=$6,completed_at=$7,scoring_summary=$8,lease_expires_at=NULL WHERE id=$1`, run.ID, run.Status, run.OverallScore, run.AssessmentStatus, run.Recommendation, financialJSON, run.CompletedAt, scoringJSON)
 	if err != nil {
 		return err
 	}

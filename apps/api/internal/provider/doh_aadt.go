@@ -16,6 +16,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const dohAADTReference = "https://datagov.mot.go.th/th/dataset/traf62"
@@ -147,6 +148,7 @@ func (p *DOHAADTProvider) Collect(ctx context.Context, site domain.Site, radius 
 }
 
 func (p *DOHAADTProvider) fetchAADT(ctx context.Context) (map[string]dohAADTRecord, error) {
+	ctx = telemetry.WithOperation(ctx, "doh_aadt_download")
 	key := "doh:aadt:" + hashText(p.config.CSVURL)
 	if value, found, err := p.cache.Get(ctx, key); err == nil && found {
 		return parseDOHAADT(value)
@@ -177,6 +179,7 @@ func (p *DOHAADTProvider) fetchAADT(ctx context.Context) (map[string]dohAADTReco
 }
 
 func (p *DOHAADTProvider) fetchNearbyRoads(ctx context.Context, latitude, longitude float64, radius int) ([]dohRoadFeature, error) {
+	ctx = telemetry.WithOperation(ctx, "doh_road_lookup")
 	return fetchTrafficRoads[dohRoadFeature](ctx, p.client, p.cache, p.config.RoadLayerURL, "road_code,section_co,section_na,km_start,km_end", "objectid", p.config.UserAgent, p.config.CacheTTL, latitude, longitude, radius)
 }
 

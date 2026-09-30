@@ -15,6 +15,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 // LocalTrafficProvider reads an operator-curated collection of survey stations
@@ -40,6 +41,7 @@ type localTrafficCount struct {
 }
 
 func (p *LocalTrafficProvider) Collect(ctx context.Context, site domain.Site, radius int) ([]Observation, error) {
+	ctx = telemetry.WithOperation(ctx, "local_traffic_download")
 	source := domain.DataSource{Name: "Provincial / local traffic surveys", Type: "local_traffic_survey", RetrievedAt: time.Now().UTC()}
 	missing := func(reason string) ([]Observation, error) {
 		return []Observation{{MetricType: "traffic", Status: domain.DataMissing, Source: source, Assumptions: []string{reason}}}, nil

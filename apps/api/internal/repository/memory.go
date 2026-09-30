@@ -211,6 +211,21 @@ func (m *Memory) ListSiteAccess(_ context.Context, siteID uuid.UUID) ([]domain.S
 	return append([]domain.SiteAccess(nil), m.access[siteID]...), nil
 }
 
+func (m *Memory) ListAccessibleSiteIDs(_ context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make([]uuid.UUID, 0)
+	for siteID, grants := range m.access {
+		for _, grant := range grants {
+			if grant.UserID == userID {
+				result = append(result, siteID)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func (m *Memory) DeleteSiteAccess(_ context.Context, siteID, userID uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -286,6 +301,17 @@ func (m *Memory) AddSiteImages(_ context.Context, siteID uuid.UUID, images []dom
 	if _, ok := m.sites[siteID]; !ok {
 		return ErrNotFound
 	}
+	stored := m.images[siteID]
+	bytes := int64(0)
+	for _, image := range stored {
+		bytes += int64(len(image.Data))
+	}
+	for _, image := range images {
+		bytes += int64(len(image.Data))
+	}
+	if len(stored)+len(images) > MaxSiteEvidenceFiles || bytes > MaxSiteEvidenceBytes {
+		return ErrSiteEvidenceLimit
+	}
 	m.images[siteID] = append(m.images[siteID], images...)
 	return nil
 }
@@ -334,6 +360,20 @@ func (m *Memory) CreateAnalysis(_ context.Context, run domain.AnalysisRun) (doma
 	defer m.mu.Unlock()
 	m.analyses[run.ID] = run
 	return run, nil
+}
+
+func (m *Memory) ClaimNextAnalysis(_ context.Context) (domain.AnalysisRun, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, run := range m.analyses {
+		if run.Status == "pending" {
+			run.Status = "running"
+			run.StartedAt = time.Now().UTC()
+			m.analyses[id] = run
+			return run, nil
+		}
+	}
+	return domain.AnalysisRun{}, ErrNotFound
 }
 
 func (m *Memory) CompleteAnalysis(_ context.Context, run domain.AnalysisRun) error {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const meaPowerMapReference = "https://measervice.mea.or.th/powermap/load/index.html"
@@ -187,6 +188,7 @@ func preferredMEAVoltages(configured int) []int {
 }
 
 func (p *MEAPowerMapProvider) fetch(ctx context.Context, kind, endpoint string, limit int64) ([]byte, error) {
+	ctx = telemetry.WithOperation(ctx, "mea_"+kind+"_download")
 	hash := sha256.Sum256([]byte(endpoint))
 	key := "mea:power-map:" + kind + ":" + hex.EncodeToString(hash[:])
 	if payload, found, err := p.cache.Get(ctx, key); err == nil && found {

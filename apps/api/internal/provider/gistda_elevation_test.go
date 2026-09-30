@@ -12,6 +12,19 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
 
+type memoryElevationCache struct{ values map[string][]byte }
+
+func (c *memoryElevationCache) Get(_ context.Context, key string) ([]byte, bool, error) {
+	value, found := c.values[key]
+	return value, found, nil
+}
+func (c *memoryElevationCache) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
+	c.values[key] = append([]byte(nil), value...)
+	return nil
+}
+func (*memoryElevationCache) Delete(context.Context, string) error { return nil }
+func (*memoryElevationCache) Available(context.Context) bool       { return true }
+
 func TestGISTDAElevationProviderReturnsTerrainEvidenceWithoutScore(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Query().Get("key") != "test-key" || !strings.Contains(request.URL.Query().Get("geo"), "LineString") {
@@ -44,5 +57,38 @@ func TestGISTDAElevationProviderDoesNotInventTerrainWithoutKey(t *testing.T) {
 	}
 	if len(observations) != 1 || observations[0].Status != domain.DataMissing || observations[0].NormalizedScore != nil {
 		t.Fatalf("missing API key must not fabricate terrain data: %+v", observations)
+	}
+}
+
+func TestGISTDAElevationProviderCachesSuccessfulResponse(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		requests++
+		_, _ = writer.Write([]byte(`{"data":[{"location":0,"elevation":12.5},{"location":1,"elevation":13.0}]}`))
+	}))
+	defer server.Close()
+	latitude, longitude := 13.7, 100.5
+	provider := NewGISTDAElevationProvider(
+		GISTDAElevationConfig{Endpoint: server.URL, APIKey: "test-key", CacheTTL: time.Hour},
+		server.Client(), &memoryElevationCache{values: make(map[string][]byte)},
+	)
+	for range 2 {
+		observations, err := provider.Collect(context.Background(), domain.Site{Latitude: &latitude, Longitude: &longitude}, 1000)
+		if err != nil || observations[0].Status != domain.DataEstimated {
+			t.Fatalf("expected cached terrain result, observations=%+v err=%v", observations, err)
+		}
+	}
+	if requests != 1 {
+		t.Fatalf("expected one GISTDA request followed by a cache hit, got %d", requests)
+	}
+}
+
+func TestParseGISTDAElevationAcceptsTopLevelArray(t *testing.T) {
+	value, err := parseGISTDAElevation([]byte(`[{"location":0,"elevation":12.5},{"location":1,"elevation":14.0}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value.SampleCount != 2 || value.ElevationRangeM != 1.5 {
+		t.Fatalf("unexpected direct-array value: %+v", value)
 	}
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type WorldPopConfig struct {
@@ -122,7 +123,8 @@ func (p *WorldPopProvider) Collect(ctx context.Context, site domain.Site, radius
 	return observations, nil
 }
 
-func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float64, radius int) (worldPopResult, error) {
+func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float64, radius int) (result worldPopResult, err error) {
+	ctx = telemetry.WithOperation(ctx, "worldpop_population")
 	payload := map[string]any{"geojson": circlePolygon(latitude, longitude, radius, 32), "year": p.config.Year, "resolution": p.config.Resolution}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
@@ -139,7 +141,7 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 
 	var task worldPopTaskResponse
 	for attempt := 0; attempt < 3; attempt++ {
-		request, requestErr := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.config.Endpoint, "/")+"/population", bytes.NewReader(encoded))
+		request, requestErr := http.NewRequestWithContext(telemetry.WithOperation(ctx, "worldpop_submit"), http.MethodPost, strings.TrimRight(p.config.Endpoint, "/")+"/population", bytes.NewReader(encoded))
 		if requestErr != nil {
 			return worldPopResult{}, requestErr
 		}
@@ -170,6 +172,20 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 		break
 	}
 
+	pollStarted := time.Now().UTC()
+	pollCount := 0
+	defer func() {
+		finished := time.Now().UTC()
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		telemetry.Record(ctx, telemetry.Event{
+			Provider: "worldpop", Operation: "worldpop_polling", StartedAt: pollStarted, FinishedAt: finished,
+			DurationMS: finished.Sub(pollStarted).Milliseconds(), Status: status, ErrorType: telemetry.ErrorType(err), PollCount: pollCount,
+		})
+	}()
+
 	for attempt := 0; attempt < 60; attempt++ {
 		if attempt > 0 {
 			select {
@@ -178,6 +194,7 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 			case <-time.After(worldPopPollDelay(attempt)):
 			}
 		}
+		pollCount++
 		result, done, pollErr := p.poll(ctx, task.TaskID)
 		if pollErr != nil {
 			var httpErr worldPopHTTPError
@@ -216,7 +233,7 @@ func worldPopPollDelay(attempt int) time.Duration {
 }
 
 func (p *WorldPopProvider) poll(ctx context.Context, taskID string) (worldPopResult, bool, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(p.config.Endpoint, "/")+"/tasks/"+taskID, nil)
+	request, err := http.NewRequestWithContext(telemetry.WithOperation(ctx, "worldpop_poll"), http.MethodGet, strings.TrimRight(p.config.Endpoint, "/")+"/tasks/"+taskID, nil)
 	if err != nil {
 		return worldPopResult{}, false, err
 	}

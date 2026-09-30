@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -15,9 +16,16 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 const gistdaElevationReference = "https://api.sphere.gistda.or.th/services/api/"
+
+var (
+	errGISTDAElevationEmptyResponse       = errors.New("gistda elevation response did not include data")
+	errGISTDAElevationInsufficientSamples = errors.New("gistda elevation response did not include enough samples")
+	errGISTDAElevationInvalidValue        = errors.New("gistda elevation response contains an invalid elevation")
+)
 
 type GISTDAElevationConfig struct {
 	Endpoint  string
@@ -80,10 +88,14 @@ func (p *GISTDAElevationProvider) Collect(ctx context.Context, site domain.Site,
 		return []Observation{p.missing("ยังไม่ได้ตั้งค่า GISTDA_API_KEY จึงยังไม่สามารถตรวจความต่างระดับภูมิประเทศอัตโนมัติได้")}, nil
 	}
 
+	started := time.Now().UTC()
 	value, err := p.fetch(ctx, *site.Latitude, *site.Longitude)
+	finished := time.Now().UTC()
 	if err != nil {
+		telemetry.Record(ctx, telemetry.Event{Provider: "gistda_elevation", Operation: "gistda_elevation_result", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Status: "error", ErrorType: gistdaElevationErrorType(err)})
 		return []Observation{p.missing("GISTDA Elevation API ไม่พร้อมใช้งาน จึงไม่มีการสรุปความต่างระดับภูมิประเทศ")}, nil
 	}
+	telemetry.Record(ctx, telemetry.Event{Provider: "gistda_elevation", Operation: "gistda_elevation_result", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Status: "success"})
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return []Observation{p.missing("ไม่สามารถจัดเก็บผลความต่างระดับจาก GISTDA ได้")}, nil
@@ -103,6 +115,7 @@ func (p *GISTDAElevationProvider) Collect(ctx context.Context, site domain.Site,
 }
 
 func (p *GISTDAElevationProvider) fetch(ctx context.Context, latitude, longitude float64) (gistdaTerrainValue, error) {
+	ctx = telemetry.WithOperation(ctx, "gistda_elevation_lookup")
 	const sampleSpanMeters = 200
 	// One degree latitude is approximately 111,320 metres. The two end points
 	// are 100m from the pin, making the total sampled span 200m.
@@ -140,7 +153,10 @@ func (p *GISTDAElevationProvider) fetch(ctx context.Context, latitude, longitude
 	if err != nil {
 		return gistdaTerrainValue{}, err
 	}
-	_ = p.cache.Set(ctx, cacheKey, payload, p.config.CacheTTL)
+	if err := p.cache.Set(ctx, cacheKey, payload, p.config.CacheTTL); err != nil {
+		// A cache write failure must not discard verified data from GISTDA.
+		// WrapCache records the safe key fingerprint and write failure for diagnosis.
+	}
 	if p.config.UsageRecorder != nil {
 		p.config.UsageRecorder(ctx, "gistda-elevation", 1)
 	}
@@ -149,28 +165,49 @@ func (p *GISTDAElevationProvider) fetch(ctx context.Context, latitude, longitude
 
 func parseGISTDAElevation(payload []byte) (gistdaTerrainValue, error) {
 	var wrapped gistdaElevationResponse
+	var points []gistdaElevationPoint
 	if err := json.Unmarshal(payload, &wrapped); err != nil {
-		return gistdaTerrainValue{}, fmt.Errorf("invalid gistda elevation response: %w", err)
-	}
-	points := wrapped.Data
-	if len(points) == 0 {
-		// Some API deployments return the documented data array directly.
+		// Some API deployments return the documented data array directly. The
+		// previous object-first decoder returned before this fallback could run.
 		if err := json.Unmarshal(payload, &points); err != nil {
-			return gistdaTerrainValue{}, fmt.Errorf("gistda elevation response did not include data")
+			return gistdaTerrainValue{}, fmt.Errorf("invalid gistda elevation response: %w", err)
+		}
+	} else {
+		points = wrapped.Data
+	}
+	if len(points) == 0 {
+		// Keep accepting a top-level array when a gateway wraps it ambiguously.
+		if err := json.Unmarshal(payload, &points); err != nil {
+			return gistdaTerrainValue{}, errGISTDAElevationEmptyResponse
 		}
 	}
 	if len(points) < 2 {
-		return gistdaTerrainValue{}, fmt.Errorf("gistda elevation response did not include enough samples")
+		return gistdaTerrainValue{}, errGISTDAElevationInsufficientSamples
 	}
 	minimum, maximum := math.Inf(1), math.Inf(-1)
 	for _, point := range points {
 		if math.IsNaN(point.Elevation) || math.IsInf(point.Elevation, 0) {
-			return gistdaTerrainValue{}, fmt.Errorf("gistda elevation response contains an invalid elevation")
+			return gistdaTerrainValue{}, errGISTDAElevationInvalidValue
 		}
 		minimum = math.Min(minimum, point.Elevation)
 		maximum = math.Max(maximum, point.Elevation)
 	}
 	return gistdaTerrainValue{AssessmentType: "gistda_elevation_sampling", SampleSpanMeters: 200, SampleCount: len(points), MinimumElevationM: minimum, MaximumElevationM: maximum, ElevationRangeM: maximum - minimum}, nil
+}
+
+func gistdaElevationErrorType(err error) string {
+	switch {
+	case errors.Is(err, errGISTDAElevationEmptyResponse):
+		return "empty_response"
+	case errors.Is(err, errGISTDAElevationInsufficientSamples):
+		return "insufficient_samples"
+	case errors.Is(err, errGISTDAElevationInvalidValue):
+		return "invalid_elevation"
+	case strings.Contains(err.Error(), "invalid gistda elevation response"):
+		return "invalid_response"
+	default:
+		return telemetry.ErrorType(err)
+	}
 }
 
 func (p *GISTDAElevationProvider) missing(assumption string) Observation {
