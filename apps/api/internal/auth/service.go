@@ -17,6 +17,7 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrStorageUnavailable = errors.New("authentication storage unavailable")
 var ErrOTPNotConfigured = errors.New("otp delivery is not configured")
 
 type Service struct {
@@ -101,5 +102,22 @@ func (s *Service) Verify(token string) (Claims, error) {
 	if _, err := uuid.Parse(claims.Subject); err != nil {
 		return Claims{}, ErrInvalidCredentials
 	}
+	return claims, nil
+}
+
+// Long-lived sessions must not retain permissions after account changes.
+func (s *Service) VerifyUser(ctx context.Context, token string) (Claims, error) {
+	claims, err := s.Verify(token)
+	if err != nil {
+		return Claims{}, err
+	}
+	user, err := s.repo.GetUserByID(ctx, uuid.MustParse(claims.Subject))
+	if errors.Is(err, repository.ErrNotFound) || (err == nil && !user.IsActive) {
+		return Claims{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return Claims{}, ErrStorageUnavailable
+	}
+	claims.Role = user.Role
 	return claims, nil
 }

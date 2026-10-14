@@ -100,6 +100,17 @@ func Load() (Config, error) {
 		}
 		jwtSecret = "development-only-change-this-secret"
 	}
+	if strings.EqualFold(environment, "production") {
+		if len(jwtSecret) < 32 || jwtSecret == "development-only-change-this-secret" || jwtSecret == "change-this-before-production" {
+			return Config{}, errors.New("production requires a unique JWT_SECRET of at least 32 bytes")
+		}
+		if !strings.EqualFold(getEnv("AUTH_REQUIRED", "false"), "true") {
+			return Config{}, errors.New("production requires AUTH_REQUIRED=true")
+		}
+		if strings.TrimSpace(os.Getenv("DATABASE_URL")) == "" {
+			return Config{}, errors.New("production requires DATABASE_URL; in-memory storage is not durable")
+		}
+	}
 	ttl, err := time.ParseDuration(getEnv("REDIS_CACHE_TTL", "15m"))
 	if err != nil {
 		ttl = 15 * time.Minute

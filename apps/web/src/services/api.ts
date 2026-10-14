@@ -17,19 +17,25 @@ function clearExpiredSession() {
   window.dispatchEvent(new Event(authExpiredEvent))
 }
 
-function throwAPIError<T>(response: Response, body: Envelope<T> & ErrorEnvelope): never {
+function throwAPIError<T>(response: Response, body: Envelope<T> & ErrorEnvelope, requestToken: string | null): never {
   const code = body.error?.code || 'REQUEST_FAILED'
-  if (response.status === 401 && (code === 'INVALID_TOKEN' || code === 'AUTH_REQUIRED')) clearExpiredSession()
+  if (response.status === 401 && requestToken && requestToken === getSessionToken() && (code === 'INVALID_TOKEN' || code === 'AUTH_REQUIRED')) clearExpiredSession()
+  if ([408, 504, 524].includes(response.status)) throw new APIError('REQUEST_TIMEOUT', 'The request timed out.', response.status)
   throw new APIError(code, body.error?.message || 'Request failed.', response.status)
 }
 
 export function errorMessageKey(error: unknown) {
+  if (error instanceof APIError && error.code === 'AUTH_UNAVAILABLE') return 'Sign-in verification is temporarily unavailable. Please try again.'
+  if (error instanceof APIError && error.code === 'REQUEST_TIMEOUT') return 'The request took too long. Check the latest status before trying again; submitted work may still be processing.'
   return error instanceof APIError ? `error.${error.code}` : 'error.REQUEST_FAILED'
 }
 
-async function readEnvelope<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => ({})) as Envelope<T> & ErrorEnvelope
-  if (!response.ok) throwAPIError(response, body)
+async function readEnvelope<T>(response: Response, token: string | null): Promise<T> {
+  const body = await response.json().catch(error => {
+    if (response.ok) throw error
+    return {}
+  }) as Envelope<T> & ErrorEnvelope
+  if (!response.ok) throwAPIError(response, body, token)
   return body.data
 }
 
@@ -43,11 +49,34 @@ function headerRecord(headers?: HeadersInit) {
 
 async function authenticatedRequest<T>(path: string, token: string | null, init?: RequestInit, options: APIRequestOptions = {}): Promise<T> {
   const { json = true } = options
-  const response = await fetch(`${baseURL}${path}`, {
-    ...init,
-    headers: { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headerRecord(init?.headers) },
-  })
-  return readEnvelope<T>(response)
+  return withRequestDeadline(async signal => {
+    const response = await fetch(`${baseURL}${path}`, {
+      ...init,
+      signal,
+      headers: { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headerRecord(init?.headers) },
+    })
+    return readEnvelope<T>(response, token)
+  }, json ? 60_000 : 120_000, init?.signal)
+}
+
+// Bound both the response headers and body. Never retry mutations automatically:
+// the server may already have accepted a submission when the connection fails.
+async function withRequestDeadline<T>(operation: (signal: AbortSignal) => Promise<T>, milliseconds: number, parent?: AbortSignal | null): Promise<T> {
+  const controller = new AbortController()
+  let timedOut = false
+  const abort = () => controller.abort()
+  if (parent?.aborted) abort()
+  else parent?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(() => { timedOut = true; controller.abort() }, milliseconds)
+  try {
+    return await operation(controller.signal)
+  } catch (error) {
+    if (timedOut) throw new APIError('REQUEST_TIMEOUT', 'The request timed out.', 0)
+    throw error
+  } finally {
+    clearTimeout(timer)
+    parent?.removeEventListener('abort', abort)
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -60,9 +89,12 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
 
 async function download(path: string): Promise<Blob> {
   const token = getSessionToken()
-  const response = await fetch(`${baseURL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-  if (!response.ok) throw new APIError('SITE_IMAGE_LOAD_FAILED', 'Unable to load site evidence file.', response.status)
-  return response.blob()
+  return withRequestDeadline(async signal => {
+    const response = await fetch(`${baseURL}${path}`, { signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+    if ([408, 504, 524].includes(response.status)) throw new APIError('REQUEST_TIMEOUT', 'The request timed out.', response.status)
+    if (!response.ok) throw new APIError('SITE_IMAGE_LOAD_FAILED', 'Unable to load site evidence file.', response.status)
+    return response.blob()
+  }, 120_000)
 }
 
 async function liffRequest<T>(path: string, idToken: string, init?: RequestInit): Promise<T> {

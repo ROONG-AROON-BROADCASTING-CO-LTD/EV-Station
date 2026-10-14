@@ -13,6 +13,46 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
 
+type resumablePopulationCache struct{ memoryElevationCache }
+
+func (c *resumablePopulationCache) Delete(_ context.Context, key string) error {
+	delete(c.values, key)
+	return nil
+}
+
+func TestWorldPopResumesAcceptedTaskAfterDeadline(t *testing.T) {
+	var submits atomic.Int32
+	var ready atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			submits.Add(1)
+			w.Write([]byte(`{"task_id":"resume-task","status":"pending"}`))
+		} else if ready.Load() {
+			w.Write([]byte(`{"status":"success","result":{"total_population":42,"area_km2":1,"data_year":2025,"population_density":42}}`))
+		} else {
+			w.Write([]byte(`{"status":"pending"}`))
+		}
+	}))
+	defer server.Close()
+	c := &resumablePopulationCache{memoryElevationCache{values: map[string][]byte{}}}
+	p := NewWorldPopProvider(WorldPopConfig{Endpoint: server.URL, Year: 2025}, server.Client(), c)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := p.fetch(ctx, 13.7, 100.5, 3000); err == nil {
+		t.Fatal("expected deadline")
+	}
+	ready.Store(true)
+	result, err := p.fetch(context.Background(), 13.7, 100.5, 3000)
+	if err != nil || result.TotalPopulation != 42 || submits.Load() != 1 {
+		t.Fatalf("did not resume accepted task: result=%+v err=%v submits=%d", result, err, submits.Load())
+	}
+	for key := range c.values {
+		if strings.HasSuffix(key, ":pending-task-v1") {
+			t.Fatal("completed task was not removed")
+		}
+	}
+}
+
 func TestWorldPopProviderPreservesEstimatedStatusAndMetadata(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")

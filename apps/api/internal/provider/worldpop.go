@@ -140,7 +140,13 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 	}
 
 	var task worldPopTaskResponse
-	for attempt := 0; attempt < 3; attempt++ {
+	taskKey := cacheKey + ":pending-task-v1"
+	if saved, found, cacheErr := p.cache.Get(ctx, taskKey); cacheErr == nil && found {
+		_ = json.Unmarshal(saved, &task)
+	}
+	// Resume accepted upstream work after a report deadline instead of starting
+	// the same expensive polygon calculation from scratch on every retry.
+	for attempt := 0; task.TaskID == "" && attempt < 3; attempt++ {
 		request, requestErr := http.NewRequestWithContext(telemetry.WithOperation(ctx, "worldpop_submit"), http.MethodPost, strings.TrimRight(p.config.Endpoint, "/")+"/population", bytes.NewReader(encoded))
 		if requestErr != nil {
 			return worldPopResult{}, requestErr
@@ -169,6 +175,8 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 		if decodeErr != nil || task.TaskID == "" {
 			return worldPopResult{}, fmt.Errorf("invalid worldpop task response")
 		}
+		saved, _ := json.Marshal(worldPopTaskResponse{TaskID: task.TaskID})
+		_ = p.cache.Set(ctx, taskKey, saved, time.Hour)
 		break
 	}
 
@@ -201,16 +209,22 @@ func (p *WorldPopProvider) fetch(ctx context.Context, latitude, longitude float6
 			if errors.As(pollErr, &httpErr) && httpErr.retryable() {
 				continue
 			}
+			if errors.Is(pollErr, errWorldPopTaskFailed) || (errors.As(pollErr, &httpErr) && (httpErr.statusCode == http.StatusNotFound || httpErr.statusCode == http.StatusGone)) {
+				_ = p.cache.Delete(ctx, taskKey)
+			}
 			return worldPopResult{}, pollErr
 		}
 		if done {
 			cached, _ := json.Marshal(result)
 			_ = p.cache.Set(ctx, cacheKey, cached, p.config.CacheTTL)
+			_ = p.cache.Delete(ctx, taskKey)
 			return result, nil
 		}
 	}
 	return worldPopResult{}, fmt.Errorf("worldpop task timed out")
 }
+
+var errWorldPopTaskFailed = errors.New("worldpop task failed")
 
 func waitWorldPopRetry(ctx context.Context, attempt int) error {
 	delay := time.Duration(attempt+1) * 500 * time.Millisecond
@@ -253,7 +267,7 @@ func (p *WorldPopProvider) poll(ctx context.Context, taskID string) (worldPopRes
 		return worldPopResult{}, false, err
 	}
 	if task.Status == "failure" {
-		return worldPopResult{}, false, fmt.Errorf("worldpop task failed")
+		return worldPopResult{}, false, errWorldPopTaskFailed
 	}
 	if task.Status == "success" && task.Result != nil {
 		return *task.Result, true, nil

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -15,6 +16,16 @@ func NewRouter(cfg config.Config, handler *Handler) *gin.Engine {
 	}
 	router := gin.New()
 	router.Use(gin.Recovery())
+	// Log route templates and timing, never credentials, request bodies or
+	// query strings. This separates upstream failures from HTTP timeouts.
+	router.Use(func(c *gin.Context) {
+		started := time.Now()
+		c.Next()
+		if c.FullPath() == "/health" {
+			return
+		}
+		slog.Info("http request", "method", c.Request.Method, "route", c.FullPath(), "status", c.Writer.Status(), "duration_ms", time.Since(started).Milliseconds(), "canceled", c.Request.Context().Err() != nil)
+	})
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},

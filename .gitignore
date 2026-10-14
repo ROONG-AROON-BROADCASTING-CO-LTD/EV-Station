@@ -24,7 +24,6 @@ CODEX_TEST_AUDIT.md
 apps/web/.impeccable/
 apps/web/DESIGN.md
 apps/web/PRODUCT.md
-apps/web/pnpm-lock.yaml
 backups/
 *_render/
 RBC_EV_Station_*.mp4

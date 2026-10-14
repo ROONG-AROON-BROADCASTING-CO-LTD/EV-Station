@@ -2,6 +2,10 @@ export type Language = 'th' | 'en'
 
 export const translations = {
   th: {
+    'Sign-in verification is temporarily unavailable. Please try again.': 'ระบบตรวจสอบการเข้าสู่ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง',
+    'This is a saved report. A newer report is available for this site; the evidence below has not been refreshed.': 'นี่คือรายงานที่บันทึกไว้ มีรายงานใหม่กว่าของพื้นที่นี้ ข้อมูลด้านล่างยังเป็นผลจากการวิเคราะห์รอบเดิม',
+    'Open latest report': 'เปิดรายงานล่าสุด',
+    'The request took too long. Check the latest status before trying again; submitted work may still be processing.': 'การเชื่อมต่อใช้เวลานานเกินไป โปรดตรวจสถานะล่าสุดก่อนลองใหม่ งานที่ส่งแล้วอาจยังประมวลผลอยู่',
     'Flood reports exist in the latest published year in the search area. Check the frontage road and access routes; administrative totals do not confirm flooding at this plot.': 'มีรายงานน้ำท่วมปีล่าสุดในบริเวณค้นหา ควรตรวจถนนหน้าแปลงและเส้นทางเข้า–ออก ยอดระดับตำบล/อำเภอยังยืนยันไม่ได้ว่าแปลงนี้ท่วม',
     'Historical flood screening score': 'คะแนนคัดกรองจากประวัติน้ำท่วม',
     'More data needed for an overall score': 'ข้อมูลยังไม่พอสำหรับคะแนนรวม',

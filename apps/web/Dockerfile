@@ -1,9 +1,9 @@
 FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /src
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY . .
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_GOOGLE_MAPS_BROWSER_API_KEY=

@@ -102,7 +102,7 @@ func TestOSMProviderSkipsCoolingEndpointAndProbesItAfterCooldown(t *testing.T) {
 	}
 }
 
-func TestOSMProviderKeepsAnEndpointAvailableWhenAllAreCooling(t *testing.T) {
+func TestOSMProviderHonoursCooldownWhenAllEndpointsFail(t *testing.T) {
 	provider := NewOSMProvider(OSMConfig{Endpoint: "https://primary.example/api", FallbackEndpoints: []string{"https://fallback.example/api"}, EndpointCooldown: time.Minute}, nil, cache.Noop{})
 	now := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
 	provider.now = func() time.Time { return now }
@@ -110,11 +110,16 @@ func TestOSMProviderKeepsAnEndpointAvailableWhenAllAreCooling(t *testing.T) {
 		provider.recordEndpointFailure("context", endpoint)
 	}
 	candidates := provider.endpointCandidates("context", []string{provider.config.Endpoint, provider.config.FallbackEndpoints[0]})
+	if len(candidates) != 0 {
+		t.Fatalf("cooling endpoints must not repeat failed calls, got %d", len(candidates))
+	}
+	now = now.Add(time.Minute)
+	candidates = provider.endpointCandidates("context", []string{provider.config.Endpoint, provider.config.FallbackEndpoints[0]})
 	if len(candidates) != 2 {
-		t.Fatalf("all cooling endpoints must remain available for recovery, got %d", len(candidates))
+		t.Fatal("endpoints should be retried after cooldown")
 	}
 	for _, candidate := range candidates {
-		if candidate.health != "temporarily_unavailable" {
+		if candidate.health != "probe" {
 			t.Fatalf("expected cooling endpoint state, got %s for %s", candidate.health, candidate.endpoint)
 		}
 	}

@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/rbc/ev-station/apps/api/internal/advisory"
@@ -36,7 +39,8 @@ func main() {
 	providerClient := func(providerName string) *http.Client {
 		return providerClientWithTimeout(providerName, cfg.ExternalHTTPTimeout)
 	}
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	var externalCache cache.Cache = cache.Noop{}
 	if strings.TrimSpace(cfg.RedisURL) != "" {
 		redisCache, cacheErr := cache.NewRedis(cfg.RedisURL)
@@ -199,7 +203,16 @@ func main() {
 	handler := httpapi.NewHandler(siteService, analysisService, repo, geocoder, geminiAdvisory, authService, otpService, lineNotifier, scoring.DefaultWeights)
 	router := httpapi.NewRouter(cfg, handler)
 	logger.Info("api listening", "port", cfg.Port, "environment", cfg.Environment)
-	if err = router.Run(":" + cfg.Port); err != nil {
+	server := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, WriteTimeout: 150 * time.Second, ReadTimeout: 120 * time.Second}
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("api shutdown failed", "error", err)
+		}
+	}()
+	if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("api stopped", "error", err)
 		os.Exit(1)
 	}

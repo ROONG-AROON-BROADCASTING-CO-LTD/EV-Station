@@ -11,6 +11,35 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/repository"
 )
 
+func TestExistingTokenUsesCurrentAccountPermissions(t *testing.T) {
+	repo := repository.NewMemory()
+	s := New(repo, "test-secret")
+	ctx := context.Background()
+	user, err := s.Register(ctx, "permissions@example.com", "Test", "password123", domain.RoleAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, token, err := s.Login(ctx, user.Email, "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user.Role = domain.RoleSales
+	if _, err := s.UpdateUser(ctx, user, ""); err != nil {
+		t.Fatal(err)
+	}
+	claims, err := s.VerifyUser(ctx, token)
+	if err != nil || claims.Role != domain.RoleSales {
+		t.Fatal("token retained outdated permissions", err)
+	}
+	user.IsActive = false
+	if _, err := s.UpdateUser(ctx, user, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.VerifyUser(ctx, token); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatal("disabled account token accepted", err)
+	}
+}
+
 func TestServiceRegisterLoginAndVerifyNormalizesAccount(t *testing.T) {
 	repo := repository.NewMemory()
 	service := New(repo, "test-secret", 2*time.Hour)

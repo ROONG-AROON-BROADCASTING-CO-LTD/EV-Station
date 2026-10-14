@@ -272,7 +272,12 @@ func (h *Handler) RequireAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	claims, err := h.auth.Verify(strings.TrimPrefix(value, "Bearer "))
+	claims, err := h.auth.VerifyUser(c.Request.Context(), strings.TrimPrefix(value, "Bearer "))
+	if errors.Is(err, auth.ErrStorageUnavailable) {
+		writeError(c, http.StatusServiceUnavailable, "AUTH_UNAVAILABLE", "Sign-in verification is temporarily unavailable. Please try again.")
+		c.Abort()
+		return
+	}
 	if err != nil {
 		writeError(c, http.StatusUnauthorized, "INVALID_TOKEN", "Your session has expired. Please sign in again.")
 		c.Abort()

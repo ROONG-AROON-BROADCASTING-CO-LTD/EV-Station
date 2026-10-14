@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calculator, CheckCircle2, Circle, ClipboardList, Download, Expand, RefreshCw, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DataStatus, DataStatusLegend } from '../components/DataStatus'
 import { StationRecommendation } from '../components/StationRecommendation'
 import { MapPanel, PrintableLocationMap, RadiusLabel, RadiusSelector } from '../components/MapPanel'
@@ -35,6 +35,7 @@ export function AnalysisPage({ role }: { role: UserRole }) {
 	const analysis = useQuery({ queryKey: ['analysis', id], queryFn: () => api.getAnalysis(id), enabled: Boolean(id), refetchInterval: query => ['pending', 'running'].includes(query.state.data?.status || '') ? 1000 : false })
   const plans = useQuery({ queryKey: ['franchise-plans'], queryFn: api.getFranchisePlans })
   const site = useQuery({ queryKey: ['site', analysis.data?.siteId], queryFn: () => api.getSite(analysis.data!.siteId), enabled: Boolean(analysis.data?.siteId) })
+  const latestAnalysis = useQuery({ queryKey: ['latest-analysis', analysis.data?.siteId], queryFn: () => api.getLatestAnalysisForSite(analysis.data!.siteId), enabled: Boolean(analysis.data?.siteId) && analysis.data?.status === 'completed', staleTime: 30_000 })
   const rerun = useMutation({ mutationFn: () => api.runAnalysis(analysis.data!.siteId, rerunRadiusMeters ?? analysis.data!.analysisRadiusMeters), onSuccess: run => navigate(`/analysis/${run.id}`) })
   const recalculate = useMutation({ mutationFn: () => api.recalculatePreliminary(id), onSuccess: run => { queryClient.setQueryData(['analysis', id], run) } })
   const updateInternet = useMutation({ mutationFn: (internetAvailable: boolean | undefined) => api.updateSite(analysis.data!.siteId, { ...site.data!, internetAvailable }), onSuccess: updated => { queryClient.setQueryData(['site', updated.id], updated) } })
@@ -76,6 +77,7 @@ export function AnalysisPage({ role }: { role: UserRole }) {
 		</section>
 	}
 	return <div className="analysis-print-report">
+    {latestAnalysis.data && latestAnalysis.data.id !== run.id && new Date(latestAnalysis.data.createdAt) > new Date(run.createdAt) ? <aside className="print-hide mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-4" role="status"><p className="min-w-0 text-sm leading-6">{t('This is a saved report. A newer report is available for this site; the evidence below has not been refreshed.')}</p><Link className="button-secondary shrink-0" to={`/analysis/${latestAnalysis.data.id}`}>{t('Open latest report')}</Link></aside> : null}
     <header className="print-company-header">
       <img className="print-company-logo" src="/rbc-group-logo.png" alt="RBC Group" />
 	  <div><p className="print-company-name">{language === 'th' ? 'บริษัท รุ่งอรุณบรอดคาสติ้ง จำกัด' : 'Rung Arun Broadcasting Co., Ltd.'}</p><p>{language === 'th' ? 'เลขที่ 9 ซ.รามอินทรา 21 แยก 1 ถนนรามอินทรา แขวงท่าแร้ง เขตบางเขน กรุงเทพมหานคร 10220' : '9 Soi Ramintra 21 Yaek 1, Ramintra Road, Tha Raeng, Bang Khen, Bangkok 10220'}</p><p>{language === 'th' ? 'โทร. 02-970-7552' : 'Tel. 02-970-7552'}</p></div>

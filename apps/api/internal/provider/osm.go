@@ -398,7 +398,7 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 		return payload, nil
 	}
 	if lastErr == nil {
-		lastErr = fmt.Errorf("no Overpass endpoint configured")
+		lastErr = fmt.Errorf("no Overpass endpoint currently available (unconfigured or cooling down)")
 	}
 	return recoverSnapshot(lastErr)
 }
@@ -457,7 +457,7 @@ func (p *OSMProvider) endpointCandidates(operation string, configured []string) 
 		healthy = append(healthy, candidate)
 	}
 	if len(probes) > 0 {
-		return append(append(probes, healthy...), cooling...)
+		return append(probes, healthy...)
 	}
 	if len(healthy) > 0 {
 		// Preserve the configured order until both endpoints have real measurements.
@@ -468,16 +468,11 @@ func (p *OSMProvider) endpointCandidates(operation string, configured []string) 
 			}
 			return healthy[i].averageLatency < healthy[j].averageLatency
 		})
-		return append(healthy, cooling...)
+		return healthy
 	}
-	// Do not make an analysis fail solely because all known endpoints are cooling down.
-	// Probe the one that recovers soonest, then retain the other endpoints as fallbacks.
-	if len(cooling) > 0 {
-		sort.SliceStable(cooling, func(i, j int) bool {
-			return cooling[i].cooldownRemaining < cooling[j].cooldownRemaining
-		})
-		return cooling
-	}
+	// Honour the circuit break even when all mirrors are unavailable. fetch
+	// can reuse a validated road snapshot; otherwise evidence remains missing.
+	// Once the cooldown expires the failed endpoint becomes a probe above.
 	return nil
 }
 

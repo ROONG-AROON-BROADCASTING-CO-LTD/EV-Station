@@ -7,7 +7,36 @@ describe('API client authentication boundary', () => {
     vi.restoreAllMocks()
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+  it('bounds a stalled request without deleting the session or retrying the mutation', async () => {
+    vi.useFakeTimers()
+    localStorage.setItem('rbc-session-token', 'valid-token')
+    const fetchMock = vi.fn((_url, init) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = expect(api.runAnalysis('site-1')).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+    await vi.advanceTimersByTimeAsync(60_000)
+    await pending
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('rbc-session-token')).toBe('valid-token')
+  })
+
+  it('does not log out a new login when an older request returns 401 late', async () => {
+    localStorage.setItem('rbc-session-token', 'old-token')
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      localStorage.setItem('rbc-session-token', 'new-token')
+      return new Response(JSON.stringify({ error: { code: 'INVALID_TOKEN' } }), { status: 401 })
+    }))
+    await expect(api.listSites()).rejects.toMatchObject({ status: 401 })
+    expect(localStorage.getItem('rbc-session-token')).toBe('new-token')
+  })
+
+  it('maps proxy timeouts even when the proxy responds with HTML', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>timeout</html>', { status: 504 })))
+    await expect(api.listSites()).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT', status: 504 })
+  })
 
   it('sends the persisted bearer token and returns the response payload', async () => {
     localStorage.setItem('rbc-session-token', 'stored-token')

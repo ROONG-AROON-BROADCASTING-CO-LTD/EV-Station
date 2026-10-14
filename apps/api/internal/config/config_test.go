@@ -50,14 +50,36 @@ func TestLoadRequiresJWTSecretInProduction(t *testing.T) {
 
 func TestLoadAcceptsJWTSecretInProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
-	t.Setenv("JWT_SECRET", "production-secret")
+	t.Setenv("JWT_SECRET", "test-production-secret-with-32-bytes-minimum")
+	t.Setenv("AUTH_REQUIRED", "true")
+	t.Setenv("DATABASE_URL", "postgres://test/test")
 
 	config, err := Load()
 	if err != nil {
 		t.Fatalf("Load() returned an unexpected error: %v", err)
 	}
-	if config.JWTSecret != "production-secret" {
+	if config.JWTSecret != "test-production-secret-with-32-bytes-minimum" {
 		t.Fatalf("JWTSecret = %q, want configured secret", config.JWTSecret)
+	}
+}
+
+func TestProductionRejectsUnsafeConfiguration(t *testing.T) {
+	for _, setting := range []struct{ key, value string }{
+		{"JWT_SECRET", "change-this-before-production"},
+		{"JWT_SECRET", "development-only-change-this-secret"},
+		{"AUTH_REQUIRED", "false"},
+		{"DATABASE_URL", ""},
+	} {
+		t.Run(setting.key+setting.value, func(t *testing.T) {
+			t.Setenv("APP_ENV", "production")
+			t.Setenv("JWT_SECRET", "test-production-secret-with-32-bytes-minimum")
+			t.Setenv("AUTH_REQUIRED", "true")
+			t.Setenv("DATABASE_URL", "postgres://test/test")
+			t.Setenv(setting.key, setting.value)
+			if _, err := Load(); err == nil {
+				t.Fatal("unsafe production configuration accepted")
+			}
+		})
 	}
 }
 
