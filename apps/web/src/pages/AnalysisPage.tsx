@@ -242,7 +242,7 @@ type RawCount = { count: number; radiusMeters: number }
 type RawPlace = { osmType: string; osmId: number; name?: string; category: string }
 type RawObservation = RawCount & { places: RawPlace[]; categoryCounts?: Record<string, number>; excludedChargingStationCount?: number; residentialBuildingCount?: number; communityAreaCount?: number }
 type PopulationValue = { population: number; populationDensityPerKm2: number; areaKm2: number; radiusMeters: number; dataYear: number; resolution: string }
-type RoadValue = { radiusMeters: number; mappedMajorRoadCount: number; nearestMajorRoadMeters?: number; nearestRoadName?: string; nearestRoadRef?: string; nearestRoadClass?: string; roadClassCounts: Record<string, number> }
+type RoadValue = { radiusMeters: number; mappedMajorRoadCount: number; nearestMajorRoadMeters?: number; nearestRoadName?: string; nearestRoadRef?: string; nearestRoadClass?: string; roadClassCounts: Record<string, number>; roadDatasetId?: string; nearestRoadOneway?: string; nearestRoadAccess?: string; nearestRoadMotorVehicle?: string }
 type AADTValue = { aadt: number; dataYear: number; roadAuthority?: 'DOH' | 'DRR'; roadCode: string; roadName?: string; controlSection: string; controlSectionName: string; surveyKm: string; distanceToSectionMeters?: number; distanceToRoadMeters?: number; matchRadiusMeters: number }
 type TrafficPotentialValue = { assessmentType: 'osm_road_traffic_potential'; potentialScore: number; radiusMeters: number; mappedMajorRoadCount: number; nearestMajorRoadMeters?: number; nearestRoadName?: string; nearestRoadRef?: string; nearestRoadClass?: string; roadClassCounts: Record<string, number> }
 type EVRegistrationValue = { province: string; registeredBev: number; datasetDate: string; previousRegisteredBev?: number; previousDatasetDate?: string; changePercent?: number; trend?: 'increased' | 'decreased' | 'unchanged'; provinceResolution: string }
@@ -304,7 +304,16 @@ function formatMetricResult(metric: Metric, t: (key: string) => string) {
     const change = formatEVRegistrationTrend(evRegistration, t)
     return { text: `${evRegistration.registeredBev.toLocaleString()} ${t('registered BEVs')} · ${evRegistration.province}`, note: [change, t('Provincial indicator — not EV demand at this exact location.')].filter(Boolean).join(' · '), available: true }
   }
-  const road = getRoad(metric.rawValue); if (road) return { text: `${road.mappedMajorRoadCount.toLocaleString()} ${t('mapped major-road segments')}${road.nearestMajorRoadMeters !== undefined ? ` · ${Math.round(road.nearestMajorRoadMeters).toLocaleString()} ${t('m to nearest mapped major road')}` : ''}`, note: t('Road-map assessment only — it does not confirm the actual entrance, turning movements, road width, or on-site obstructions.'), available: true }
+  const road = getRoad(metric.rawValue); if (road) {
+    const details = [t('Road-map assessment only — it does not confirm the actual entrance, turning movements, road width, or on-site obstructions.')]
+    if (road.roadDatasetId) details.push(`${t('Local road snapshot date')}: ${metric.source.datasetVersion || t('Not specified')}`)
+    const mappedRoad = nearestRoadLabel(road, t)
+    if (mappedRoad) details.push(`${t('Nearest mapped main road')}: ${mappedRoad}`)
+    if (road.nearestRoadOneway) details.push(`${t('Mapped one-way rule')}: ${road.nearestRoadOneway}`)
+    if (road.nearestRoadAccess) details.push(`${t('Mapped access restriction')}: ${road.nearestRoadAccess}`)
+    if (road.nearestRoadMotorVehicle) details.push(`${t('Mapped motor-vehicle restriction')}: ${road.nearestRoadMotorVehicle}`)
+    return { text: `${road.mappedMajorRoadCount.toLocaleString()} ${t('mapped major-road segments')}${road.nearestMajorRoadMeters !== undefined ? ` · ${Math.round(road.nearestMajorRoadMeters).toLocaleString()} ${t('m to nearest mapped major road')}` : ''}`, note: details.join(' · '), available: true }
+  }
   const gatewayHistory = metric.type === 'flood' ? gatewayFloodEvidence(metric.rawValue)?.historical : undefined
   if (gatewayHistory?.status === 'available' && gatewayHistory.complete && (gatewayHistory.yearsObserved!.length > 0 || !getFlood(metric.rawValue))) {
     const district = getFlood(metric.rawValue)

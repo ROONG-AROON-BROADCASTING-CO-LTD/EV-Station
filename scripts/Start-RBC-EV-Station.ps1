@@ -91,6 +91,9 @@ Write-RbcStatus 'Starting database, API and web...'
 Push-Location $ProjectRoot
 try {
     docker compose up -d --build --wait
+    if ($LASTEXITCODE -ne 0) { throw 'Core RBC services did not start.' }
+    docker compose --profile roads up -d --build --no-deps road-updater
+    if ($LASTEXITCODE -ne 0) { throw 'Road refresh worker did not start.' }
     if ($LASTEXITCODE -ne 0) {
         throw 'Docker build/start failed. The updated application was not started.'
     }

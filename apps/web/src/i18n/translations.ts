@@ -2,6 +2,10 @@ export type Language = 'th' | 'en'
 
 export const translations = {
   th: {
+    'Local road snapshot date': 'วันที่ชุดข้อมูลถนนในระบบ',
+    'Mapped one-way rule': 'กฎทางเดียวตามแผนที่',
+    'Mapped access restriction': 'ข้อจำกัดการเข้าถึงตามแผนที่',
+    'Mapped motor-vehicle restriction': 'ข้อจำกัดรถยนต์ตามแผนที่',
     'Sign-in verification is temporarily unavailable. Please try again.': 'ระบบตรวจสอบการเข้าสู่ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง',
     'This is a saved report. A newer report is available for this site; the evidence below has not been refreshed.': 'นี่คือรายงานที่บันทึกไว้ มีรายงานใหม่กว่าของพื้นที่นี้ ข้อมูลด้านล่างยังเป็นผลจากการวิเคราะห์รอบเดิม',
     'Open latest report': 'เปิดรายงานล่าสุด',

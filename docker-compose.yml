@@ -134,6 +134,28 @@ services:
       redis:
         condition: service_healthy
 
+  road-updater:
+    profiles: [roads]
+    build:
+      context: ./scripts/roads
+    entrypoint: [python, -u, /work/update_roads.py]
+    environment:
+      ROAD_DATABASE_URL: postgres://rbc:rbc@db:5432/rbc_ev_station?sslmode=disable
+    volumes:
+      - road_source:/data
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1.0
+    healthcheck:
+      test: [CMD, python, /work/health.py]
+      interval: 1h
+      timeout: 10s
+      retries: 2
+      start_period: 10m
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   web:
     build:
       context: ./apps/web
@@ -147,5 +169,6 @@ services:
       - api
 
 volumes:
+  road_source:
   postgres_data:
   redis_data:

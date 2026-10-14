@@ -20,6 +20,7 @@ import (
 	lineapi "github.com/rbc/ev-station/apps/api/internal/line"
 	"github.com/rbc/ev-station/apps/api/internal/provider"
 	"github.com/rbc/ev-station/apps/api/internal/repository"
+	"github.com/rbc/ev-station/apps/api/internal/roads"
 	"github.com/rbc/ev-station/apps/api/internal/scoring"
 	"github.com/rbc/ev-station/apps/api/internal/site"
 	"github.com/rbc/ev-station/apps/api/internal/telemetry"
@@ -66,6 +67,7 @@ func main() {
 	analysisGeocoder := provider.NewSharedReverseGeocoder(geocoder)
 
 	var repo repository.Repository
+	var localRoads roads.Lookup
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		logger.Warn("DATABASE_URL is not set; using non-persistent in-memory repository")
 		repo = repository.NewMemory()
@@ -77,6 +79,7 @@ func main() {
 		}
 		defer postgresRepo.Close()
 		repo = postgresRepo
+		localRoads = postgresRepo.Roads()
 	}
 
 	var dataProvider provider.AnalysisProvider = provider.UnavailableProvider{}
@@ -98,7 +101,8 @@ func main() {
 			osmCacheTTL = time.Hour
 		}
 		osmProvider := provider.NewOSMProvider(provider.OSMConfig{
-			Endpoint: cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
+			LocalRoads: localRoads,
+			Endpoint:   cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
 			UserAgent: cfg.ExternalUserAgent, CacheTTL: osmCacheTTL,
 			// Each mirror gets up to 10 seconds within a 30-second total budget.
 			// The prior 4/8-second limits discarded valid urban-road responses

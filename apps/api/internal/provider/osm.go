@@ -18,10 +18,12 @@ import (
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/roads"
 	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
 
 type OSMConfig struct {
+	LocalRoads        roads.Lookup
 	Endpoint          string
 	FallbackEndpoints []string
 	UserAgent         string
@@ -161,6 +163,7 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		err         error
 		retrievedAt time.Time
 		stale       bool
+		local       *roads.Result
 	}
 	results := make(chan queryResult, 2)
 	var wait sync.WaitGroup
@@ -171,6 +174,19 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		wait.Add(1)
 		go func(kind, query string) {
 			defer wait.Done()
+			ctx := ctx
+			if kind == "context" && p.config.LocalRoads != nil {
+				limited, cancel := context.WithTimeout(ctx, 9*time.Second)
+				defer cancel()
+				ctx = limited
+			}
+			if kind == "roads" && p.config.LocalRoads != nil {
+				local, err := p.config.LocalRoads.Nearby(ctx, *site.Latitude, *site.Longitude, radius)
+				if err == nil {
+					results <- queryResult{kind: kind, local: &local}
+					return
+				}
+			}
 			payload, err := p.fetch(telemetry.WithOperation(ctx, "overpass_"+kind), query)
 			result := queryResult{kind: kind, payload: payload, err: err}
 			if kind == "roads" && err == nil {
@@ -196,6 +212,12 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 	}
 
 	for result := range results {
+		if result.local != nil {
+			road := localRoadObservation(*result.local, radius)
+			observations[positions["road_accessibility"]] = road
+			observations[positions["traffic"]] = osmTrafficPotentialObservation(road, road.Source)
+			continue
+		}
 		if result.err != nil {
 			if result.kind == "roads" {
 				setMissingOSMObservation(observations, positions, "road_accessibility", "OpenStreetMap road query was unavailable; no road-accessibility value or score was produced.")
@@ -333,7 +355,11 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 			CooldownRemainingMS: candidate.cooldownRemaining.Milliseconds(), StartedAt: started, FinishedAt: started,
 			Status: "started",
 		})
-		attemptCtx, cancelAttempt := context.WithTimeout(ctx, p.config.AttemptTimeout)
+		attemptLimit := p.config.AttemptTimeout
+		if p.config.LocalRoads != nil && operation == "context" && attemptLimit > 3*time.Second {
+			attemptLimit = 3 * time.Second
+		}
+		attemptCtx, cancelAttempt := context.WithTimeout(ctx, attemptLimit)
 		req, err := http.NewRequestWithContext(attemptCtx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 		if err != nil {
 			cancelAttempt()

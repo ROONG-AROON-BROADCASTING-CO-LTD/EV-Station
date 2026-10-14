@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS osm_roads CASCADE;
+DROP TABLE IF EXISTS osm_road_datasets;

@@ -10,9 +10,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
+	"github.com/rbc/ev-station/apps/api/internal/roads"
 )
 
 type Postgres struct{ pool *pgxpool.Pool }
+
+func (p *Postgres) Roads() roads.Lookup { return roads.New(p.pool) }
 
 func (p *Postgres) RecordAPIUsage(ctx context.Context, providerID string, units int64) error {
 	if units <= 0 {
