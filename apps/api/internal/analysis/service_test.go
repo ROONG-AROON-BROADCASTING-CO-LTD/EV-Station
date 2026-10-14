@@ -283,6 +283,14 @@ func TestRecalculatePreliminaryUpgradesLegacyEvidenceWithoutReplacingIt(t *testi
 	run.AssessmentStatus = domain.DataMissing
 	for index := range run.Metrics {
 		run.Metrics[index].NormalizedScore = nil
+		// A historical report needs actual numeric evidence. Placeholder fixture
+		// objects must not be interpreted as zero registered vehicles/population.
+		if run.Metrics[index].Type == "ev_demand" {
+			run.Metrics[index].RawValue = []byte(`{"registeredBev":15000}`)
+		}
+		if run.Metrics[index].Type == "population" {
+			run.Metrics[index].RawValue = []byte(`{"populationDensityPerKm2":1200}`)
+		}
 		if run.Metrics[index].Type == "traffic" {
 			run.Metrics[index].RawValue = []byte(`{"aadt":1000}`)
 		}

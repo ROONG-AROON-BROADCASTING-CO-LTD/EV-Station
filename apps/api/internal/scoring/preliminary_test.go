@@ -17,7 +17,7 @@ func TestPreliminaryScoreUsesAvailableEvidenceAndReportsCoverage(t *testing.T) {
 		{Type: "population", Status: domain.DataEstimated, RawValue: json.RawMessage(`{"populationDensityPerKm2":3000}`)},
 		{Type: "poi", Status: domain.DataVerified, RawValue: json.RawMessage(`{"count":100,"radiusMeters":3000,"coverageComplete":true}`)},
 		{Type: "competition", Status: domain.DataVerified, RawValue: json.RawMessage(`{"count":2,"coverageMatched":true}`)},
-		{Type: "flood", Status: domain.DataVerified, RawValue: json.RawMessage(`{"mappedFloodRiskAreaCount":0}`)},
+		{Type: "flood", Status: domain.DataVerified, Source: domain.DataSource{License: "Open Data Common"}, RawValue: json.RawMessage(`{"mappedFloodRiskAreaCount":0}`)},
 		{Type: "electrical", Status: domain.DataPreliminary, RawValue: json.RawMessage(`{"assessmentType":"pea_public_grid_evidence","nearestHighVoltageLineMeters":3674}`)},
 		{Type: "site_requirements", Status: domain.DataPreliminary, RawValue: json.RawMessage(`{"internetAvailable":true,"internetSupports24GHz":true,"landLevelingRequired":false,"frontageMeters":7,"electricalExtensionKm":1}`)},
 	}
@@ -118,7 +118,7 @@ func TestPreliminaryScoreExcludesIncompleteZeroPOIAndRenormalizesWeights(t *test
 		// coverage safeguards were added.
 		{Type: "poi", Status: domain.DataVerified, NormalizedScore: &stalePOIScore, RawValue: json.RawMessage(`{"count":0,"radiusMeters":3000}`)},
 		{Type: "competition", Status: domain.DataVerified, NormalizedScore: &fullScore},
-		{Type: "flood", Status: domain.DataVerified, NormalizedScore: &fullScore, RawValue: json.RawMessage(`{"mappedFloodRiskAreaCount":0}`)},
+		{Type: "flood", Status: domain.DataVerified, Source: domain.DataSource{Type: "fixture"}, NormalizedScore: &fullScore, RawValue: json.RawMessage(`{"mappedFloodRiskAreaCount":0}`)},
 		{Type: "electrical", Status: domain.DataPreliminary, NormalizedScore: &fullScore},
 	}
 

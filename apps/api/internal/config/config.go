@@ -28,6 +28,13 @@ type Config struct {
 	WorldPopResolution                   string
 	WorldPopCacheTTL                     time.Duration
 	GISTDAAPIKey                         string
+	GISTDAGIServiceAPIKey                string
+	GISTDAGIServiceBaseURL               string
+	GISTDADisasterEnabled                bool
+	GISTDADisasterAPIKey                 string
+	GISTDADisasterBaseURL                string
+	GISTDAFloodReferenceEnabled          bool
+	GISTDAFloodRiskURL                   string
 	GISTDAElevationURL                   string
 	GISTDAElevationCacheTTL              time.Duration
 	DPMFloodHistoryCSVURLs               []string
@@ -216,6 +223,13 @@ func Load() (Config, error) {
 		WorldPopResolution:                   getEnv("WORLDPOP_RESOLUTION", "100m"),
 		WorldPopCacheTTL:                     worldPopTTL,
 		GISTDAAPIKey:                         os.Getenv("GISTDA_API_KEY"),
+		GISTDAGIServiceAPIKey:                os.Getenv("GISTDA_GI_SERVICE_API_KEY"),
+		GISTDAGIServiceBaseURL:               getEnv("GISTDA_GI_SERVICE_BASE_URL", "https://api-gateway.gistda.or.th/api/2.0/resources/gi-service/v1.1/disasters"),
+		GISTDADisasterEnabled:                strings.EqualFold(getEnv("GISTDA_DISASTER_ENABLED", "false"), "true"),
+		GISTDADisasterAPIKey:                 os.Getenv("GISTDA_DISASTER_API_KEY"),
+		GISTDADisasterBaseURL:                getEnv("GISTDA_DISASTER_BASE_URL", "https://api-gateway.gistda.or.th/api/2.0/resources"),
+		GISTDAFloodReferenceEnabled:          strings.EqualFold(getEnv("GISTDA_FLOOD_REFERENCE_ENABLED", "false"), "true"),
+		GISTDAFloodRiskURL:                   getEnv("GISTDA_FLOOD_RISK_URL", "https://gistdaportal.gistda.or.th/arcgis/rest/services/app/GISTDA_flood/MapServer/1/query"),
 		GISTDAElevationURL:                   getEnv("GISTDA_ELEVATION_URL", "https://api.sphere.gistda.or.th/services/geo/elevation"),
 		GISTDAElevationCacheTTL:              gistdaElevationTTL,
 		DPMFloodHistoryCSVURLs:               dpmFloodHistoryCSVURLs,

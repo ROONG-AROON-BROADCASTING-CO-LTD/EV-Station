@@ -165,8 +165,13 @@ func (p *DPMFloodHistoryProvider) Collect(ctx context.Context, site domain.Site,
 	}
 
 	location, err := p.geocoder.Reverse(ctx, *site.Latitude, *site.Longitude)
-	if err != nil || strings.TrimSpace(location.Province) == "" || strings.TrimSpace(location.District) == "" {
+	if err != nil || strings.TrimSpace(location.Province) == "" {
 		observations[positions["flood"]] = p.missing("The submitted coordinates could not be matched to a district; no flood-history conclusion was produced.")
+		return observations, nil
+	}
+
+	if strings.TrimSpace(location.District) == "" {
+		observations[positions["flood"]] = p.missingWithProvince("The province was resolved but the district is unknown; provincial history is context only and is excluded from scoring.", location.Province)
 		return observations, nil
 	}
 

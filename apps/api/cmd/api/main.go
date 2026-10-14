@@ -59,6 +59,8 @@ func main() {
 		CountryCodes: cfg.NominatimCountryCodes, CacheTTL: cfg.GeocodingCacheTTL,
 	}, providerClient("nominatim"), providerCache("nominatim"))
 
+	analysisGeocoder := provider.NewSharedReverseGeocoder(geocoder)
+
 	var repo repository.Repository
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		logger.Warn("DATABASE_URL is not set; using non-persistent in-memory repository")
@@ -94,10 +96,11 @@ func main() {
 		osmProvider := provider.NewOSMProvider(provider.OSMConfig{
 			Endpoint: cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
 			UserAgent: cfg.ExternalUserAgent, CacheTTL: osmCacheTTL,
-			// Overpass is supplementary map evidence.  Bound each endpoint attempt so
-			// a stalled public mirror cannot hold the whole site screening open long
-			// enough for the browser proxy to time out.
-		}, providerClientWithTimeout("osm", 10*time.Second), providerCache("osm"))
+			// Each mirror gets up to 10 seconds within a 30-second total budget.
+			// The prior 4/8-second limits discarded valid urban-road responses
+			// and could expire before the third mirror was attempted. The job
+			// runs asynchronously within the 35-second composite deadline.
+		}, providerClientWithTimeout("osm", 12*time.Second), providerCache("osm"))
 		worldPopProvider := provider.NewWorldPopProvider(provider.WorldPopConfig{
 			Endpoint: cfg.WorldPopURL, Year: cfg.WorldPopYear, Resolution: cfg.WorldPopResolution,
 			CacheTTL: cfg.WorldPopCacheTTL, UserAgent: cfg.ExternalUserAgent,
@@ -105,11 +108,18 @@ func main() {
 		dpmFloodHistoryProvider := provider.NewDPMFloodHistoryProvider(provider.DPMFloodHistoryConfig{
 			CSVURLs: cfg.DPMFloodHistoryCSVURLs, CacheTTL: cfg.DPMFloodHistoryCacheTTL,
 			UserAgent: cfg.ExternalUserAgent,
-		}, providerClient("dpm_flood_history"), providerCache("dpm_flood_history"), geocoder)
+		}, providerClient("dpm_flood_history"), providerCache("dpm_flood_history"), analysisGeocoder)
 		gistdaElevationProvider := provider.NewGISTDAElevationProvider(provider.GISTDAElevationConfig{
 			Endpoint: cfg.GISTDAElevationURL, APIKey: cfg.GISTDAAPIKey, CacheTTL: cfg.GISTDAElevationCacheTTL,
 			UserAgent: cfg.ExternalUserAgent, UsageRecorder: recordUsage,
 		}, providerClient("gistda_elevation"), providerCache("gistda_elevation"))
+		gistdaRecentFloodProvider := provider.NewGISTDARecentFloodProvider(provider.GISTDARecentFloodConfig{
+			BaseURL: cfg.GISTDADisasterBaseURL, APIKey: cfg.GISTDADisasterAPIKey, UserAgent: cfg.ExternalUserAgent,
+		}, providerClientWithTimeout("gistda_recent_flood", 8*time.Second), providerCache("gistda_recent_flood"))
+		gistdaGatewayFloodProvider := provider.NewGISTDAGatewayFloodProvider(provider.GISTDAGatewayFloodConfig{
+			BaseURL: cfg.GISTDAGIServiceBaseURL, APIKey: cfg.GISTDAGIServiceAPIKey, UserAgent: cfg.ExternalUserAgent,
+			Geocoder: analysisGeocoder,
+		}, providerClientWithTimeout("gistda_gateway_flood", 18*time.Second), providerCache("gistda_gateway_flood"))
 		dohAADTProvider := provider.NewDOHAADTProvider(provider.DOHAADTConfig{
 			CSVURL: cfg.DOHAADTCSVURL, RoadLayerURL: cfg.DOHAADTRoadLayerURL, DataYear: cfg.DOHAADTYear,
 			CacheTTL: cfg.DOHAADTCacheTTL, UserAgent: cfg.ExternalUserAgent,
@@ -119,7 +129,8 @@ func main() {
 			CacheTTL: cfg.DRRAADTCacheTTL, UserAgent: cfg.ExternalUserAgent,
 		}, providerClient("drr_aadt"), providerCache("drr_aadt"))
 		dltEVProvider := provider.NewDLTEVRegistrationProvider(provider.DLTEVRegistrationConfig{
-			CSVURL: cfg.DLTEVRegistrationCSVURL, DatasetDate: cfg.DLTEVRegistrationDatasetDate,
+			Geocoder: analysisGeocoder,
+			CSVURL:   cfg.DLTEVRegistrationCSVURL, DatasetDate: cfg.DLTEVRegistrationDatasetDate,
 			PreviousCSVURL: cfg.DLTEVRegistrationPreviousCSVURL, PreviousDatasetDate: cfg.DLTEVRegistrationPreviousDatasetDate,
 			CacheTTL: cfg.DLTEVRegistrationCacheTTL, UserAgent: cfg.ExternalUserAgent,
 		}, providerClientWithTimeout("dlt_ev", 90*time.Second), providerCache("dlt_ev"))
@@ -147,13 +158,14 @@ func main() {
 			CacheTTL: cfg.OpenChargeMapCacheTTL, UserAgent: cfg.ExternalUserAgent,
 		}, providerClient("open_charge_map"), providerCache("open_charge_map"))
 		localTrafficProvider := &provider.LocalTrafficProvider{URL: cfg.LocalTrafficCSVURL, Client: providerClient("local_traffic"), Cache: providerCache("local_traffic")}
-		dataProvider = provider.NewCompositeProvider(
+		analysisProviders := []provider.AnalysisProvider{
 			provider.Instrument("osm", osmProvider, telemetryRecorder),
 			provider.Instrument("google_places", googlePlacesProvider, telemetryRecorder),
 			provider.Instrument("open_charge_map", openChargeMapProvider, telemetryRecorder),
 			provider.Instrument("provincial_charger", provincialChargerProvider, telemetryRecorder),
 			provider.Instrument("worldpop", worldPopProvider, telemetryRecorder),
 			provider.Instrument("dpm_flood_history", dpmFloodHistoryProvider, telemetryRecorder),
+			provider.Instrument("gistda_gateway_flood", gistdaGatewayFloodProvider, telemetryRecorder),
 			provider.Instrument("gistda_elevation", gistdaElevationProvider, telemetryRecorder),
 			provider.Instrument("doh_aadt", dohAADTProvider, telemetryRecorder),
 			provider.Instrument("drr_aadt", drrAADTProvider, telemetryRecorder),
@@ -161,7 +173,15 @@ func main() {
 			provider.Instrument("dlt_ev", dltEVProvider, telemetryRecorder),
 			provider.Instrument("mea_power_map", meaPowerMapProvider, telemetryRecorder),
 			provider.Instrument("pea_grid", peaGridProvider, telemetryRecorder),
-		)
+		}
+		if cfg.GISTDAFloodReferenceEnabled {
+			floodReference := provider.NewGISTDAFloodProvider(provider.GISTDAFloodConfig{Endpoint: cfg.GISTDAFloodRiskURL, UserAgent: cfg.ExternalUserAgent}, providerClientWithTimeout("gistda_flood_reference", 8*time.Second), providerCache("gistda_flood_reference"))
+			analysisProviders = append(analysisProviders, provider.Instrument("gistda_flood_reference", floodReference, telemetryRecorder))
+		}
+		if cfg.GISTDADisasterEnabled {
+			analysisProviders = append(analysisProviders, provider.Instrument("gistda_recent_flood", gistdaRecentFloodProvider, telemetryRecorder))
+		}
+		dataProvider = provider.NewCompositeProvider(analysisProviders...)
 	}
 
 	scoringEngine, err := scoring.New(scoring.DefaultWeights)

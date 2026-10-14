@@ -33,6 +33,19 @@ result never proves there are no competing stations.
 
 ## GISTDA Elevation
 
+For flood evidence, configure **`GISTDA_GI_SERVICE_API_KEY`** separately in
+the API server `.env`, then recreate the API service to load it. Register the
+GI Service credential at `https://api-gateway.gistda.or.th/v2`. Use the linked
+public Gateway v1.1 contract (`api_key`, `lat`, `lon`). Live verification on
+12 October 2026 confirmed that the Gateway credential must use `api_key`;
+the upstream `key` parameter is not interchangeable. The application reports a missing connection until the
+credential is present; Sphere elevation keys are never substituted.
+Do not paste credentials into chat or commit `.env`.
+
+The separate newer Disaster Platform key is `GISTDA_DISASTER_API_KEY`.
+Its 1/3/7/30-day connector additionally requires `GISTDA_DISASTER_ENABLED=true`
+and confirmation of reuse terms. It is disabled by default.
+
 1. Obtain an API key for GISTDA Sphere Elevation.
 2. Put it in `GISTDA_API_KEY`.
 

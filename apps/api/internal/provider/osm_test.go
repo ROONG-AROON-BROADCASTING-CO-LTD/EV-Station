@@ -2,6 +2,9 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +16,45 @@ import (
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 	"github.com/rbc/ev-station/apps/api/internal/telemetry"
 )
+
+func TestOSMRoadSnapshotRetainsTimeAndRejectsExpiredOrDifferentPins(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
+	defer s.Close()
+	c := &gatewayTestCache{values: map[string][]byte{}}
+	p := NewOSMProvider(OSMConfig{Endpoint: s.URL, CacheTTL: time.Hour}, s.Client(), c)
+	lat, lon := 13.7, 100.5
+	query := buildOverpassRoadQuery(lat, lon, 3000)
+	hash := sha256.Sum256([]byte(query))
+	key := "osm:overpass:" + hex.EncodeToString(hash[:]) + ":roads-snapshot-v1"
+	original := p.now().UTC().Add(-2 * time.Hour)
+	put := func(date time.Time) {
+		b, _ := json.Marshal(overpassRoadSnapshot{RetrievedAt: date, Payload: json.RawMessage(`{"elements":[{"type":"way","id":1,"tags":{"highway":"primary"},"geometry":[{"lat":13.7,"lon":100.5},{"lat":13.701,"lon":100.501}]}]}`)})
+		c.Set(context.Background(), key, b, 7*24*time.Hour)
+	}
+	put(original)
+	site := domain.Site{Latitude: &lat, Longitude: &lon}
+	result, _ := p.Collect(context.Background(), site, 3000)
+	for _, o := range result {
+		if o.MetricType == "road_accessibility" && (o.Status != domain.DataEstimated || o.Source.Type != "cached_open_data_api" || !o.Source.RetrievedAt.Equal(original)) {
+			t.Fatal("snapshot lost provenance", o.Status, o.Source.Type)
+		}
+	}
+	lat = 13.8
+	result, _ = p.Collect(context.Background(), site, 3000)
+	for _, o := range result {
+		if o.MetricType == "road_accessibility" && o.Status != domain.DataMissing {
+			t.Fatal("used another pin's snapshot")
+		}
+	}
+	lat = 13.7
+	put(p.now().UTC().Add(-8 * 24 * time.Hour))
+	result, _ = p.Collect(context.Background(), site, 3000)
+	for _, o := range result {
+		if o.MetricType == "road_accessibility" && o.Status != domain.DataMissing {
+			t.Fatal("used expired snapshot")
+		}
+	}
+}
 
 func TestOSMProviderSkipsCoolingEndpointAndProbesItAfterCooldown(t *testing.T) {
 	var primaryCalls, fallbackCalls int

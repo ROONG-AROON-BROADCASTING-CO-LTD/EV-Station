@@ -31,6 +31,20 @@ GISTDA flood-layer reader in the table below is not in the default provider list
 
 ## Free but waiting for setup
 
+GISTDA GI Service point endpoints (`flood-recurrence`, `flood-extent-1day`)
+are implemented using the linked official Postman v1.1 contract and have
+**Open Data Common** catalogue licences. Set `GISTDA_GI_SERVICE_API_KEY`.
+This credential is independent of Sphere and Disaster credentials. Historical
+point evidence covers 2011–2023; the one-day response is context only.
+Neither missing records nor zero mapped years establish no-risk conditions.
+The newer Disaster Platform remains disabled by default
+(`GISTDA_DISASTER_ENABLED=false`) while its reuse terms are unresolved.
+
+The authoritative LDD catalogue for `ldd_21_04` states CC BY-NC-ND, despite
+the older central catalogue's conflicting CC BY metadata. HII water-level
+and flood-mark products state CC BY-NC. They are excluded from the commercial
+pipeline unless additional rights are obtained.
+
 | Provider | Purpose | Required setup | Status until configured |
 |---|---|---|---|
 | TomTom | Geocoding, routing, traffic flow and incidents | Free developer API key; no payment card required under the current published free tier | Missing |

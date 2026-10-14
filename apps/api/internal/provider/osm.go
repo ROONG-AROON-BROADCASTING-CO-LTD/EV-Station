@@ -133,10 +133,10 @@ func NewOSMProvider(config OSMConfig, client *http.Client, externalCache cache.C
 		config.EndpointCooldown = defaultOverpassEndpointCooldown
 	}
 	if config.RequestBudget <= 0 {
-		config.RequestBudget = 8 * time.Second
+		config.RequestBudget = 30 * time.Second
 	}
 	if config.AttemptTimeout <= 0 {
-		config.AttemptTimeout = 4 * time.Second
+		config.AttemptTimeout = 10 * time.Second
 	}
 	return &OSMProvider{
 		config: config, client: client, cache: externalCache,
@@ -156,9 +156,11 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 	}
 
 	type queryResult struct {
-		kind    string
-		payload []byte
-		err     error
+		kind        string
+		payload     []byte
+		err         error
+		retrievedAt time.Time
+		stale       bool
 	}
 	results := make(chan queryResult, 2)
 	var wait sync.WaitGroup
@@ -170,7 +172,14 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		go func(kind, query string) {
 			defer wait.Done()
 			payload, err := p.fetch(telemetry.WithOperation(ctx, "overpass_"+kind), query)
-			results <- queryResult{kind: kind, payload: payload, err: err}
+			result := queryResult{kind: kind, payload: payload, err: err}
+			if kind == "roads" && err == nil {
+				if snapshot, ok := p.roadSnapshot(ctx, query); ok {
+					result.retrievedAt = snapshot.RetrievedAt
+					result.stale = p.now().Sub(snapshot.RetrievedAt) > p.config.CacheTTL
+				}
+			}
+			results <- result
 		}(kind, query)
 	}
 	wait.Wait()
@@ -206,9 +215,19 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 		}
 		if result.kind == "roads" {
 			roadSource := source
+			if !result.retrievedAt.IsZero() {
+				roadSource.RetrievedAt = result.retrievedAt
+			}
+			if result.stale {
+				roadSource.Type = "cached_open_data_api"
+			}
 			roadSource.Methodology = "Count mapped motorway, trunk, primary, secondary and tertiary ways within the radius and approximate the nearest distance from returned way geometry vertices."
 			roads := classifyOSMRoads(response.Elements)
 			roadObservation := osmRoadObservation(roads, *site.Latitude, *site.Longitude, radius, roadSource)
+			if result.stale {
+				roadObservation.Status = domain.DataEstimated
+				roadObservation.Assumptions = append(roadObservation.Assumptions, "Live road refresh failed. Reusing the last successful response for this exact pin and radius, no older than seven days; original retrieval time is preserved.")
+			}
 			observations[positions["road_accessibility"]] = roadObservation
 			observations[positions["traffic"]] = osmTrafficPotentialObservation(roadObservation, roadSource)
 			continue
@@ -276,6 +295,15 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 	defer cancelBudget()
 	hash := sha256.Sum256([]byte(query))
 	cacheKey := "osm:overpass:" + hex.EncodeToString(hash[:])
+	// Keep a bounded road-only snapshot beyond the fresh-cache window. Never
+	// reuse another pin/radius, an empty road response, or an expired snapshot.
+	snapshot, snapshotOK := p.roadSnapshot(ctx, query)
+	recoverSnapshot := func(err error) ([]byte, error) {
+		if telemetry.Operation(ctx) == "overpass_roads" && snapshotOK {
+			return snapshot.Payload, nil
+		}
+		return nil, err
+	}
 	if value, found, err := p.cache.Get(ctx, cacheKey); err == nil && found {
 		return value, nil
 	}
@@ -290,7 +318,7 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 	var lastErr error
 	for index, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return recoverSnapshot(err)
 		}
 		endpoint := candidate.endpoint
 		started := p.now().UTC()
@@ -360,12 +388,40 @@ func (p *OSMProvider) fetch(ctx context.Context, query string) ([]byte, error) {
 			// Cache failures must not turn a successful public-data lookup into a missing observation.
 			telemetry.Record(ctx, telemetry.Event{Provider: "osm", Operation: "overpass_cache_set", StartedAt: p.now().UTC(), FinishedAt: p.now().UTC(), Status: "error", ErrorType: telemetry.ErrorType(err)})
 		}
+		if operation == "roads" {
+			var roads osmResponse
+			if json.Unmarshal(payload, &roads) == nil && len(classifyOSMRoads(roads.Elements)) > 0 {
+				saved, _ := json.Marshal(overpassRoadSnapshot{Payload: payload, RetrievedAt: p.now().UTC()})
+				_ = p.cache.Set(ctx, cacheKey+":roads-snapshot-v1", saved, 7*24*time.Hour)
+			}
+		}
 		return payload, nil
 	}
 	if lastErr == nil {
 		lastErr = fmt.Errorf("no Overpass endpoint configured")
 	}
-	return nil, lastErr
+	return recoverSnapshot(lastErr)
+}
+
+type overpassRoadSnapshot struct {
+	Payload     json.RawMessage `json:"payload"`
+	RetrievedAt time.Time       `json:"retrievedAt"`
+}
+
+func (p *OSMProvider) roadSnapshot(ctx context.Context, query string) (overpassRoadSnapshot, bool) {
+	hash := sha256.Sum256([]byte(query))
+	key := "osm:overpass:" + hex.EncodeToString(hash[:]) + ":roads-snapshot-v1"
+	var snapshot overpassRoadSnapshot
+	b, found, err := p.cache.Get(ctx, key)
+	if err != nil || !found || json.Unmarshal(b, &snapshot) != nil || snapshot.RetrievedAt.IsZero() {
+		return snapshot, false
+	}
+	age := p.now().Sub(snapshot.RetrievedAt)
+	var response osmResponse
+	if age < 0 || age > 7*24*time.Hour || json.Unmarshal(snapshot.Payload, &response) != nil || len(classifyOSMRoads(response.Elements)) == 0 {
+		return snapshot, false
+	}
+	return snapshot, true
 }
 
 func shouldCooldownOverpassStatus(status int) bool {

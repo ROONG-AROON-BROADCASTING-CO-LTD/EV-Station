@@ -14,6 +14,10 @@ import (
 
 func TestGISTDAFloodProviderPreservesPublishedOverlapWithoutScore(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/recurrence" {
+			writer.Write([]byte(`{"features":[]}`))
+			return
+		}
 		if request.Method != http.MethodGet {
 			t.Fatalf("expected GET, got %s", request.Method)
 		}
@@ -29,7 +33,7 @@ func TestGISTDAFloodProviderPreservesPublishedOverlapWithoutScore(t *testing.T) 
 	defer server.Close()
 
 	latitude, longitude := 13.7, 100.5
-	dataProvider := NewGISTDAFloodProvider(GISTDAFloodConfig{Endpoint: server.URL, CacheTTL: time.Hour, UserAgent: "rbc-test"}, server.Client(), cache.Noop{})
+	dataProvider := NewGISTDAFloodProvider(GISTDAFloodConfig{Endpoint: server.URL, RecurrenceEndpoint: server.URL + "/recurrence", CacheTTL: time.Hour, UserAgent: "rbc-test"}, server.Client(), cache.Noop{})
 	observations, err := dataProvider.Collect(context.Background(), domain.Site{Latitude: &latitude, Longitude: &longitude}, 3000)
 	if err != nil {
 		t.Fatal(err)
@@ -42,14 +46,14 @@ func TestGISTDAFloodProviderPreservesPublishedOverlapWithoutScore(t *testing.T) 
 	if flood.Status != domain.DataVerified || flood.NormalizedScore != nil {
 		t.Fatalf("flood must be a verified published-layer overlap without a score: %+v", flood)
 	}
-	if flood.Source.Name != "GISTDA Flood Risk Layer (ArcGIS REST)" || !strings.Contains(string(flood.RawValue), `"mappedFloodRiskAreaCount":2`) {
+	if flood.Source.Name != "GISTDA flood-risk and historical-recurrence layers (ArcGIS REST)" || !strings.Contains(string(flood.RawValue), `"mappedFloodRiskAreaCount":2`) {
 		t.Fatalf("flood provenance was not preserved: %+v", flood)
 	}
 }
 
 func TestGISTDAFloodProviderDoesNotInventResultWhenUnavailable(t *testing.T) {
 	latitude, longitude := 13.7, 100.5
-	dataProvider := NewGISTDAFloodProvider(GISTDAFloodConfig{Endpoint: "http://127.0.0.1:1", CacheTTL: time.Hour}, &http.Client{Timeout: 20 * time.Millisecond}, cache.Noop{})
+	dataProvider := NewGISTDAFloodProvider(GISTDAFloodConfig{Endpoint: "http://127.0.0.1:1", RecurrenceEndpoint: "http://127.0.0.1:1", CacheTTL: time.Hour}, &http.Client{Timeout: 20 * time.Millisecond}, cache.Noop{})
 	observations, err := dataProvider.Collect(context.Background(), domain.Site{Latitude: &latitude, Longitude: &longitude}, 3000)
 	if err != nil {
 		t.Fatal(err)

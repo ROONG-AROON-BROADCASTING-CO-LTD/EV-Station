@@ -4,6 +4,19 @@ import (
 	"testing"
 )
 
+func TestDisasterKeyDoesNotReuseSphereCredential(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("GISTDA_API_KEY", "sphere-test")
+	t.Setenv("GISTDA_DISASTER_API_KEY", "")
+	t.Setenv("GISTDA_FLOOD_REFERENCE_ENABLED", "")
+	t.Setenv("GISTDA_GI_SERVICE_API_KEY", "")
+	t.Setenv("GISTDA_DISASTER_ENABLED", "")
+	cfg, err := Load()
+	if err != nil || cfg.GISTDADisasterAPIKey != "" || cfg.GISTDAFloodReferenceEnabled || cfg.GISTDAGIServiceAPIKey != "" || cfg.GISTDADisasterEnabled {
+		t.Fatal("Disaster key must be configured separately", err)
+	}
+}
+
 func TestLoadUsesDevelopmentSecretOutsideProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("JWT_SECRET", "")

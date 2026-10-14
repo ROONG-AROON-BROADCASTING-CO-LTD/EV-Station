@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -190,7 +191,7 @@ func (g *NominatimGeocoder) Search(ctx context.Context, query string, limit int)
 // not used to validate ownership or a legal parcel boundary; it only supplies
 // a practical default name such as "พื้นที่เสนอ · ทล.212 · เมืองบึงกาฬ".
 func (g *NominatimGeocoder) Reverse(ctx context.Context, latitude, longitude float64) (ReverseGeocodingResult, error) {
-	if latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 {
+	if math.IsNaN(latitude) || math.IsNaN(longitude) || math.IsInf(latitude, 0) || math.IsInf(longitude, 0) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 {
 		return ReverseGeocodingResult{}, errors.New("coordinates are out of range")
 	}
 	cacheKey := nominatimReverseCacheKey(latitude, longitude, g.config.CountryCodes)
@@ -239,12 +240,29 @@ func (g *NominatimGeocoder) Reverse(ctx context.Context, latitude, longitude flo
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return ReverseGeocodingResult{}, fmt.Errorf("decode Nominatim reverse response: %w", err)
 	}
+	if country := strings.ToLower(raw.Address["country_code"]); g.config.CountryCodes == "th" && country != "" && country != "th" {
+		return ReverseGeocodingResult{}, errors.New("reverse lookup is outside Thailand")
+	}
+	if len(raw.Address) == 0 {
+		return ReverseGeocodingResult{}, errors.New("reverse lookup returned no address")
+	}
 	result := ReverseGeocodingResult{
 		Road: firstAddress(raw.Address, "road", "pedestrian", "footway"),
 		// In Thailand city_district often identifies a tambon, while county
 		// identifies the amphoe required by district-level official datasets.
 		District: firstAddress(raw.Address, "county", "district", "city_district", "municipality", "city", "town", "village"),
 		Province: firstAddress(raw.Address, "state", "province"),
+	}
+	// Bangkok is a special administrative area: Nominatim may return the
+	// province as city and the khet as suburb, with the khwaeng in quarter.
+	// Only use this alternate hierarchy for an explicitly identified Bangkok.
+	if city := firstAddress(raw.Address, "city"); city == "กรุงเทพมหานคร" || strings.EqualFold(city, "Bangkok") || normalizeDLTProvince(result.Province) == "กรุงเทพมหานคร" {
+		if result.Province == "" {
+			result.Province = "กรุงเทพมหานคร"
+		}
+		if district := firstAddress(raw.Address, "suburb"); district != "" {
+			result.District = district
+		}
 	}
 	if cachedPayload, marshalErr := json.Marshal(result); marshalErr == nil {
 		_ = g.cache.Set(ctx, cacheKey, cachedPayload, g.config.CacheTTL)
@@ -294,6 +312,6 @@ func nominatimCacheKey(query string, limit int, countryCodes string) string {
 func nominatimReverseCacheKey(latitude, longitude float64, countryCodes string) string {
 	value := strconv.FormatFloat(latitude, 'f', 5, 64) + "|" + strconv.FormatFloat(longitude, 'f', 5, 64) + "|" + countryCodes
 	hash := sha256.Sum256([]byte(value))
-	// Older cached results could select a subdistrict instead of the county.
-	return "nominatim:reverse:v2:" + hex.EncodeToString(hash[:])
+	// Older cached results could omit Bangkok's city/suburb hierarchy.
+	return "nominatim:reverse:v4:" + hex.EncodeToString(hash[:])
 }

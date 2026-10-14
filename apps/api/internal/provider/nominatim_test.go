@@ -2,12 +2,14 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/rbc/ev-station/apps/api/internal/cache"
+	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
 
 func TestNominatimSearchPreservesProvenance(t *testing.T) {
@@ -88,4 +90,37 @@ func TestNominatimReverseUsesCountyForFloodDistrictMatching(t *testing.T) {
 	if !found || len(area.ReportedYears) == 0 {
 		t.Fatalf("real Phitsanulok address must match embedded DDPM history: %+v", result)
 	}
+}
+
+func TestNominatimBangkokAddressMatchesEmbeddedFloodHistory(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"address":{"road":"ซอยลาดพร้าว 138","quarter":"แขวงคลองจั่น","suburb":"เขตบางกะปิ","city":"กรุงเทพมหานคร","country_code":"th"}}`))
+	}))
+	defer server.Close()
+	geocoder := NewNominatimGeocoder(NominatimConfig{Endpoint: server.URL, CountryCodes: "th"}, server.Client(), cache.Noop{})
+	lat, lon := 13.7682202, 100.6377021
+	address, err := geocoder.Reverse(context.Background(), lat, lon)
+	if err != nil || address.Province != "กรุงเทพมหานคร" || address.District != "เขตบางกะปิ" {
+		t.Fatalf("Bangkok city/suburb address must resolve to province/khet: %+v, %v", address, err)
+	}
+	flood := NewDPMFloodHistoryProvider(DPMFloodHistoryConfig{}, server.Client(), cache.Noop{}, geocoder)
+	observations, err := flood.Collect(context.Background(), domain.Site{Latitude: &lat, Longitude: &lon}, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range observations {
+		if item.MetricType != "flood" {
+			continue
+		}
+		var value dpmFloodMetricValue
+		if err := json.Unmarshal(item.RawValue, &value); err != nil {
+			t.Fatal(err)
+		}
+		if item.Status != domain.DataEstimated || value.District != "บางกะปิ" || len(value.ReportedFloodYears) != 1 || value.ReportedFloodYears[0] != 2566 {
+			t.Fatalf("must return actual district history, not parcel evidence: %+v, %s", item, item.RawValue)
+		}
+		return
+	}
+	t.Fatal("flood observation missing")
 }

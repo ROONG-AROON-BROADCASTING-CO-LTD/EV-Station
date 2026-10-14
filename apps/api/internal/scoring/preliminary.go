@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 )
 
 const (
-	PreliminaryVersion        = "preliminary-v3"
+	PreliminaryVersion        = "preliminary-v6"
 	MinimumCoveragePercentage = 60.0
 )
 
@@ -35,7 +36,7 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 				"This score is a deterministic preliminary screening indicator, not an investment approval.",
 				"Missing metrics are excluded and the available weights are renormalized; review coverage before comparing sites.",
 				"Electrical readiness uses only published-grid proximity or service-area evidence; it does not confirm capacity, a connection point, or three-phase supply for the plot.",
-				"Flood scoring uses reported history at district scope where the public dataset has records; it does not confirm parcel flooding, and missing records do not mean flood-free.",
+				"Flood scoring prefers complete GISTDA point history for 2011–2023 when positive observations exist, otherwise reported district history. The uncalibrated score is not flood probability. Recent/forecast evidence is excluded; missing or zero observations do not prove flood-free conditions.",
 			},
 		},
 	}
@@ -45,7 +46,7 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 	seen := make(map[string]bool, len(metrics))
 	for _, metric := range metrics {
 		weight, required := e.Weights[metric.Type]
-		if !required {
+		if !required || seen[metric.Type] {
 			continue
 		}
 		seen[metric.Type] = true
@@ -77,6 +78,37 @@ func (e *Engine) EvaluatePreliminary(metrics []domain.Metric) PreliminaryResult 
 
 func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 	if metric.Type == "flood" {
+		// Independently validated point history may fill a missing district metric.
+		// Zero/empty history and recent observations never create a safe-site score.
+		var point struct {
+			Gateway struct {
+				AssessmentType string `json:"assessmentType"`
+				Historical     struct {
+					Status   string `json:"status"`
+					License  string `json:"license"`
+					Complete bool   `json:"complete"`
+					Start    int    `json:"periodStartYear"`
+					End      int    `json:"periodEndYear"`
+					Years    []int  `json:"yearsObserved"`
+				} `json:"historical"`
+			} `json:"gatewayFlood"`
+		}
+		if json.Unmarshal(metric.RawValue, &point) == nil {
+			h := point.Gateway.Historical
+			if point.Gateway.AssessmentType == "gistda_gateway_flood" && h.Status == "available" && hasOpenReuseLicense(h.License) && h.Complete && h.Start == 2011 && h.End == 2023 && len(h.Years) > 0 {
+				seen := map[int]bool{}
+				valid := true
+				for _, year := range h.Years {
+					if year < h.Start || year > h.End || seen[year] {
+						valid = false
+					}
+					seen[year] = true
+				}
+				if valid {
+					return 100 * (1 - float64(len(h.Years))/float64(h.End-h.Start+1)), "GISTDA point-history screen (2011–2023): 100 × (1 − years with mapped flood observations / 13). This uncalibrated screening indicator is not a flood probability; current observations are excluded.", true
+				}
+			}
+		}
 		var history struct {
 			AssessmentType         string `json:"assessmentType"`
 			ReportedFloodYearCount int    `json:"reportedFloodYearCount"`
@@ -117,7 +149,10 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 	if metric.Type == "poi" && incompleteZeroPOI(metric.RawValue) {
 		return 0, "", false
 	}
-	if metric.NormalizedScore != nil {
+	if metric.Status == domain.DataMissing {
+		return 0, "", false
+	}
+	if metric.NormalizedScore != nil && !math.IsNaN(*metric.NormalizedScore) && !math.IsInf(*metric.NormalizedScore, 0) && *metric.NormalizedScore >= 0 && *metric.NormalizedScore <= 100 && (metric.Type != "flood" || metric.Source.Type == "fixture") {
 		return *metric.NormalizedScore, "Provider-supplied deterministic normalized score.", true
 	}
 	if metric.Status == domain.DataMissing || len(metric.RawValue) == 0 {
@@ -150,17 +185,17 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 		}
 	case "ev_demand":
 		var value struct {
-			RegisteredBEV float64 `json:"registeredBev"`
+			RegisteredBEV *float64 `json:"registeredBev"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.RegisteredBEV >= 0 {
-			return 20 + 80*(value.RegisteredBEV/300000), "Provincial BEV screening rule: 20 points at zero, increasing linearly to 100 at 300,000 registered BEVs; not local demand.", true
+		if json.Unmarshal(metric.RawValue, &value) == nil && value.RegisteredBEV != nil && *value.RegisteredBEV >= 0 {
+			return 20 + 80*(*value.RegisteredBEV/300000), "Provincial BEV screening rule: 20 points at zero, increasing linearly to 100 at 300,000 registered BEVs; not local demand.", true
 		}
 	case "population":
 		var value struct {
-			Density float64 `json:"populationDensityPerKm2"`
+			Density *float64 `json:"populationDensityPerKm2"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.Density >= 0 {
-			return 10 + 90*(value.Density/6000), "Population rule: modelled density increases linearly from 10 to 100 points at 6,000 people/km².", true
+		if json.Unmarshal(metric.RawValue, &value) == nil && value.Density != nil && *value.Density >= 0 {
+			return 10 + 90*(*value.Density/6000), "Population rule: modelled density increases linearly from 10 to 100 points at 6,000 people/km².", true
 		}
 	case "poi":
 		var value struct {
@@ -183,9 +218,44 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 		}
 	case "flood":
 		var value struct {
-			Count *float64 `json:"mappedFloodRiskAreaCount"`
+			Count               *float64 `json:"mappedFloodRiskAreaCount"`
+			RecurrenceAvailable bool     `json:"recurrenceAvailable"`
+			RecurrenceYears     []int    `json:"recurrenceYears"`
+			FloodEvidence       []struct {
+				RawValue json.RawMessage `json:"rawValue"`
+				License  string          `json:"license"`
+			} `json:"floodEvidence"`
 		}
-		if json.Unmarshal(metric.RawValue, &value) == nil && value.Count != nil && *value.Count >= 0 {
+		if json.Unmarshal(metric.RawValue, &value) == nil {
+			if metric.Source.Type != "fixture" && hasOpenReuseLicense(metric.Source.License) && value.RecurrenceAvailable && len(value.RecurrenceYears) > 0 {
+				years := math.Min(float64(len(value.RecurrenceYears)), 10)
+				return 100 - years*10, "GISTDA historical-recurrence screen: deducts 10 points for each year with a mapped flood recurrence in the 2011–2020 layer, on a 100-point base. No mapped recurrence does not prove a flood-free site.", true
+			}
+			for _, item := range value.FloodEvidence {
+				var district struct {
+					AssessmentType         string `json:"assessmentType"`
+					ReportedFloodYearCount int    `json:"reportedFloodYearCount"`
+					PeriodStartYear        int    `json:"periodStartYear"`
+					PeriodEndYear          int    `json:"periodEndYear"`
+				}
+				if hasOpenReuseLicense(item.License) && json.Unmarshal(item.RawValue, &district) == nil && district.AssessmentType == "administrative_district_historical_reports" && district.ReportedFloodYearCount > 0 {
+					period := district.PeriodEndYear - district.PeriodStartYear + 1
+					if period > 0 && district.ReportedFloodYearCount <= period {
+						return 100 - float64(district.ReportedFloodYearCount)*10, "DDPM district-history screen: deducts 10 points per reported flood year within the stated district-history period, on a 100-point base. This area-level history indicator is not a parcel-flood probability or an investment decision.", true
+					}
+				}
+			}
+		}
+		if json.Unmarshal(metric.RawValue, &value) == nil && value.Count != nil && *value.Count >= 0 && (metric.Source.Type == "fixture" || hasOpenReuseLicense(metric.Source.License)) {
+			if value.RecurrenceAvailable {
+				if len(value.RecurrenceYears) > 0 {
+					years := math.Min(float64(len(value.RecurrenceYears)), 10)
+					return 100 - years*10, "GISTDA historical-recurrence screen: deducts 10 points for each year with a mapped flood recurrence in the 2011–2020 layer, on a 100-point base. No mapped recurrence does not prove a flood-free site.", true
+				}
+				if *value.Count == 0 {
+					return 0, "", false
+				}
+			}
 			if *value.Count == 0 {
 				return 80, "Flood-layer rule: 80 when no published risk polygon overlaps the radius; this does not mean zero flood risk.", true
 			}
@@ -249,6 +319,15 @@ func preliminaryMetricScore(metric domain.Metric) (float64, string, bool) {
 		return score, "Site-requirements rule: internet availability 25 points, 2.4 GHz support 15 points, no land levelling required 15 points (5 when required), frontage 25 points at 7 metres or more (15 at 6–6.99 metres), and estimated electrical extension 20 points up to 1 km, 10 points for 1–3 km, or 0 above 3 km. These are customer/field-survey inputs and require verification.", true
 	}
 	return 0, "", false
+}
+
+func hasOpenReuseLicense(license string) bool {
+	switch strings.ToLower(strings.TrimSpace(license)) {
+	case "open data common", "odbl", "open data commons open database license (odbl) 1.0", "cc-by-4.0", "cc0", "public domain":
+		return true
+	default:
+		return false
+	}
 }
 
 func incompleteZeroPOI(raw json.RawMessage) bool {

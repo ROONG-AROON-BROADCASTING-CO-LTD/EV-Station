@@ -27,6 +27,7 @@ const dltEVRegistrationPreviousURL = "https://web.dlt.go.th/statistics/load_file
 const dltCentralOfficeSheet = "ส่วนกลาง"
 
 type DLTEVRegistrationConfig struct {
+	Geocoder            ReverseGeocoder
 	CSVURL              string
 	DatasetDate         string
 	PreviousCSVURL      string
@@ -87,12 +88,16 @@ func (p *DLTEVRegistrationProvider) Collect(ctx context.Context, site domain.Sit
 		observations[positions["ev_demand"]] = p.missing("Valid coordinates are required to determine the province for the provincial BEV registration dataset.")
 		return observations, nil
 	}
-	province, err := p.reverseProvince(ctx, *site.Latitude, *site.Longitude)
+	lookupCtx, cancelLookup := context.WithTimeout(ctx, 5*time.Second)
+	province, err := p.reverseProvince(lookupCtx, *site.Latitude, *site.Longitude)
+	cancelLookup()
 	if err != nil || province == "" {
 		observations[positions["ev_demand"]] = p.missing("The province could not be resolved from the submitted coordinates; no provincial BEV estimate was produced.")
 		return observations, nil
 	}
-	registrations, err := p.fetch(ctx, p.config.CSVURL)
+	currentCtx, cancelCurrent := context.WithTimeout(ctx, 15*time.Second)
+	registrations, err := p.fetch(currentCtx, p.config.CSVURL)
+	cancelCurrent()
 	if err != nil {
 		observations[positions["ev_demand"]] = p.missing("The DLT provincial fuel-registration CSV was unavailable; no BEV estimate was produced.")
 		return observations, nil
@@ -105,9 +110,11 @@ func (p *DLTEVRegistrationProvider) Collect(ctx context.Context, site domain.Sit
 	value := dltEVValue{Province: province, RegisteredBEV: bev, DatasetDate: p.config.DatasetDate, ProvinceResolution: "OpenStreetMap Nominatim reverse geocoding"}
 	assumptions := []string{"This is an official provincial registered-BEV count, not EV demand measured at the submitted coordinates.", "The province is resolved through OpenStreetMap Nominatim reverse geocoding; staff should confirm the submitted coordinates when the site is close to a provincial boundary.", "Hybrid and plug-in hybrid fuel categories are excluded; this value is not a count of all electrified vehicles.", "Provincial charging-station datasets on data.go.th are unevenly published and are not combined into a nationwide factual count in this MVP.", "The provider supplies evidence only; deterministic preliminary-v1 scoring is applied separately by backend logic."}
 	datasetVersion := "Fuel-classified registered vehicles as at " + p.config.DatasetDate
+	previousCtx, cancelPrevious := context.WithTimeout(ctx, 3*time.Second)
+	defer cancelPrevious()
 	if p.config.PreviousCSVURL == "" || p.config.PreviousDatasetDate == "" {
 		assumptions = append(assumptions, "No comparable prior official DLT release is configured, so no year-over-year EV registration trend is calculated.")
-	} else if previousRegistrations, previousErr := p.fetch(ctx, p.config.PreviousCSVURL); previousErr != nil {
+	} else if previousRegistrations, previousErr := p.fetch(previousCtx, p.config.PreviousCSVURL); previousErr != nil {
 		assumptions = append(assumptions, "The configured prior official DLT release was unavailable, so no year-over-year EV registration trend is calculated.")
 	} else if previousBEV, previousFound := previousRegistrations[province]; !previousFound {
 		assumptions = append(assumptions, "The configured prior official DLT release has no exact BEV row for this province, so no year-over-year EV registration trend is calculated.")
@@ -285,6 +292,17 @@ func registrationTrend(current, previous int) string {
 
 func roundDLTPercent(value float64) float64 { return math.Round(value*10) / 10 }
 func (p *DLTEVRegistrationProvider) reverseProvince(ctx context.Context, lat, lon float64) (string, error) {
+	if p.config.Geocoder != nil {
+		location, err := p.config.Geocoder.Reverse(ctx, lat, lon)
+		if err != nil {
+			return "", err
+		}
+		province := normalizeDLTProvince(location.Province)
+		if !isDLTProvince(province) {
+			return "", fmt.Errorf("unrecognized Thai province")
+		}
+		return province, nil
+	}
 	params := url.Values{"format": {"jsonv2"}, "lat": {strconv.FormatFloat(lat, 'f', 6, 64)}, "lon": {strconv.FormatFloat(lon, 'f', 6, 64)}, "zoom": {"10"}, "addressdetails": {"1"}, "accept-language": {"th,en"}}
 	key := "nominatim:reverse-province:" + hashDLT(params.Encode())
 	if payload, found, err := p.cache.Get(ctx, key); err == nil && found {
@@ -329,7 +347,11 @@ func parseDLTBEV(payload []byte) (map[string]int, error) {
 		if err != nil {
 			continue
 		}
-		result[strings.TrimSpace(row[2])] += value
+		province := normalizeDLTProvince(row[2])
+		if !isDLTProvince(province) || value < 0 {
+			continue
+		}
+		result[province] += value
 	}
 	if len(result) == 0 {
 		return nil, fmt.Errorf("DLT registration CSV has no BEV rows")

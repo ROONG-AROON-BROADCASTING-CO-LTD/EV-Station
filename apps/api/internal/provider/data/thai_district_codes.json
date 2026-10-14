@@ -1,0 +1,4658 @@
+{
+  "source": "https://github.com/kongvut/thai-province-data",
+  "license": "MIT",
+  "retrievedAt": "2026-10-12T10:26:00.974Z",
+  "sourceSha256": "af8c84405777319bed66ff6f13cd01149319a8aede2386f414a2088102af7248",
+  "records": [
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "พระนคร",
+      "code": 1001
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ดุสิต",
+      "code": 1002
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "หนองจอก",
+      "code": 1003
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางรัก",
+      "code": 1004
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางเขน",
+      "code": 1005
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางกะปิ",
+      "code": 1006
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ปทุมวัน",
+      "code": 1007
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ป้อมปราบศัตรูพ่าย",
+      "code": 1008
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "พระโขนง",
+      "code": 1009
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "มีนบุรี",
+      "code": 1010
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ลาดกระบัง",
+      "code": 1011
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ยานนาวา",
+      "code": 1012
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "สัมพันธวงศ์",
+      "code": 1013
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "พญาไท",
+      "code": 1014
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ธนบุรี",
+      "code": 1015
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางกอกใหญ่",
+      "code": 1016
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ห้วยขวาง",
+      "code": 1017
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "คลองสาน",
+      "code": 1018
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ตลิ่งชัน",
+      "code": 1019
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางกอกน้อย",
+      "code": 1020
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางขุนเทียน",
+      "code": 1021
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ภาษีเจริญ",
+      "code": 1022
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "หนองแขม",
+      "code": 1023
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ราษฎร์บูรณะ",
+      "code": 1024
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางพลัด",
+      "code": 1025
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ดินแดง",
+      "code": 1026
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บึงกุ่ม",
+      "code": 1027
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "สาทร",
+      "code": 1028
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางซื่อ",
+      "code": 1029
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "จตุจักร",
+      "code": 1030
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางคอแหลม",
+      "code": 1031
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ประเวศ",
+      "code": 1032
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "คลองเตย",
+      "code": 1033
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "สวนหลวง",
+      "code": 1034
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "จอมทอง",
+      "code": 1035
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ดอนเมือง",
+      "code": 1036
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ราชเทวี",
+      "code": 1037
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ลาดพร้าว",
+      "code": 1038
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "วัฒนา",
+      "code": 1039
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางแค",
+      "code": 1040
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "หลักสี่",
+      "code": 1041
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "สายไหม",
+      "code": 1042
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "คันนายาว",
+      "code": 1043
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "สะพานสูง",
+      "code": 1044
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "วังทองหลาง",
+      "code": 1045
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "คลองสามวา",
+      "code": 1046
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางนา",
+      "code": 1047
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ทวีวัฒนา",
+      "code": 1048
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "ทุ่งครุ",
+      "code": 1049
+    },
+    {
+      "province": "กรุงเทพมหานคร",
+      "district": "บางบอน",
+      "code": 1050
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "เมืองสมุทรปราการ",
+      "code": 1101
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "บางบ่อ",
+      "code": 1102
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "บางพลี",
+      "code": 1103
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "พระประแดง",
+      "code": 1104
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "พระสมุทรเจดีย์",
+      "code": 1105
+    },
+    {
+      "province": "สมุทรปราการ",
+      "district": "บางเสาธง",
+      "code": 1106
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "เมืองนนทบุรี",
+      "code": 1201
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "บางกรวย",
+      "code": 1202
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "บางใหญ่",
+      "code": 1203
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "บางบัวทอง",
+      "code": 1204
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "ไทรน้อย",
+      "code": 1205
+    },
+    {
+      "province": "นนทบุรี",
+      "district": "ปากเกร็ด",
+      "code": 1206
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "เมืองปทุมธานี",
+      "code": 1301
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "คลองหลวง",
+      "code": 1302
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "ธัญบุรี",
+      "code": 1303
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "หนองเสือ",
+      "code": 1304
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "ลาดหลุมแก้ว",
+      "code": 1305
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "ลำลูกกา",
+      "code": 1306
+    },
+    {
+      "province": "ปทุมธานี",
+      "district": "สามโคก",
+      "code": 1307
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "พระนครศรีอยุธยา",
+      "code": 1401
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "ท่าเรือ",
+      "code": 1402
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "นครหลวง",
+      "code": 1403
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บางไทร",
+      "code": 1404
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บางบาล",
+      "code": 1405
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บางปะอิน",
+      "code": 1406
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บางปะหัน",
+      "code": 1407
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "ผักไห่",
+      "code": 1408
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "ภาชี",
+      "code": 1409
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "ลาดบัวหลวง",
+      "code": 1410
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "วังน้อย",
+      "code": 1411
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "เสนา",
+      "code": 1412
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บางซ้าย",
+      "code": 1413
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "อุทัย",
+      "code": 1414
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "มหาราช",
+      "code": 1415
+    },
+    {
+      "province": "พระนครศรีอยุธยา",
+      "district": "บ้านแพรก",
+      "code": 1416
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "เมืองอ่างทอง",
+      "code": 1501
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "ไชโย",
+      "code": 1502
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "ป่าโมก",
+      "code": 1503
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "โพธิ์ทอง",
+      "code": 1504
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "แสวงหา",
+      "code": 1505
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "วิเศษชัยชาญ",
+      "code": 1506
+    },
+    {
+      "province": "อ่างทอง",
+      "district": "สามโก้",
+      "code": 1507
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "เมืองลพบุรี",
+      "code": 1601
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "พัฒนานิคม",
+      "code": 1602
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "โคกสำโรง",
+      "code": 1603
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "ชัยบาดาล",
+      "code": 1604
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "ท่าวุ้ง",
+      "code": 1605
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "บ้านหมี่",
+      "code": 1606
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "ท่าหลวง",
+      "code": 1607
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "สระโบสถ์",
+      "code": 1608
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "โคกเจริญ",
+      "code": 1609
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "ลำสนธิ",
+      "code": 1610
+    },
+    {
+      "province": "ลพบุรี",
+      "district": "หนองม่วง",
+      "code": 1611
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "เมืองสิงห์บุรี",
+      "code": 1701
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "บางระจัน",
+      "code": 1702
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "ค่ายบางระจัน",
+      "code": 1703
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "พรหมบุรี",
+      "code": 1704
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "ท่าช้าง",
+      "code": 1705
+    },
+    {
+      "province": "สิงห์บุรี",
+      "district": "อินทร์บุรี",
+      "code": 1706
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "เมืองชัยนาท",
+      "code": 1801
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "มโนรมย์",
+      "code": 1802
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "วัดสิงห์",
+      "code": 1803
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "สรรพยา",
+      "code": 1804
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "สรรคบุรี",
+      "code": 1805
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "หันคา",
+      "code": 1806
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "หนองมะโมง",
+      "code": 1807
+    },
+    {
+      "province": "ชัยนาท",
+      "district": "เนินขาม",
+      "code": 1808
+    },
+    {
+      "province": "สระบุรี",
+      "district": "เมืองสระบุรี",
+      "code": 1901
+    },
+    {
+      "province": "สระบุรี",
+      "district": "แก่งคอย",
+      "code": 1902
+    },
+    {
+      "province": "สระบุรี",
+      "district": "หนองแค",
+      "code": 1903
+    },
+    {
+      "province": "สระบุรี",
+      "district": "วิหารแดง",
+      "code": 1904
+    },
+    {
+      "province": "สระบุรี",
+      "district": "หนองแซง",
+      "code": 1905
+    },
+    {
+      "province": "สระบุรี",
+      "district": "บ้านหมอ",
+      "code": 1906
+    },
+    {
+      "province": "สระบุรี",
+      "district": "ดอนพุด",
+      "code": 1907
+    },
+    {
+      "province": "สระบุรี",
+      "district": "หนองโดน",
+      "code": 1908
+    },
+    {
+      "province": "สระบุรี",
+      "district": "พระพุทธบาท",
+      "code": 1909
+    },
+    {
+      "province": "สระบุรี",
+      "district": "เสาไห้",
+      "code": 1910
+    },
+    {
+      "province": "สระบุรี",
+      "district": "มวกเหล็ก",
+      "code": 1911
+    },
+    {
+      "province": "สระบุรี",
+      "district": "วังม่วง",
+      "code": 1912
+    },
+    {
+      "province": "สระบุรี",
+      "district": "เฉลิมพระเกียรติ",
+      "code": 1913
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "เมืองชลบุรี",
+      "code": 2001
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "บ้านบึง",
+      "code": 2002
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "หนองใหญ่",
+      "code": 2003
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "บางละมุง",
+      "code": 2004
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "พานทอง",
+      "code": 2005
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "พนัสนิคม",
+      "code": 2006
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "ศรีราชา",
+      "code": 2007
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "เกาะสีชัง",
+      "code": 2008
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "สัตหีบ",
+      "code": 2009
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "บ่อทอง",
+      "code": 2010
+    },
+    {
+      "province": "ชลบุรี",
+      "district": "เกาะจันทร์",
+      "code": 2011
+    },
+    {
+      "province": "ระยอง",
+      "district": "เมืองระยอง",
+      "code": 2101
+    },
+    {
+      "province": "ระยอง",
+      "district": "บ้านฉาง",
+      "code": 2102
+    },
+    {
+      "province": "ระยอง",
+      "district": "แกลง",
+      "code": 2103
+    },
+    {
+      "province": "ระยอง",
+      "district": "วังจันทร์",
+      "code": 2104
+    },
+    {
+      "province": "ระยอง",
+      "district": "บ้านค่าย",
+      "code": 2105
+    },
+    {
+      "province": "ระยอง",
+      "district": "ปลวกแดง",
+      "code": 2106
+    },
+    {
+      "province": "ระยอง",
+      "district": "เขาชะเมา",
+      "code": 2107
+    },
+    {
+      "province": "ระยอง",
+      "district": "นิคมพัฒนา",
+      "code": 2108
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "เมืองจันทบุรี",
+      "code": 2201
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "ขลุง",
+      "code": 2202
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "ท่าใหม่",
+      "code": 2203
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "โป่งน้ำร้อน",
+      "code": 2204
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "มะขาม",
+      "code": 2205
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "แหลมสิงห์",
+      "code": 2206
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "สอยดาว",
+      "code": 2207
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "แก่งหางแมว",
+      "code": 2208
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "นายายอาม",
+      "code": 2209
+    },
+    {
+      "province": "จันทบุรี",
+      "district": "เขาคิชฌกูฏ",
+      "code": 2210
+    },
+    {
+      "province": "ตราด",
+      "district": "เมืองตราด",
+      "code": 2301
+    },
+    {
+      "province": "ตราด",
+      "district": "คลองใหญ่",
+      "code": 2302
+    },
+    {
+      "province": "ตราด",
+      "district": "เขาสมิง",
+      "code": 2303
+    },
+    {
+      "province": "ตราด",
+      "district": "บ่อไร่",
+      "code": 2304
+    },
+    {
+      "province": "ตราด",
+      "district": "แหลมงอบ",
+      "code": 2305
+    },
+    {
+      "province": "ตราด",
+      "district": "เกาะกูด",
+      "code": 2306
+    },
+    {
+      "province": "ตราด",
+      "district": "เกาะช้าง",
+      "code": 2307
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "เมืองฉะเชิงเทรา",
+      "code": 2401
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "บางคล้า",
+      "code": 2402
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "บางน้ำเปรี้ยว",
+      "code": 2403
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "บางปะกง",
+      "code": 2404
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "บ้านโพธิ์",
+      "code": 2405
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "พนมสารคาม",
+      "code": 2406
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "ราชสาส์น",
+      "code": 2407
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "สนามชัยเขต",
+      "code": 2408
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "แปลงยาว",
+      "code": 2409
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "ท่าตะเกียบ",
+      "code": 2410
+    },
+    {
+      "province": "ฉะเชิงเทรา",
+      "district": "คลองเขื่อน",
+      "code": 2411
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "เมืองปราจีนบุรี",
+      "code": 2501
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "กบินทร์บุรี",
+      "code": 2502
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "นาดี",
+      "code": 2503
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "บ้านสร้าง",
+      "code": 2506
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "ประจันตคาม",
+      "code": 2507
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "ศรีมหาโพธิ",
+      "code": 2508
+    },
+    {
+      "province": "ปราจีนบุรี",
+      "district": "ศรีมโหสถ",
+      "code": 2509
+    },
+    {
+      "province": "นครนายก",
+      "district": "เมืองนครนายก",
+      "code": 2601
+    },
+    {
+      "province": "นครนายก",
+      "district": "ปากพลี",
+      "code": 2602
+    },
+    {
+      "province": "นครนายก",
+      "district": "บ้านนา",
+      "code": 2603
+    },
+    {
+      "province": "นครนายก",
+      "district": "องครักษ์",
+      "code": 2604
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "เมืองสระแก้ว",
+      "code": 2701
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "คลองหาด",
+      "code": 2702
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "ตาพระยา",
+      "code": 2703
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "วังน้ำเย็น",
+      "code": 2704
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "วัฒนานคร",
+      "code": 2705
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "อรัญประเทศ",
+      "code": 2706
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "เขาฉกรรจ์",
+      "code": 2707
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "โคกสูง",
+      "code": 2708
+    },
+    {
+      "province": "สระแก้ว",
+      "district": "วังสมบูรณ์",
+      "code": 2709
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "เมืองนครราชสีมา",
+      "code": 3001
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ครบุรี",
+      "code": 3002
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "เสิงสาง",
+      "code": 3003
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "คง",
+      "code": 3004
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "บ้านเหลื่อม",
+      "code": 3005
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "จักราช",
+      "code": 3006
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "โชคชัย",
+      "code": 3007
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ด่านขุนทด",
+      "code": 3008
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "โนนไทย",
+      "code": 3009
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "โนนสูง",
+      "code": 3010
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ขามสะแกแสง",
+      "code": 3011
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "บัวใหญ่",
+      "code": 3012
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ประทาย",
+      "code": 3013
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ปักธงชัย",
+      "code": 3014
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "พิมาย",
+      "code": 3015
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ห้วยแถลง",
+      "code": 3016
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ชุมพวง",
+      "code": 3017
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "สูงเนิน",
+      "code": 3018
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ขามทะเลสอ",
+      "code": 3019
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "สีคิ้ว",
+      "code": 3020
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ปากช่อง",
+      "code": 3021
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "หนองบุญมาก",
+      "code": 3022
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "แก้งสนามนาง",
+      "code": 3023
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "โนนแดง",
+      "code": 3024
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "วังน้ำเขียว",
+      "code": 3025
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "เทพารักษ์",
+      "code": 3026
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "เมืองยาง",
+      "code": 3027
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "พระทองคำ",
+      "code": 3028
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "ลำทะเมนชัย",
+      "code": 3029
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "บัวลาย",
+      "code": 3030
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "สีดา",
+      "code": 3031
+    },
+    {
+      "province": "นครราชสีมา",
+      "district": "เฉลิมพระเกียรติ",
+      "code": 3032
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "เมืองบุรีรัมย์",
+      "code": 3101
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "คูเมือง",
+      "code": 3102
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "กระสัง",
+      "code": 3103
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "นางรอง",
+      "code": 3104
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "หนองกี่",
+      "code": 3105
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ละหานทราย",
+      "code": 3106
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ประโคนชัย",
+      "code": 3107
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "บ้านกรวด",
+      "code": 3108
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "พุทไธสง",
+      "code": 3109
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ลำปลายมาศ",
+      "code": 3110
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "สตึก",
+      "code": 3111
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ปะคำ",
+      "code": 3112
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "นาโพธิ์",
+      "code": 3113
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "หนองหงส์",
+      "code": 3114
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "พลับพลาชัย",
+      "code": 3115
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ห้วยราช",
+      "code": 3116
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "โนนสุวรรณ",
+      "code": 3117
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "ชำนิ",
+      "code": 3118
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "บ้านใหม่ไชยพจน์",
+      "code": 3119
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "โนนดินแดง",
+      "code": 3120
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "บ้านด่าน",
+      "code": 3121
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "แคนดง",
+      "code": 3122
+    },
+    {
+      "province": "บุรีรัมย์",
+      "district": "เฉลิมพระเกียรติ",
+      "code": 3123
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "เมืองสุรินทร์",
+      "code": 3201
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ชุมพลบุรี",
+      "code": 3202
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ท่าตูม",
+      "code": 3203
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "จอมพระ",
+      "code": 3204
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ปราสาท",
+      "code": 3205
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "กาบเชิง",
+      "code": 3206
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "รัตนบุรี",
+      "code": 3207
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "สนม",
+      "code": 3208
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ศีขรภูมิ",
+      "code": 3209
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "สังขะ",
+      "code": 3210
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ลำดวน",
+      "code": 3211
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "สำโรงทาบ",
+      "code": 3212
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "บัวเชด",
+      "code": 3213
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "พนมดงรัก",
+      "code": 3214
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "ศรีณรงค์",
+      "code": 3215
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "เขวาสินรินทร์",
+      "code": 3216
+    },
+    {
+      "province": "สุรินทร์",
+      "district": "โนนนารายณ์",
+      "code": 3217
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "เมืองศรีสะเกษ",
+      "code": 3301
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ยางชุมน้อย",
+      "code": 3302
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "กันทรารมย์",
+      "code": 3303
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "กันทรลักษ์",
+      "code": 3304
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ขุขันธ์",
+      "code": 3305
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ไพรบึง",
+      "code": 3306
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ปรางค์กู่",
+      "code": 3307
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ขุนหาญ",
+      "code": 3308
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ราษีไศล",
+      "code": 3309
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "อุทุมพรพิสัย",
+      "code": 3310
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "บึงบูรพ์",
+      "code": 3311
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ห้วยทับทัน",
+      "code": 3312
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "โนนคูณ",
+      "code": 3313
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ศรีรัตนะ",
+      "code": 3314
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "น้ำเกลี้ยง",
+      "code": 3315
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "วังหิน",
+      "code": 3316
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ภูสิงห์",
+      "code": 3317
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "เมืองจันทร์",
+      "code": 3318
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "เบญจลักษ์",
+      "code": 3319
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "พยุห์",
+      "code": 3320
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "โพธิ์ศรีสุวรรณ",
+      "code": 3321
+    },
+    {
+      "province": "ศรีสะเกษ",
+      "district": "ศิลาลาด",
+      "code": 3322
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "เมืองอุบลราชธานี",
+      "code": 3401
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ศรีเมืองใหม่",
+      "code": 3402
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "โขงเจียม",
+      "code": 3403
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "เขื่องใน",
+      "code": 3404
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "เขมราฐ",
+      "code": 3405
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "เดชอุดม",
+      "code": 3407
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "นาจะหลวย",
+      "code": 3408
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "น้ำยืน",
+      "code": 3409
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "บุณฑริก",
+      "code": 3410
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ตระการพืชผล",
+      "code": 3411
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "กุดข้าวปุ้น",
+      "code": 3412
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ม่วงสามสิบ",
+      "code": 3414
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "วารินชำราบ",
+      "code": 3415
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "พิบูลมังสาหาร",
+      "code": 3419
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ตาลสุม",
+      "code": 3420
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "โพธิ์ไทร",
+      "code": 3421
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "สำโรง",
+      "code": 3422
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ดอนมดแดง",
+      "code": 3424
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "สิรินธร",
+      "code": 3425
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "ทุ่งศรีอุดม",
+      "code": 3426
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "นาเยีย",
+      "code": 3429
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "นาตาล",
+      "code": 3430
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "เหล่าเสือโก้ก",
+      "code": 3431
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "สว่างวีระวงศ์",
+      "code": 3432
+    },
+    {
+      "province": "อุบลราชธานี",
+      "district": "น้ำขุ่น",
+      "code": 3433
+    },
+    {
+      "province": "ยโสธร",
+      "district": "เมืองยโสธร",
+      "code": 3501
+    },
+    {
+      "province": "ยโสธร",
+      "district": "ทรายมูล",
+      "code": 3502
+    },
+    {
+      "province": "ยโสธร",
+      "district": "กุดชุม",
+      "code": 3503
+    },
+    {
+      "province": "ยโสธร",
+      "district": "คำเขื่อนแก้ว",
+      "code": 3504
+    },
+    {
+      "province": "ยโสธร",
+      "district": "ป่าติ้ว",
+      "code": 3505
+    },
+    {
+      "province": "ยโสธร",
+      "district": "มหาชนะชัย",
+      "code": 3506
+    },
+    {
+      "province": "ยโสธร",
+      "district": "ค้อวัง",
+      "code": 3507
+    },
+    {
+      "province": "ยโสธร",
+      "district": "เลิงนกทา",
+      "code": 3508
+    },
+    {
+      "province": "ยโสธร",
+      "district": "ไทยเจริญ",
+      "code": 3509
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "เมืองชัยภูมิ",
+      "code": 3601
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "บ้านเขว้า",
+      "code": 3602
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "คอนสวรรค์",
+      "code": 3603
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "เกษตรสมบูรณ์",
+      "code": 3604
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "หนองบัวแดง",
+      "code": 3605
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "จัตุรัส",
+      "code": 3606
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "บำเหน็จณรงค์",
+      "code": 3607
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "หนองบัวระเหว",
+      "code": 3608
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "เทพสถิต",
+      "code": 3609
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "ภูเขียว",
+      "code": 3610
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "บ้านแท่น",
+      "code": 3611
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "แก้งคร้อ",
+      "code": 3612
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "คอนสาร",
+      "code": 3613
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "ภักดีชุมพล",
+      "code": 3614
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "เนินสง่า",
+      "code": 3615
+    },
+    {
+      "province": "ชัยภูมิ",
+      "district": "ซับใหญ่",
+      "code": 3616
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "เมืองอำนาจเจริญ",
+      "code": 3701
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "ชานุมาน",
+      "code": 3702
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "ปทุมราชวงศา",
+      "code": 3703
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "พนา",
+      "code": 3704
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "เสนางคนิคม",
+      "code": 3705
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "หัวตะพาน",
+      "code": 3706
+    },
+    {
+      "province": "อำนาจเจริญ",
+      "district": "ลืออำนาจ",
+      "code": 3707
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "เมืองบึงกาฬ",
+      "code": 3801
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "พรเจริญ",
+      "code": 3802
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "โซ่พิสัย",
+      "code": 3803
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "เซกา",
+      "code": 3804
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "ปากคาด",
+      "code": 3805
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "บึงโขงหลง",
+      "code": 3806
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "ศรีวิไล",
+      "code": 3807
+    },
+    {
+      "province": "บึงกาฬ",
+      "district": "บุ่งคล้า",
+      "code": 3808
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "เมืองหนองบัวลำภู",
+      "code": 3901
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "นากลาง",
+      "code": 3902
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "โนนสัง",
+      "code": 3903
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "ศรีบุญเรือง",
+      "code": 3904
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "สุวรรณคูหา",
+      "code": 3905
+    },
+    {
+      "province": "หนองบัวลำภู",
+      "district": "นาวัง",
+      "code": 3906
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "เมืองขอนแก่น",
+      "code": 4001
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "บ้านฝาง",
+      "code": 4002
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "พระยืน",
+      "code": 4003
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "หนองเรือ",
+      "code": 4004
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "ชุมแพ",
+      "code": 4005
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "สีชมพู",
+      "code": 4006
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "น้ำพอง",
+      "code": 4007
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "อุบลรัตน์",
+      "code": 4008
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "กระนวน",
+      "code": 4009
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "บ้านไผ่",
+      "code": 4010
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "เปือยน้อย",
+      "code": 4011
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "พล",
+      "code": 4012
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "แวงใหญ่",
+      "code": 4013
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "แวงน้อย",
+      "code": 4014
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "หนองสองห้อง",
+      "code": 4015
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "ภูเวียง",
+      "code": 4016
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "มัญจาคีรี",
+      "code": 4017
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "ชนบท",
+      "code": 4018
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "เขาสวนกวาง",
+      "code": 4019
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "ภูผาม่าน",
+      "code": 4020
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "ซำสูง",
+      "code": 4021
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "โคกโพธิ์ไชย",
+      "code": 4022
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "หนองนาคำ",
+      "code": 4023
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "บ้านแฮด",
+      "code": 4024
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "โนนศิลา",
+      "code": 4025
+    },
+    {
+      "province": "ขอนแก่น",
+      "district": "เวียงเก่า",
+      "code": 4029
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "เมืองอุดรธานี",
+      "code": 4101
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "กุดจับ",
+      "code": 4102
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "หนองวัวซอ",
+      "code": 4103
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "กุมภวาปี",
+      "code": 4104
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "โนนสะอาด",
+      "code": 4105
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "หนองหาน",
+      "code": 4106
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "ทุ่งฝน",
+      "code": 4107
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "ไชยวาน",
+      "code": 4108
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "ศรีธาตุ",
+      "code": 4109
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "วังสามหมอ",
+      "code": 4110
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "บ้านดุง",
+      "code": 4111
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "บ้านผือ",
+      "code": 4117
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "น้ำโสม",
+      "code": 4118
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "เพ็ญ",
+      "code": 4119
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "สร้างคอม",
+      "code": 4120
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "หนองแสง",
+      "code": 4121
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "นายูง",
+      "code": 4122
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "พิบูลย์รักษ์",
+      "code": 4123
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "กู่แก้ว",
+      "code": 4124
+    },
+    {
+      "province": "อุดรธานี",
+      "district": "ประจักษ์ศิลปาคม",
+      "code": 4125
+    },
+    {
+      "province": "เลย",
+      "district": "เมืองเลย",
+      "code": 4201
+    },
+    {
+      "province": "เลย",
+      "district": "นาด้วง",
+      "code": 4202
+    },
+    {
+      "province": "เลย",
+      "district": "เชียงคาน",
+      "code": 4203
+    },
+    {
+      "province": "เลย",
+      "district": "ปากชม",
+      "code": 4204
+    },
+    {
+      "province": "เลย",
+      "district": "ด่านซ้าย",
+      "code": 4205
+    },
+    {
+      "province": "เลย",
+      "district": "นาแห้ว",
+      "code": 4206
+    },
+    {
+      "province": "เลย",
+      "district": "ภูเรือ",
+      "code": 4207
+    },
+    {
+      "province": "เลย",
+      "district": "ท่าลี่",
+      "code": 4208
+    },
+    {
+      "province": "เลย",
+      "district": "วังสะพุง",
+      "code": 4209
+    },
+    {
+      "province": "เลย",
+      "district": "ภูกระดึง",
+      "code": 4210
+    },
+    {
+      "province": "เลย",
+      "district": "ภูหลวง",
+      "code": 4211
+    },
+    {
+      "province": "เลย",
+      "district": "ผาขาว",
+      "code": 4212
+    },
+    {
+      "province": "เลย",
+      "district": "เอราวัณ",
+      "code": 4213
+    },
+    {
+      "province": "เลย",
+      "district": "หนองหิน",
+      "code": 4214
+    },
+    {
+      "province": "หนองคาย",
+      "district": "เมืองหนองคาย",
+      "code": 4301
+    },
+    {
+      "province": "หนองคาย",
+      "district": "ท่าบ่อ",
+      "code": 4302
+    },
+    {
+      "province": "หนองคาย",
+      "district": "โพนพิสัย",
+      "code": 4305
+    },
+    {
+      "province": "หนองคาย",
+      "district": "ศรีเชียงใหม่",
+      "code": 4307
+    },
+    {
+      "province": "หนองคาย",
+      "district": "สังคม",
+      "code": 4308
+    },
+    {
+      "province": "หนองคาย",
+      "district": "สระใคร",
+      "code": 4314
+    },
+    {
+      "province": "หนองคาย",
+      "district": "เฝ้าไร่",
+      "code": 4315
+    },
+    {
+      "province": "หนองคาย",
+      "district": "รัตนวาปี",
+      "code": 4316
+    },
+    {
+      "province": "หนองคาย",
+      "district": "โพธิ์ตาก",
+      "code": 4317
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "เมืองมหาสารคาม",
+      "code": 4401
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "แกดำ",
+      "code": 4402
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "โกสุมพิสัย",
+      "code": 4403
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "กันทรวิชัย",
+      "code": 4404
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "เชียงยืน",
+      "code": 4405
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "บรบือ",
+      "code": 4406
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "นาเชือก",
+      "code": 4407
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "พยัคฆภูมิพิสัย",
+      "code": 4408
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "วาปีปทุม",
+      "code": 4409
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "นาดูน",
+      "code": 4410
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "ยางสีสุราช",
+      "code": 4411
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "กุดรัง",
+      "code": 4412
+    },
+    {
+      "province": "มหาสารคาม",
+      "district": "ชื่นชม",
+      "code": 4413
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เมืองร้อยเอ็ด",
+      "code": 4501
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เกษตรวิสัย",
+      "code": 4502
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "ปทุมรัตต์",
+      "code": 4503
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "จตุรพักตรพิมาน",
+      "code": 4504
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "ธวัชบุรี",
+      "code": 4505
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "พนมไพร",
+      "code": 4506
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "โพนทอง",
+      "code": 4507
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "โพธิ์ชัย",
+      "code": 4508
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "หนองพอก",
+      "code": 4509
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เสลภูมิ",
+      "code": 4510
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "สุวรรณภูมิ",
+      "code": 4511
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เมืองสรวง",
+      "code": 4512
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "โพนทราย",
+      "code": 4513
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "อาจสามารถ",
+      "code": 4514
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เมยวดี",
+      "code": 4515
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "ศรีสมเด็จ",
+      "code": 4516
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "จังหาร",
+      "code": 4517
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "เชียงขวัญ",
+      "code": 4518
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "หนองฮี",
+      "code": 4519
+    },
+    {
+      "province": "ร้อยเอ็ด",
+      "district": "ทุ่งเขาหลวง",
+      "code": 4520
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "เมืองกาฬสินธุ์",
+      "code": 4601
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "นามน",
+      "code": 4602
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "กมลาไสย",
+      "code": 4603
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ร่องคำ",
+      "code": 4604
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "กุฉินารายณ์",
+      "code": 4605
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "เขาวง",
+      "code": 4606
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ยางตลาด",
+      "code": 4607
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ห้วยเม็ก",
+      "code": 4608
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "สหัสขันธ์",
+      "code": 4609
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "คำม่วง",
+      "code": 4610
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ท่าคันโท",
+      "code": 4611
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "หนองกุงศรี",
+      "code": 4612
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "สมเด็จ",
+      "code": 4613
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ห้วยผึ้ง",
+      "code": 4614
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "สามชัย",
+      "code": 4615
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "นาคู",
+      "code": 4616
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ดอนจาน",
+      "code": 4617
+    },
+    {
+      "province": "กาฬสินธุ์",
+      "district": "ฆ้องชัย",
+      "code": 4618
+    },
+    {
+      "province": "สกลนคร",
+      "district": "เมืองสกลนคร",
+      "code": 4701
+    },
+    {
+      "province": "สกลนคร",
+      "district": "กุสุมาลย์",
+      "code": 4702
+    },
+    {
+      "province": "สกลนคร",
+      "district": "กุดบาก",
+      "code": 4703
+    },
+    {
+      "province": "สกลนคร",
+      "district": "พรรณานิคม",
+      "code": 4704
+    },
+    {
+      "province": "สกลนคร",
+      "district": "พังโคน",
+      "code": 4705
+    },
+    {
+      "province": "สกลนคร",
+      "district": "วาริชภูมิ",
+      "code": 4706
+    },
+    {
+      "province": "สกลนคร",
+      "district": "นิคมน้ำอูน",
+      "code": 4707
+    },
+    {
+      "province": "สกลนคร",
+      "district": "วานรนิวาส",
+      "code": 4708
+    },
+    {
+      "province": "สกลนคร",
+      "district": "คำตากล้า",
+      "code": 4709
+    },
+    {
+      "province": "สกลนคร",
+      "district": "บ้านม่วง",
+      "code": 4710
+    },
+    {
+      "province": "สกลนคร",
+      "district": "อากาศอำนวย",
+      "code": 4711
+    },
+    {
+      "province": "สกลนคร",
+      "district": "สว่างแดนดิน",
+      "code": 4712
+    },
+    {
+      "province": "สกลนคร",
+      "district": "ส่องดาว",
+      "code": 4713
+    },
+    {
+      "province": "สกลนคร",
+      "district": "เต่างอย",
+      "code": 4714
+    },
+    {
+      "province": "สกลนคร",
+      "district": "โคกศรีสุพรรณ",
+      "code": 4715
+    },
+    {
+      "province": "สกลนคร",
+      "district": "เจริญศิลป์",
+      "code": 4716
+    },
+    {
+      "province": "สกลนคร",
+      "district": "โพนนาแก้ว",
+      "code": 4717
+    },
+    {
+      "province": "สกลนคร",
+      "district": "ภูพาน",
+      "code": 4718
+    },
+    {
+      "province": "นครพนม",
+      "district": "เมืองนครพนม",
+      "code": 4801
+    },
+    {
+      "province": "นครพนม",
+      "district": "ปลาปาก",
+      "code": 4802
+    },
+    {
+      "province": "นครพนม",
+      "district": "ท่าอุเทน",
+      "code": 4803
+    },
+    {
+      "province": "นครพนม",
+      "district": "บ้านแพง",
+      "code": 4804
+    },
+    {
+      "province": "นครพนม",
+      "district": "ธาตุพนม",
+      "code": 4805
+    },
+    {
+      "province": "นครพนม",
+      "district": "เรณูนคร",
+      "code": 4806
+    },
+    {
+      "province": "นครพนม",
+      "district": "นาแก",
+      "code": 4807
+    },
+    {
+      "province": "นครพนม",
+      "district": "ศรีสงคราม",
+      "code": 4808
+    },
+    {
+      "province": "นครพนม",
+      "district": "นาหว้า",
+      "code": 4809
+    },
+    {
+      "province": "นครพนม",
+      "district": "โพนสวรรค์",
+      "code": 4810
+    },
+    {
+      "province": "นครพนม",
+      "district": "นาทม",
+      "code": 4811
+    },
+    {
+      "province": "นครพนม",
+      "district": "วังยาง",
+      "code": 4812
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "เมืองมุกดาหาร",
+      "code": 4901
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "นิคมคำสร้อย",
+      "code": 4902
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "ดอนตาล",
+      "code": 4903
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "ดงหลวง",
+      "code": 4904
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "คำชะอี",
+      "code": 4905
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "หว้านใหญ่",
+      "code": 4906
+    },
+    {
+      "province": "มุกดาหาร",
+      "district": "หนองสูง",
+      "code": 4907
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "เมืองเชียงใหม่",
+      "code": 5001
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "จอมทอง",
+      "code": 5002
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่แจ่ม",
+      "code": 5003
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "เชียงดาว",
+      "code": 5004
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ดอยสะเก็ด",
+      "code": 5005
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่แตง",
+      "code": 5006
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่ริม",
+      "code": 5007
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "สะเมิง",
+      "code": 5008
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ฝาง",
+      "code": 5009
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่อาย",
+      "code": 5010
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "พร้าว",
+      "code": 5011
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "สันป่าตอง",
+      "code": 5012
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "สันกำแพง",
+      "code": 5013
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "สันทราย",
+      "code": 5014
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "หางดง",
+      "code": 5015
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ฮอด",
+      "code": 5016
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ดอยเต่า",
+      "code": 5017
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "อมก๋อย",
+      "code": 5018
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "สารภี",
+      "code": 5019
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "เวียงแหง",
+      "code": 5020
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ไชยปราการ",
+      "code": 5021
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่วาง",
+      "code": 5022
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "แม่ออน",
+      "code": 5023
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "ดอยหล่อ",
+      "code": 5024
+    },
+    {
+      "province": "เชียงใหม่",
+      "district": "กัลยาณิวัฒนา",
+      "code": 5025
+    },
+    {
+      "province": "ลำพูน",
+      "district": "เมืองลำพูน",
+      "code": 5101
+    },
+    {
+      "province": "ลำพูน",
+      "district": "แม่ทา",
+      "code": 5102
+    },
+    {
+      "province": "ลำพูน",
+      "district": "บ้านโฮ่ง",
+      "code": 5103
+    },
+    {
+      "province": "ลำพูน",
+      "district": "ลี้",
+      "code": 5104
+    },
+    {
+      "province": "ลำพูน",
+      "district": "ทุ่งหัวช้าง",
+      "code": 5105
+    },
+    {
+      "province": "ลำพูน",
+      "district": "ป่าซาง",
+      "code": 5106
+    },
+    {
+      "province": "ลำพูน",
+      "district": "บ้านธิ",
+      "code": 5107
+    },
+    {
+      "province": "ลำพูน",
+      "district": "เวียงหนองล่อง",
+      "code": 5108
+    },
+    {
+      "province": "ลำปาง",
+      "district": "เมืองลำปาง",
+      "code": 5201
+    },
+    {
+      "province": "ลำปาง",
+      "district": "แม่เมาะ",
+      "code": 5202
+    },
+    {
+      "province": "ลำปาง",
+      "district": "เกาะคา",
+      "code": 5203
+    },
+    {
+      "province": "ลำปาง",
+      "district": "เสริมงาม",
+      "code": 5204
+    },
+    {
+      "province": "ลำปาง",
+      "district": "งาว",
+      "code": 5205
+    },
+    {
+      "province": "ลำปาง",
+      "district": "แจ้ห่ม",
+      "code": 5206
+    },
+    {
+      "province": "ลำปาง",
+      "district": "วังเหนือ",
+      "code": 5207
+    },
+    {
+      "province": "ลำปาง",
+      "district": "เถิน",
+      "code": 5208
+    },
+    {
+      "province": "ลำปาง",
+      "district": "แม่พริก",
+      "code": 5209
+    },
+    {
+      "province": "ลำปาง",
+      "district": "แม่ทะ",
+      "code": 5210
+    },
+    {
+      "province": "ลำปาง",
+      "district": "สบปราบ",
+      "code": 5211
+    },
+    {
+      "province": "ลำปาง",
+      "district": "ห้างฉัตร",
+      "code": 5212
+    },
+    {
+      "province": "ลำปาง",
+      "district": "เมืองปาน",
+      "code": 5213
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "เมืองอุตรดิตถ์",
+      "code": 5301
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "ตรอน",
+      "code": 5302
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "ท่าปลา",
+      "code": 5303
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "น้ำปาด",
+      "code": 5304
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "ฟากท่า",
+      "code": 5305
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "บ้านโคก",
+      "code": 5306
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "พิชัย",
+      "code": 5307
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "ลับแล",
+      "code": 5308
+    },
+    {
+      "province": "อุตรดิตถ์",
+      "district": "ทองแสนขัน",
+      "code": 5309
+    },
+    {
+      "province": "แพร่",
+      "district": "เมืองแพร่",
+      "code": 5401
+    },
+    {
+      "province": "แพร่",
+      "district": "ร้องกวาง",
+      "code": 5402
+    },
+    {
+      "province": "แพร่",
+      "district": "ลอง",
+      "code": 5403
+    },
+    {
+      "province": "แพร่",
+      "district": "สูงเม่น",
+      "code": 5404
+    },
+    {
+      "province": "แพร่",
+      "district": "เด่นชัย",
+      "code": 5405
+    },
+    {
+      "province": "แพร่",
+      "district": "สอง",
+      "code": 5406
+    },
+    {
+      "province": "แพร่",
+      "district": "วังชิ้น",
+      "code": 5407
+    },
+    {
+      "province": "แพร่",
+      "district": "หนองม่วงไข่",
+      "code": 5408
+    },
+    {
+      "province": "น่าน",
+      "district": "เมืองน่าน",
+      "code": 5501
+    },
+    {
+      "province": "น่าน",
+      "district": "แม่จริม",
+      "code": 5502
+    },
+    {
+      "province": "น่าน",
+      "district": "บ้านหลวง",
+      "code": 5503
+    },
+    {
+      "province": "น่าน",
+      "district": "นาน้อย",
+      "code": 5504
+    },
+    {
+      "province": "น่าน",
+      "district": "ปัว",
+      "code": 5505
+    },
+    {
+      "province": "น่าน",
+      "district": "ท่าวังผา",
+      "code": 5506
+    },
+    {
+      "province": "น่าน",
+      "district": "เวียงสา",
+      "code": 5507
+    },
+    {
+      "province": "น่าน",
+      "district": "ทุ่งช้าง",
+      "code": 5508
+    },
+    {
+      "province": "น่าน",
+      "district": "เชียงกลาง",
+      "code": 5509
+    },
+    {
+      "province": "น่าน",
+      "district": "นาหมื่น",
+      "code": 5510
+    },
+    {
+      "province": "น่าน",
+      "district": "สันติสุข",
+      "code": 5511
+    },
+    {
+      "province": "น่าน",
+      "district": "บ่อเกลือ",
+      "code": 5512
+    },
+    {
+      "province": "น่าน",
+      "district": "สองแคว",
+      "code": 5513
+    },
+    {
+      "province": "น่าน",
+      "district": "ภูเพียง",
+      "code": 5514
+    },
+    {
+      "province": "น่าน",
+      "district": "เฉลิมพระเกียรติ",
+      "code": 5515
+    },
+    {
+      "province": "พะเยา",
+      "district": "เมืองพะเยา",
+      "code": 5601
+    },
+    {
+      "province": "พะเยา",
+      "district": "จุน",
+      "code": 5602
+    },
+    {
+      "province": "พะเยา",
+      "district": "เชียงคำ",
+      "code": 5603
+    },
+    {
+      "province": "พะเยา",
+      "district": "เชียงม่วน",
+      "code": 5604
+    },
+    {
+      "province": "พะเยา",
+      "district": "ดอกคำใต้",
+      "code": 5605
+    },
+    {
+      "province": "พะเยา",
+      "district": "ปง",
+      "code": 5606
+    },
+    {
+      "province": "พะเยา",
+      "district": "แม่ใจ",
+      "code": 5607
+    },
+    {
+      "province": "พะเยา",
+      "district": "ภูซาง",
+      "code": 5608
+    },
+    {
+      "province": "พะเยา",
+      "district": "ภูกามยาว",
+      "code": 5609
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เมืองเชียงราย",
+      "code": 5701
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เวียงชัย",
+      "code": 5702
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เชียงของ",
+      "code": 5703
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เทิง",
+      "code": 5704
+    },
+    {
+      "province": "เชียงราย",
+      "district": "พาน",
+      "code": 5705
+    },
+    {
+      "province": "เชียงราย",
+      "district": "ป่าแดด",
+      "code": 5706
+    },
+    {
+      "province": "เชียงราย",
+      "district": "แม่จัน",
+      "code": 5707
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เชียงแสน",
+      "code": 5708
+    },
+    {
+      "province": "เชียงราย",
+      "district": "แม่สาย",
+      "code": 5709
+    },
+    {
+      "province": "เชียงราย",
+      "district": "แม่สรวย",
+      "code": 5710
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เวียงป่าเป้า",
+      "code": 5711
+    },
+    {
+      "province": "เชียงราย",
+      "district": "พญาเม็งราย",
+      "code": 5712
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เวียงแก่น",
+      "code": 5713
+    },
+    {
+      "province": "เชียงราย",
+      "district": "ขุนตาล",
+      "code": 5714
+    },
+    {
+      "province": "เชียงราย",
+      "district": "แม่ฟ้าหลวง",
+      "code": 5715
+    },
+    {
+      "province": "เชียงราย",
+      "district": "แม่ลาว",
+      "code": 5716
+    },
+    {
+      "province": "เชียงราย",
+      "district": "เวียงเชียงรุ้ง",
+      "code": 5717
+    },
+    {
+      "province": "เชียงราย",
+      "district": "ดอยหลวง",
+      "code": 5718
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "เมืองแม่ฮ่องสอน",
+      "code": 5801
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "ขุนยวม",
+      "code": 5802
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "ปาย",
+      "code": 5803
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "แม่สะเรียง",
+      "code": 5804
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "แม่ลาน้อย",
+      "code": 5805
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "สบเมย",
+      "code": 5806
+    },
+    {
+      "province": "แม่ฮ่องสอน",
+      "district": "ปางมะผ้า",
+      "code": 5807
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "เมืองนครสวรรค์",
+      "code": 6001
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "โกรกพระ",
+      "code": 6002
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ชุมแสง",
+      "code": 6003
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "หนองบัว",
+      "code": 6004
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "บรรพตพิสัย",
+      "code": 6005
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "เก้าเลี้ยว",
+      "code": 6006
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ตาคลี",
+      "code": 6007
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ท่าตะโก",
+      "code": 6008
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ไพศาลี",
+      "code": 6009
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "พยุหะคีรี",
+      "code": 6010
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ลาดยาว",
+      "code": 6011
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ตากฟ้า",
+      "code": 6012
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "แม่วงก์",
+      "code": 6013
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "แม่เปิน",
+      "code": 6014
+    },
+    {
+      "province": "นครสวรรค์",
+      "district": "ชุมตาบง",
+      "code": 6015
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "เมืองอุทัยธานี",
+      "code": 6101
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "ทัพทัน",
+      "code": 6102
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "สว่างอารมณ์",
+      "code": 6103
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "หนองฉาง",
+      "code": 6104
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "หนองขาหย่าง",
+      "code": 6105
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "บ้านไร่",
+      "code": 6106
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "ลานสัก",
+      "code": 6107
+    },
+    {
+      "province": "อุทัยธานี",
+      "district": "ห้วยคต",
+      "code": 6108
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "เมืองกำแพงเพชร",
+      "code": 6201
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "ไทรงาม",
+      "code": 6202
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "คลองลาน",
+      "code": 6203
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "ขาณุวรลักษบุรี",
+      "code": 6204
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "คลองขลุง",
+      "code": 6205
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "พรานกระต่าย",
+      "code": 6206
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "ลานกระบือ",
+      "code": 6207
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "ทรายทองวัฒนา",
+      "code": 6208
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "ปางศิลาทอง",
+      "code": 6209
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "บึงสามัคคี",
+      "code": 6210
+    },
+    {
+      "province": "กำแพงเพชร",
+      "district": "โกสัมพีนคร",
+      "code": 6211
+    },
+    {
+      "province": "ตาก",
+      "district": "เมืองตาก",
+      "code": 6301
+    },
+    {
+      "province": "ตาก",
+      "district": "บ้านตาก",
+      "code": 6302
+    },
+    {
+      "province": "ตาก",
+      "district": "สามเงา",
+      "code": 6303
+    },
+    {
+      "province": "ตาก",
+      "district": "แม่ระมาด",
+      "code": 6304
+    },
+    {
+      "province": "ตาก",
+      "district": "ท่าสองยาง",
+      "code": 6305
+    },
+    {
+      "province": "ตาก",
+      "district": "แม่สอด",
+      "code": 6306
+    },
+    {
+      "province": "ตาก",
+      "district": "พบพระ",
+      "code": 6307
+    },
+    {
+      "province": "ตาก",
+      "district": "อุ้มผาง",
+      "code": 6308
+    },
+    {
+      "province": "ตาก",
+      "district": "วังเจ้า",
+      "code": 6309
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "เมืองสุโขทัย",
+      "code": 6401
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "บ้านด่านลานหอย",
+      "code": 6402
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "คีรีมาศ",
+      "code": 6403
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "กงไกรลาศ",
+      "code": 6404
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "ศรีสัชนาลัย",
+      "code": 6405
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "ศรีสำโรง",
+      "code": 6406
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "สวรรคโลก",
+      "code": 6407
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "ศรีนคร",
+      "code": 6408
+    },
+    {
+      "province": "สุโขทัย",
+      "district": "ทุ่งเสลี่ยม",
+      "code": 6409
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "เมืองพิษณุโลก",
+      "code": 6501
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "นครไทย",
+      "code": 6502
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "ชาติตระการ",
+      "code": 6503
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "บางระกำ",
+      "code": 6504
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "บางกระทุ่ม",
+      "code": 6505
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "พรหมพิราม",
+      "code": 6506
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "วัดโบสถ์",
+      "code": 6507
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "วังทอง",
+      "code": 6508
+    },
+    {
+      "province": "พิษณุโลก",
+      "district": "เนินมะปราง",
+      "code": 6509
+    },
+    {
+      "province": "พิจิตร",
+      "district": "เมืองพิจิตร",
+      "code": 6601
+    },
+    {
+      "province": "พิจิตร",
+      "district": "วังทรายพูน",
+      "code": 6602
+    },
+    {
+      "province": "พิจิตร",
+      "district": "โพธิ์ประทับช้าง",
+      "code": 6603
+    },
+    {
+      "province": "พิจิตร",
+      "district": "ตะพานหิน",
+      "code": 6604
+    },
+    {
+      "province": "พิจิตร",
+      "district": "บางมูลนาก",
+      "code": 6605
+    },
+    {
+      "province": "พิจิตร",
+      "district": "โพทะเล",
+      "code": 6606
+    },
+    {
+      "province": "พิจิตร",
+      "district": "สามง่าม",
+      "code": 6607
+    },
+    {
+      "province": "พิจิตร",
+      "district": "ทับคล้อ",
+      "code": 6608
+    },
+    {
+      "province": "พิจิตร",
+      "district": "สากเหล็ก",
+      "code": 6609
+    },
+    {
+      "province": "พิจิตร",
+      "district": "บึงนาราง",
+      "code": 6610
+    },
+    {
+      "province": "พิจิตร",
+      "district": "ดงเจริญ",
+      "code": 6611
+    },
+    {
+      "province": "พิจิตร",
+      "district": "วชิรบารมี",
+      "code": 6612
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "เมืองเพชรบูรณ์",
+      "code": 6701
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "ชนแดน",
+      "code": 6702
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "หล่มสัก",
+      "code": 6703
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "หล่มเก่า",
+      "code": 6704
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "วิเชียรบุรี",
+      "code": 6705
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "ศรีเทพ",
+      "code": 6706
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "หนองไผ่",
+      "code": 6707
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "บึงสามพัน",
+      "code": 6708
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "น้ำหนาว",
+      "code": 6709
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "วังโป่ง",
+      "code": 6710
+    },
+    {
+      "province": "เพชรบูรณ์",
+      "district": "เขาค้อ",
+      "code": 6711
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "เมืองราชบุรี",
+      "code": 7001
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "จอมบึง",
+      "code": 7002
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "สวนผึ้ง",
+      "code": 7003
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "ดำเนินสะดวก",
+      "code": 7004
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "บ้านโป่ง",
+      "code": 7005
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "บางแพ",
+      "code": 7006
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "โพธาราม",
+      "code": 7007
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "ปากท่อ",
+      "code": 7008
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "วัดเพลง",
+      "code": 7009
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "บ้านคา",
+      "code": 7010
+    },
+    {
+      "province": "ราชบุรี",
+      "district": "ท้องถิ่นเทศบาลตำบลบ้านฆ้อง",
+      "code": 7074
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "เมืองกาญจนบุรี",
+      "code": 7101
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ไทรโยค",
+      "code": 7102
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "บ่อพลอย",
+      "code": 7103
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ศรีสวัสดิ์",
+      "code": 7104
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ท่ามะกา",
+      "code": 7105
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ท่าม่วง",
+      "code": 7106
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ทองผาภูมิ",
+      "code": 7107
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "สังขละบุรี",
+      "code": 7108
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "พนมทวน",
+      "code": 7109
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "เลาขวัญ",
+      "code": 7110
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ด่านมะขามเตี้ย",
+      "code": 7111
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "หนองปรือ",
+      "code": 7112
+    },
+    {
+      "province": "กาญจนบุรี",
+      "district": "ห้วยกระเจา",
+      "code": 7113
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "เมืองสุพรรณบุรี",
+      "code": 7201
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "เดิมบางนางบวช",
+      "code": 7202
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "ด่านช้าง",
+      "code": 7203
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "บางปลาม้า",
+      "code": 7204
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "ศรีประจันต์",
+      "code": 7205
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "ดอนเจดีย์",
+      "code": 7206
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "สองพี่น้อง",
+      "code": 7207
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "สามชุก",
+      "code": 7208
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "อู่ทอง",
+      "code": 7209
+    },
+    {
+      "province": "สุพรรณบุรี",
+      "district": "หนองหญ้าไซ",
+      "code": 7210
+    },
+    {
+      "province": "นครปฐม",
+      "district": "เมืองนครปฐม",
+      "code": 7301
+    },
+    {
+      "province": "นครปฐม",
+      "district": "กำแพงแสน",
+      "code": 7302
+    },
+    {
+      "province": "นครปฐม",
+      "district": "นครชัยศรี",
+      "code": 7303
+    },
+    {
+      "province": "นครปฐม",
+      "district": "ดอนตูม",
+      "code": 7304
+    },
+    {
+      "province": "นครปฐม",
+      "district": "บางเลน",
+      "code": 7305
+    },
+    {
+      "province": "นครปฐม",
+      "district": "สามพราน",
+      "code": 7306
+    },
+    {
+      "province": "นครปฐม",
+      "district": "พุทธมณฑล",
+      "code": 7307
+    },
+    {
+      "province": "สมุทรสาคร",
+      "district": "เมืองสมุทรสาคร",
+      "code": 7401
+    },
+    {
+      "province": "สมุทรสาคร",
+      "district": "กระทุ่มแบน",
+      "code": 7402
+    },
+    {
+      "province": "สมุทรสาคร",
+      "district": "บ้านแพ้ว",
+      "code": 7403
+    },
+    {
+      "province": "สมุทรสงคราม",
+      "district": "เมืองสมุทรสงคราม",
+      "code": 7501
+    },
+    {
+      "province": "สมุทรสงคราม",
+      "district": "บางคนที",
+      "code": 7502
+    },
+    {
+      "province": "สมุทรสงคราม",
+      "district": "อัมพวา",
+      "code": 7503
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "เมืองเพชรบุรี",
+      "code": 7601
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "เขาย้อย",
+      "code": 7602
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "หนองหญ้าปล้อง",
+      "code": 7603
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "ชะอำ",
+      "code": 7604
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "ท่ายาง",
+      "code": 7605
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "บ้านลาด",
+      "code": 7606
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "บ้านแหลม",
+      "code": 7607
+    },
+    {
+      "province": "เพชรบุรี",
+      "district": "แก่งกระจาน",
+      "code": 7608
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "เมืองประจวบคีรีขันธ์",
+      "code": 7701
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "กุยบุรี",
+      "code": 7702
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "ทับสะแก",
+      "code": 7703
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "บางสะพาน",
+      "code": 7704
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "บางสะพานน้อย",
+      "code": 7705
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "ปราณบุรี",
+      "code": 7706
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "หัวหิน",
+      "code": 7707
+    },
+    {
+      "province": "ประจวบคีรีขันธ์",
+      "district": "สามร้อยยอด",
+      "code": 7708
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "เมืองนครศรีธรรมราช",
+      "code": 8001
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "พรหมคีรี",
+      "code": 8002
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ลานสกา",
+      "code": 8003
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ฉวาง",
+      "code": 8004
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "พิปูน",
+      "code": 8005
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "เชียรใหญ่",
+      "code": 8006
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ชะอวด",
+      "code": 8007
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ท่าศาลา",
+      "code": 8008
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ทุ่งสง",
+      "code": 8009
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "นาบอน",
+      "code": 8010
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ทุ่งใหญ่",
+      "code": 8011
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ปากพนัง",
+      "code": 8012
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ร่อนพิบูลย์",
+      "code": 8013
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "สิชล",
+      "code": 8014
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ขนอม",
+      "code": 8015
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "หัวไทร",
+      "code": 8016
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "บางขัน",
+      "code": 8017
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ถ้ำพรรณรา",
+      "code": 8018
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "จุฬาภรณ์",
+      "code": 8019
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "พระพรหม",
+      "code": 8020
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "นบพิตำ",
+      "code": 8021
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "ช้างกลาง",
+      "code": 8022
+    },
+    {
+      "province": "นครศรีธรรมราช",
+      "district": "เฉลิมพระเกียรติ",
+      "code": 8023
+    },
+    {
+      "province": "กระบี่",
+      "district": "เมืองกระบี่",
+      "code": 8101
+    },
+    {
+      "province": "กระบี่",
+      "district": "เขาพนม",
+      "code": 8102
+    },
+    {
+      "province": "กระบี่",
+      "district": "เกาะลันตา",
+      "code": 8103
+    },
+    {
+      "province": "กระบี่",
+      "district": "คลองท่อม",
+      "code": 8104
+    },
+    {
+      "province": "กระบี่",
+      "district": "อ่าวลึก",
+      "code": 8105
+    },
+    {
+      "province": "กระบี่",
+      "district": "ปลายพระยา",
+      "code": 8106
+    },
+    {
+      "province": "กระบี่",
+      "district": "ลำทับ",
+      "code": 8107
+    },
+    {
+      "province": "กระบี่",
+      "district": "เหนือคลอง",
+      "code": 8108
+    },
+    {
+      "province": "พังงา",
+      "district": "เมืองพังงา",
+      "code": 8201
+    },
+    {
+      "province": "พังงา",
+      "district": "เกาะยาว",
+      "code": 8202
+    },
+    {
+      "province": "พังงา",
+      "district": "กะปง",
+      "code": 8203
+    },
+    {
+      "province": "พังงา",
+      "district": "ตะกั่วทุ่ง",
+      "code": 8204
+    },
+    {
+      "province": "พังงา",
+      "district": "ตะกั่วป่า",
+      "code": 8205
+    },
+    {
+      "province": "พังงา",
+      "district": "คุระบุรี",
+      "code": 8206
+    },
+    {
+      "province": "พังงา",
+      "district": "ทับปุด",
+      "code": 8207
+    },
+    {
+      "province": "พังงา",
+      "district": "ท้ายเหมือง",
+      "code": 8208
+    },
+    {
+      "province": "ภูเก็ต",
+      "district": "เมืองภูเก็ต",
+      "code": 8301
+    },
+    {
+      "province": "ภูเก็ต",
+      "district": "กะทู้",
+      "code": 8302
+    },
+    {
+      "province": "ภูเก็ต",
+      "district": "ถลาง",
+      "code": 8303
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "เมืองสุราษฎร์ธานี",
+      "code": 8401
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "กาญจนดิษฐ์",
+      "code": 8402
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "ดอนสัก",
+      "code": 8403
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "เกาะสมุย",
+      "code": 8404
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "เกาะพะงัน",
+      "code": 8405
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "ไชยา",
+      "code": 8406
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "ท่าชนะ",
+      "code": 8407
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "คีรีรัฐนิคม",
+      "code": 8408
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "บ้านตาขุน",
+      "code": 8409
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "พนม",
+      "code": 8410
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "ท่าฉาง",
+      "code": 8411
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "บ้านนาสาร",
+      "code": 8412
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "บ้านนาเดิม",
+      "code": 8413
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "เคียนซา",
+      "code": 8414
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "เวียงสระ",
+      "code": 8415
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "พระแสง",
+      "code": 8416
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "พุนพิน",
+      "code": 8417
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "ชัยบุรี",
+      "code": 8418
+    },
+    {
+      "province": "สุราษฎร์ธานี",
+      "district": "วิภาวดี",
+      "code": 8419
+    },
+    {
+      "province": "ระนอง",
+      "district": "เมืองระนอง",
+      "code": 8501
+    },
+    {
+      "province": "ระนอง",
+      "district": "ละอุ่น",
+      "code": 8502
+    },
+    {
+      "province": "ระนอง",
+      "district": "กะเปอร์",
+      "code": 8503
+    },
+    {
+      "province": "ระนอง",
+      "district": "กระบุรี",
+      "code": 8504
+    },
+    {
+      "province": "ระนอง",
+      "district": "สุขสำราญ",
+      "code": 8505
+    },
+    {
+      "province": "ชุมพร",
+      "district": "เมืองชุมพร",
+      "code": 8601
+    },
+    {
+      "province": "ชุมพร",
+      "district": "ท่าแซะ",
+      "code": 8602
+    },
+    {
+      "province": "ชุมพร",
+      "district": "ปะทิว",
+      "code": 8603
+    },
+    {
+      "province": "ชุมพร",
+      "district": "หลังสวน",
+      "code": 8604
+    },
+    {
+      "province": "ชุมพร",
+      "district": "ละแม",
+      "code": 8605
+    },
+    {
+      "province": "ชุมพร",
+      "district": "พะโต๊ะ",
+      "code": 8606
+    },
+    {
+      "province": "ชุมพร",
+      "district": "สวี",
+      "code": 8607
+    },
+    {
+      "province": "ชุมพร",
+      "district": "ทุ่งตะโก",
+      "code": 8608
+    },
+    {
+      "province": "สงขลา",
+      "district": "เมืองสงขลา",
+      "code": 9001
+    },
+    {
+      "province": "สงขลา",
+      "district": "สทิงพระ",
+      "code": 9002
+    },
+    {
+      "province": "สงขลา",
+      "district": "จะนะ",
+      "code": 9003
+    },
+    {
+      "province": "สงขลา",
+      "district": "นาทวี",
+      "code": 9004
+    },
+    {
+      "province": "สงขลา",
+      "district": "เทพา",
+      "code": 9005
+    },
+    {
+      "province": "สงขลา",
+      "district": "สะบ้าย้อย",
+      "code": 9006
+    },
+    {
+      "province": "สงขลา",
+      "district": "ระโนด",
+      "code": 9007
+    },
+    {
+      "province": "สงขลา",
+      "district": "กระแสสินธุ์",
+      "code": 9008
+    },
+    {
+      "province": "สงขลา",
+      "district": "รัตภูมิ",
+      "code": 9009
+    },
+    {
+      "province": "สงขลา",
+      "district": "สะเดา",
+      "code": 9010
+    },
+    {
+      "province": "สงขลา",
+      "district": "หาดใหญ่",
+      "code": 9011
+    },
+    {
+      "province": "สงขลา",
+      "district": "นาหม่อม",
+      "code": 9012
+    },
+    {
+      "province": "สงขลา",
+      "district": "ควนเนียง",
+      "code": 9013
+    },
+    {
+      "province": "สงขลา",
+      "district": "บางกล่ำ",
+      "code": 9014
+    },
+    {
+      "province": "สงขลา",
+      "district": "สิงหนคร",
+      "code": 9015
+    },
+    {
+      "province": "สงขลา",
+      "district": "คลองหอยโข่ง",
+      "code": 9016
+    },
+    {
+      "province": "สงขลา",
+      "district": "ท้องถิ่นเทศบาลตำบลสำนักขาม",
+      "code": 9077
+    },
+    {
+      "province": "สตูล",
+      "district": "เมืองสตูล",
+      "code": 9101
+    },
+    {
+      "province": "สตูล",
+      "district": "ควนโดน",
+      "code": 9102
+    },
+    {
+      "province": "สตูล",
+      "district": "ควนกาหลง",
+      "code": 9103
+    },
+    {
+      "province": "สตูล",
+      "district": "ท่าแพ",
+      "code": 9104
+    },
+    {
+      "province": "สตูล",
+      "district": "ละงู",
+      "code": 9105
+    },
+    {
+      "province": "สตูล",
+      "district": "ทุ่งหว้า",
+      "code": 9106
+    },
+    {
+      "province": "สตูล",
+      "district": "มะนัง",
+      "code": 9107
+    },
+    {
+      "province": "ตรัง",
+      "district": "เมืองตรัง",
+      "code": 9201
+    },
+    {
+      "province": "ตรัง",
+      "district": "กันตัง",
+      "code": 9202
+    },
+    {
+      "province": "ตรัง",
+      "district": "ย่านตาขาว",
+      "code": 9203
+    },
+    {
+      "province": "ตรัง",
+      "district": "ปะเหลียน",
+      "code": 9204
+    },
+    {
+      "province": "ตรัง",
+      "district": "สิเกา",
+      "code": 9205
+    },
+    {
+      "province": "ตรัง",
+      "district": "ห้วยยอด",
+      "code": 9206
+    },
+    {
+      "province": "ตรัง",
+      "district": "วังวิเศษ",
+      "code": 9207
+    },
+    {
+      "province": "ตรัง",
+      "district": "นาโยง",
+      "code": 9208
+    },
+    {
+      "province": "ตรัง",
+      "district": "รัษฎา",
+      "code": 9209
+    },
+    {
+      "province": "ตรัง",
+      "district": "หาดสำราญ",
+      "code": 9210
+    },
+    {
+      "province": "พัทลุง",
+      "district": "เมืองพัทลุง",
+      "code": 9301
+    },
+    {
+      "province": "พัทลุง",
+      "district": "กงหรา",
+      "code": 9302
+    },
+    {
+      "province": "พัทลุง",
+      "district": "เขาชัยสน",
+      "code": 9303
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ตะโหมด",
+      "code": 9304
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ควนขนุน",
+      "code": 9305
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ปากพะยูน",
+      "code": 9306
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ศรีบรรพต",
+      "code": 9307
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ป่าบอน",
+      "code": 9308
+    },
+    {
+      "province": "พัทลุง",
+      "district": "บางแก้ว",
+      "code": 9309
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ป่าพะยอม",
+      "code": 9310
+    },
+    {
+      "province": "พัทลุง",
+      "district": "ศรีนครินทร์",
+      "code": 9311
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "เมืองปัตตานี",
+      "code": 9401
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "โคกโพธิ์",
+      "code": 9402
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "หนองจิก",
+      "code": 9403
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "ปะนาเระ",
+      "code": 9404
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "มายอ",
+      "code": 9405
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "ทุ่งยางแดง",
+      "code": 9406
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "สายบุรี",
+      "code": 9407
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "ไม้แก่น",
+      "code": 9408
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "ยะหริ่ง",
+      "code": 9409
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "ยะรัง",
+      "code": 9410
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "กะพ้อ",
+      "code": 9411
+    },
+    {
+      "province": "ปัตตานี",
+      "district": "แม่ลาน",
+      "code": 9412
+    },
+    {
+      "province": "ยะลา",
+      "district": "เมืองยะลา",
+      "code": 9501
+    },
+    {
+      "province": "ยะลา",
+      "district": "เบตง",
+      "code": 9502
+    },
+    {
+      "province": "ยะลา",
+      "district": "บันนังสตา",
+      "code": 9503
+    },
+    {
+      "province": "ยะลา",
+      "district": "ธารโต",
+      "code": 9504
+    },
+    {
+      "province": "ยะลา",
+      "district": "ยะหา",
+      "code": 9505
+    },
+    {
+      "province": "ยะลา",
+      "district": "รามัน",
+      "code": 9506
+    },
+    {
+      "province": "ยะลา",
+      "district": "กาบัง",
+      "code": 9507
+    },
+    {
+      "province": "ยะลา",
+      "district": "กรงปินัง",
+      "code": 9508
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "เมืองนราธิวาส",
+      "code": 9601
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "ตากใบ",
+      "code": 9602
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "บาเจาะ",
+      "code": 9603
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "ยี่งอ",
+      "code": 9604
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "ระแงะ",
+      "code": 9605
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "รือเสาะ",
+      "code": 9606
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "ศรีสาคร",
+      "code": 9607
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "แว้ง",
+      "code": 9608
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "สุคิริน",
+      "code": 9609
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "สุไหงโก-ลก",
+      "code": 9610
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "สุไหงปาดี",
+      "code": 9611
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "จะแนะ",
+      "code": 9612
+    },
+    {
+      "province": "นราธิวาส",
+      "district": "เจาะไอร้อง",
+      "code": 9613
+    }
+  ]
+}
