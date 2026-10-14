@@ -14,7 +14,7 @@ export function PublicHeader({ authenticated = false, accountName, onLogout }: P
   const navItems = [
     { href: '/', label: text(language, 'หน้าแรก', 'Home') },
     { href: '/investment', label: text(language, 'ลงทุน EV', 'Invest in EV') },
-    { href: '/branches', label: text(language, 'สาขาและผลงาน', 'Branches & work') },
+    { href: '/branches', label: text(language, 'สาขาและผลงาน', 'Locations & Projects') },
     { href: '/guide/customer', label: text(language, 'คู่มือการใช้งาน', 'User guide') },
     { href: '/contact', label: text(language, 'ติดต่อสอบถาม', 'Contact us') },
   ]

@@ -2,8 +2,8 @@
   "name": "rbc-ev-station",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @rbc/web dev",
-    "dev:web": "pnpm --filter @rbc/web dev",
+    "dev": "npm --prefix apps/web run dev",
+    "dev:web": "npm --prefix apps/web run dev",
     "build:web": "pnpm --filter @rbc/web build",
     "test:web": "pnpm --filter @rbc/web test",
     "lint:web": "pnpm --filter @rbc/web lint",

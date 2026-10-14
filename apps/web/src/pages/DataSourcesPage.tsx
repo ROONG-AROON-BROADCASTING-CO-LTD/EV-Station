@@ -35,10 +35,10 @@ function SourceCard({ source }: { source: DataSourceCatalogEntry }) {
   const { t, language } = useI18n()
   const usage = language === 'th' ? t('Read the official source link for provider-specific usage details.') : source.usageNote
   const quality = language === 'th' ? t('Check data date, coverage and assumptions in the analysis result before use.') : source.dataQualityNote
-  return <article className="rounded-xl border border-line bg-white p-5 shadow-sm">
+  return <article className="min-w-0 rounded-xl border border-line bg-white p-5 shadow-sm [overflow-wrap:anywhere]">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold text-ink">{t(source.name)}</h3><p className="mt-1 text-xs uppercase tracking-wide text-muted">{source.categories.map(category => t(category)).join(' · ')}</p></div><Availability value={source.availability}/></div>
     <dl className="mt-4 space-y-3 text-sm"><div><dt className="font-semibold text-ink">{t('Cost model')}</dt><dd className="mt-1 text-muted">{t(costLabels[source.costModel])}</dd></div><div><dt className="font-semibold text-ink">{t('Usage')}</dt><dd className="mt-1 leading-5 text-muted">{usage}</dd></div><div><dt className="font-semibold text-ink">{t('Data quality')}</dt><dd className="mt-1 leading-5 text-muted">{quality}</dd></div></dl>
-    {source.credentialEnvVar ? <p className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"><KeyRound size={14}/>{source.credentialEnvVar}</p> : null}
+    {source.credentialEnvVar ? <p className="mt-4 flex min-w-0 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600 [overflow-wrap:anywhere]"><KeyRound size={14} className="shrink-0"/>{source.credentialEnvVar}</p> : null}
     <a href={source.referenceUri} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">{t('Official source')}<ExternalLink size={14}/></a>
   </article>
 }

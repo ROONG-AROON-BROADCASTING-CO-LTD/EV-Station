@@ -1,11 +1,9 @@
 import { ArrowRight, BarChart3, BatteryCharging, Building2, CarFront, ClipboardCheck, MapPin, MessageCircle, Store, TrendingUp, Users, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 import { Container } from '../components/Container'
 import { PublicHeader } from '../components/PublicHeader'
 import { ScrollToTop } from '../components/ScrollToTop'
-import { api } from '../services/api'
 
 function copy(language: 'th' | 'en', th: string, en: string) {
   return language === 'th' ? th : en
@@ -30,16 +28,6 @@ function SectionTitle({ title, description }: { title: string; description?: str
 export function LandingPage({ authenticated = false, accountName, onLogout }: { authenticated?: boolean; accountName?: string; onLogout?: () => void }) {
   const { language } = useI18n()
   const investmentLink = authenticated ? '/sites/new' : '/login?mode=register'
-  const [visitorOrdinal, setVisitorOrdinal] = useState<number | null>(null)
-  const visitRegistered = useRef(false)
-
-  useEffect(() => {
-    if (visitRegistered.current) return
-    visitRegistered.current = true
-    api.registerVisitorOrdinal()
-      .then(({ ordinal }) => setVisitorOrdinal(ordinal))
-      .catch(() => undefined)
-  }, [])
 
   return <main className="landing-page public-site">
     <PublicHeader authenticated={authenticated} accountName={accountName} onLogout={onLogout} />
@@ -47,7 +35,6 @@ export function LandingPage({ authenticated = false, accountName, onLogout }: { 
     <section className="landing-hero" aria-labelledby="landing-title"><div className="landing-hero-art" aria-hidden="true"/><div className="landing-hero-copy"><h1 id="landing-title"><span>{copy(language, 'จุดเริ่มต้นสถานีชาร์จ', 'Your EV station starts here')}</span><strong><span>{copy(language, 'ลงทุน EV กับ', 'Invest in EV with')}</span><span>RBC Group</span></strong></h1><span>{copy(language, 'ส่งทำเลให้ทีม RBC ประเมินศักยภาพพื้นที่ ความพร้อมด้านไฟฟ้า และรูปแบบสถานีชาร์จที่เหมาะสม เพื่อประกอบการพิจารณาการลงทุน', 'Submit your site for an evidence-led review of location potential, power readiness, and the charging format that fits it.')}</span><Link className="landing-cta" to={investmentLink}>{copy(language, 'ส่งทำเลให้ประเมิน', 'Submit a site for review')}<ArrowRight size={19}/></Link><p className="landing-hero-signoff">RBC GROUP · EV INVESTMENT · SUPER BLACK COFFEE</p></div></section>
 
     <section className="public-proof-strip" aria-label={copy(language, 'สิ่งที่ระบบช่วยคุณตรวจสอบ', 'What the platform helps you review')}><div><MapPin size={28}/><span>{copy(language, 'วิเคราะห์ทำเลจริง', 'Analyse the real site')}</span></div><div><Zap size={28}/><span>{copy(language, 'ประเมินความพร้อมระบบไฟฟ้า', 'Review power readiness')}</span></div><div><ClipboardCheck size={28}/><span>{copy(language, 'ติดตามผลในบัญชีเดียว', 'Track progress in one account')}</span></div></section>
-    <div className="public-visitor-ordinal" aria-live="polite"><Users size={20}/><span>{copy(language, 'จำนวนครั้งที่เข้าชมเว็บไซต์', 'Website visits')}</span><strong>{visitorOrdinal?.toLocaleString() ?? '200,000'}</strong></div>
 
     <section id="market" className="public-market">
       <Container>
@@ -85,7 +72,7 @@ export function LandingPage({ authenticated = false, accountName, onLogout }: { 
     <section id="reviews" className="public-reviews">
       <Container>
         <SectionTitle title={copy(language, 'เหตุผลที่เจ้าของพื้นที่เลือกคุยกับ RBC', 'Why site owners start a conversation with RBC')} description={copy(language, 'เปลี่ยนข้อมูลทำเลให้เป็นจุดเริ่มต้นของการวางแผนสถานีชาร์จและธุรกิจบริการที่เหมาะกับพื้นที่', 'Turn site information into a practical starting point for planning the right charging station and destination service.')}/>
-        <div className="public-review-grid">{[{ icon: MapPin, userTh: 'ผู้ใช้บริการ 01', userEn: 'Service user 01', titleTh: 'เริ่มจากข้อมูลพื้นที่จริง', titleEn: 'Start with the real site', detailTh: 'ส่งพิกัด ภาพ และรายละเอียดพื้นที่ เพื่อให้ทีม RBC เห็นบริบทของทำเลก่อนเริ่มพิจารณา', detailEn: 'Share coordinates, photos, and site details so the RBC team can understand the location before review.' }, { icon: BarChart3, userTh: 'ผู้ใช้บริการ 02', userEn: 'Service user 02', titleTh: 'วางแผนให้เหมาะกับทำเล', titleEn: 'Plan around the site', detailTh: 'ใช้รูปแบบ S / M / L เป็นแนวทางคุยเรื่องขนาดพื้นที่ จุดชาร์จ และองค์ประกอบของธุรกิจ', detailEn: 'Use the S / M / L formats to guide the discussion around space, charging capacity, and business elements.' }, { icon: MessageCircle, userTh: 'ผู้ใช้บริการ 03', userEn: 'Service user 03', titleTh: 'ติดต่อทีมงานได้โดยตรง', titleEn: 'Speak directly with the team', detailTh: 'ติดต่อสอบถามผ่าน LINE หรือช่องทางบริษัท เพื่อคุยรายละเอียดโครงการและนัดหมายต่อไป', detailEn: 'Contact the team through LINE or the company channels to discuss project details and arrange the next step.' }].map(item => { const Icon = item.icon; return <article key={item.titleTh} className="public-review-placeholder public-value-card"><div className="public-review-card-head"><span className="public-review-avatar"><Icon size={20}/></span><div><strong>{copy(language, item.titleTh, item.titleEn)}</strong><small>{copy(language, item.userTh, item.userEn)}</small></div></div><p>{copy(language, item.detailTh, item.detailEn)}</p></article> })}</div>
+        <div className="public-review-grid">{[{ icon: MapPin, userTh: 'ผู้ใช้บริการ 01', userEn: 'Site information', titleTh: 'เริ่มจากข้อมูลพื้นที่จริง', titleEn: 'Start with the real site', detailTh: 'ส่งพิกัด ภาพ และรายละเอียดพื้นที่ เพื่อให้ทีม RBC เห็นบริบทของทำเลก่อนเริ่มพิจารณา', detailEn: 'Share coordinates, photos, and site details so the RBC team can understand the location before review.' }, { icon: BarChart3, userTh: 'ผู้ใช้บริการ 02', userEn: 'Station planning', titleTh: 'วางแผนให้เหมาะกับทำเล', titleEn: 'Plan around the site', detailTh: 'ใช้รูปแบบ S / M / L เป็นแนวทางคุยเรื่องขนาดพื้นที่ จุดชาร์จ และองค์ประกอบของธุรกิจ', detailEn: 'Use the S / M / L formats to guide the discussion around space, charging capacity, and business elements.' }, { icon: MessageCircle, userTh: 'ผู้ใช้บริการ 03', userEn: 'Direct consultation', titleTh: 'ติดต่อทีมงานได้โดยตรง', titleEn: 'Speak directly with the team', detailTh: 'ติดต่อสอบถามผ่าน LINE หรือช่องทางบริษัท เพื่อคุยรายละเอียดโครงการและนัดหมายต่อไป', detailEn: 'Contact the team through LINE or the company channels to discuss project details and arrange the next step.' }].map(item => { const Icon = item.icon; return <article key={item.titleTh} className="public-review-placeholder public-value-card"><div className="public-review-card-head"><span className="public-review-avatar"><Icon size={20}/></span><div><strong>{copy(language, item.titleTh, item.titleEn)}</strong><small>{copy(language, item.userTh, item.userEn)}</small></div></div><p>{copy(language, item.detailTh, item.detailEn)}</p></article> })}</div>
       </Container>
     </section>
     <footer className="public-footer">

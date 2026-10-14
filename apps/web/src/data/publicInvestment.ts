@@ -71,7 +71,7 @@ export const chargerModels: CafeModel[] = [
 
 export const standaloneStationModels: StandaloneModel[] = [
   {
-    code: 'S', nameTh: 'EV CHARGING STATION S', nameEn: 'EV CHARGING STATION S', image: '/rbc-ev-station-s.png',
+    code: 'S', nameTh: 'EV CHARGING STATION S', nameEn: 'EV CHARGING STATION S', image: '/rbc-ev-station-s-two-bays-v2.webp',
     imageAlt: { th: 'แนวคิดสถานีชาร์จ EV แบบเดี่ยว ขนาด S', en: 'Concept plan for a standalone S EV charging station' },
     area: { th: '20 × 20 ม.', en: '20 × 20 m' },
     chargers: { th: '1 ตู้ · 2 หัวชาร์จ', en: '1 DC charger · 2 connectors' },
@@ -79,7 +79,7 @@ export const standaloneStationModels: StandaloneModel[] = [
     electrical: { th: 'MDB-EV 1 ตู้ · เสาไฟ 1 ต้น', en: '1 MDB-EV cabinet · 1 light pole' },
   },
   {
-    code: 'M', nameTh: 'EV CHARGING STATION M', nameEn: 'EV CHARGING STATION M', image: '/rbc-ev-station-m.png',
+    code: 'M', nameTh: 'EV CHARGING STATION M', nameEn: 'EV CHARGING STATION M', image: '/rbc-ev-station-m-four-bays.webp',
     imageAlt: { th: 'แนวคิดสถานีชาร์จ EV แบบเดี่ยว ขนาด M', en: 'Concept plan for a standalone M EV charging station' },
     area: { th: '28 × 28 ม.', en: '28 × 28 m' },
     chargers: { th: '2 ตู้ · 4 หัวชาร์จ', en: '2 DC chargers · 4 connectors' },
@@ -87,7 +87,7 @@ export const standaloneStationModels: StandaloneModel[] = [
     electrical: { th: 'MDB-EV 1 ตู้ · เสาไฟ 2 ต้น', en: '1 MDB-EV cabinet · 2 light poles' },
   },
   {
-    code: 'L', nameTh: 'EV CHARGING HUB L', nameEn: 'EV CHARGING HUB L', image: '/rbc-ev-station-l.png',
+    code: 'L', nameTh: 'EV CHARGING HUB L', nameEn: 'EV CHARGING HUB L', image: '/rbc-ev-station-l-partly-parked-bays.webp',
     imageAlt: { th: 'แนวคิดสถานีชาร์จ EV แบบเดี่ยว ขนาด L', en: 'Concept plan for a standalone L EV charging hub' },
     area: { th: '40 × 40 ม.', en: '40 × 40 m' },
     chargers: { th: '4 ตู้ · 8 หัวชาร์จ', en: '4 DC chargers · 8 connectors' },

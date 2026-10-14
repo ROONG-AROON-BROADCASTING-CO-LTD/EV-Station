@@ -2,6 +2,14 @@ export type Language = 'th' | 'en'
 
 export const translations = {
   th: {
+    'Flood reports exist in the latest published year in the search area. Check the frontage road and access routes; administrative totals do not confirm flooding at this plot.': 'มีรายงานน้ำท่วมปีล่าสุดในบริเวณค้นหา ควรตรวจถนนหน้าแปลงและเส้นทางเข้า–ออก ยอดระดับตำบล/อำเภอยังยืนยันไม่ได้ว่าแปลงนี้ท่วม',
+    'Historical flood screening score': 'คะแนนคัดกรองจากประวัติน้ำท่วม',
+    'More data needed for an overall score': 'ข้อมูลยังไม่พอสำหรับคะแนนรวม',
+    'Partial evidence': 'มีข้อมูลบางส่วน',
+    'Cached road evidence; live refresh unavailable. Retrieved:': 'ใช้ข้อมูลถนนที่ดึงสำเร็จครั้งก่อน เพราะต้นทางยังอัปเดตไม่ได้ · วันที่ดึงข้อมูล:',
+    'Awaiting sufficient data': 'รอข้อมูลเพียงพอเพื่อสรุปคำแนะนำ',
+    'Some indicators have been analysed, but coverage is below the required threshold. An investment recommendation is pending; this is not a low location score. Retry the analysis to fetch unavailable sources and review the missing evidence below.': 'วิเคราะห์ตัวชี้วัดบางส่วนแล้ว แต่ข้อมูลยังไม่ถึงเกณฑ์สำหรับคะแนนรวม จึงรอสรุปคำแนะนำการลงทุน สถานะนี้ไม่ได้หมายความว่าทำเลได้คะแนนต่ำ ลองวิเคราะห์ใหม่เพื่อดึงแหล่งข้อมูลที่ยังเรียกไม่สำเร็จ และตรวจรายการข้อมูลที่ขาดด้านล่าง',
+    'Recent mapped flood areas overlap the site pin. Check the frontage road and access routes before investing; polygon overlap alone does not verify road conditions.': 'พื้นที่น้ำท่วมในแผนที่ช่วงล่าสุดทับพิกัดทำเล ควรตรวจถนนหน้าแปลงและเส้นทางเข้า–ออกก่อนลงทุน การทับพิกัดอย่างเดียวยังยืนยันสภาพถนนไม่ได้',
     'Flood reports exist in this district. Even with a strong location score, check flood history on the frontage road and access routes. District reports do not confirm that this road flooded.': 'มีรายงานน้ำท่วมในอำเภอ/เขตนี้ แม้คะแนนทำเลดี ควรตรวจประวัติน้ำท่วมถนนหน้าแปลงและเส้นทางเข้า–ออกเพิ่มเติม ข้อมูลระดับอำเภอยังยืนยันไม่ได้ว่าถนนเส้นนี้เคยท่วม',
     'Flood history on the frontage road and access routes has not been verified. A strong location score does not confirm uninterrupted access during floods.': 'ยังไม่ได้ยืนยันประวัติน้ำท่วมถนนหน้าแปลงและเส้นทางเข้า–ออก คะแนนทำเลดีไม่ได้ยืนยันว่าจะเดินทางเข้าถึงพื้นที่ได้ตลอดช่วงน้ำท่วม',
 	'OpenStreetMap road query was unavailable; no road-accessibility value or score was produced.': 'เรียกข้อมูลถนนจาก OpenStreetMap ไม่สำเร็จ จึงยังประเมินความสะดวกในการเข้า–ออกและให้คะแนนไม่ได้',
@@ -16,6 +24,9 @@ export const translations = {
     'affected households': 'ครัวเรือนที่ได้รับผลกระทบ',
     'Provincial context only; excluded from district-history scoring.': 'เป็นข้อมูลภาพรวมจังหวัด ไม่นำไปเพิ่มปีที่ท่วมในคะแนนระดับอำเภอ/เขต',
     'District flood history unavailable': 'ไม่มีข้อมูลประวัติน้ำท่วมระดับอำเภอ/เขตที่จับคู่ได้',
+    'Historical flood recurrence': 'ประวัติน้ำท่วมซ้ำซาก',
+    'GISTDA map layers are shown as context only and excluded from scoring because their reuse terms are not stated.': 'แสดงชั้นข้อมูลแผนที่ของ GISTDA เพื่อประกอบการพิจารณาเท่านั้น และไม่นำมาคิดคะแนน เนื่องจากต้นทางไม่ได้ระบุเงื่อนไขการนำข้อมูลไปใช้ซ้ำ',
+    'GISTDA historical-recurrence screen: deducts 10 points for each year with a mapped flood recurrence in the 2011–2020 layer, on a 100-point base. No mapped recurrence does not prove a flood-free site.': 'เกณฑ์ประวัติน้ำท่วมซ้ำซากของ GISTDA: หัก 10 คะแนนต่อปีที่ชั้นข้อมูลช่วง 2011–2020 ระบุว่าเกิดน้ำท่วมซ้ำซาก จากฐาน 100 คะแนน การไม่พบข้อมูลในชั้นนี้ไม่ได้ยืนยันว่าพื้นที่ปลอดน้ำท่วม',
     'The 2025 provincial summary is additional context only and is excluded from district-history scoring. District counts in that source are totals, not named districts.': 'สรุประดับจังหวัดปี 2568 เป็นข้อมูลประกอบ ไม่นำมาคิดคะแนนประวัติระดับอำเภอ ช่องจำนวนอำเภอในต้นทางเป็นยอดรวม ไม่ได้ระบุชื่ออำเภอ',
     'DDPM district-history screen: deducts 10 points per reported flood year within the stated district-history period, on a 100-point base. This area-level history indicator is not a parcel-flood probability or an investment decision.': 'เกณฑ์ประวัติน้ำท่วมระดับเขตของ ปภ.: หัก 10 คะแนนต่อปีที่มีรายงาน ภายในช่วงปีของข้อมูลประวัติระดับอำเภอ จากฐาน 100 คะแนน เป็นตัวชี้วัดระดับพื้นที่ ไม่ใช่โอกาสน้ำท่วมของแปลงหรือคำตัดสินใจลงทุน',
     'Department of Disaster Prevention and Mitigation — village flood-history statistics': 'สถิติประวัติน้ำท่วมรายหมู่บ้าน — กรมป้องกันและบรรเทาสาธารณภัย',
