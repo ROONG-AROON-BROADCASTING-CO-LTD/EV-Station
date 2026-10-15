@@ -245,6 +245,9 @@ func (m *Memory) DeleteSiteAccess(_ context.Context, siteID, userID uuid.UUID) e
 func (m *Memory) CreateSite(_ context.Context, site domain.Site) (domain.Site, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if existing, ok := m.sites[site.ID]; ok {
+		return existing, nil
+	}
 	m.sites[site.ID] = site
 	return site, nil
 }
@@ -302,6 +305,11 @@ func (m *Memory) AddSiteImages(_ context.Context, siteID uuid.UUID, images []dom
 		return ErrNotFound
 	}
 	stored := m.images[siteID]
+	seen := map[string]bool{}
+	for _, image := range stored {
+		seen[evidenceFingerprint(image)] = true
+	}
+	images = uniqueEvidence(seen, images)
 	bytes := int64(0)
 	for _, image := range stored {
 		bytes += int64(len(image.Data))

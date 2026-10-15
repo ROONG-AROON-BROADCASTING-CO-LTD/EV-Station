@@ -2,6 +2,7 @@ export type Language = 'th' | 'en'
 
 export const translations = {
   th: {
+    'The site was saved. Retry to upload the selected files to the same site.': 'บันทึกพื้นที่แล้ว กรุณาลองอีกครั้งเพื่อแนบไฟล์ให้พื้นที่เดิม',
     'Local road snapshot date': 'วันที่ชุดข้อมูลถนนในระบบ',
     'Mapped one-way rule': 'กฎทางเดียวตามแผนที่',
     'Mapped access restriction': 'ข้อจำกัดการเข้าถึงตามแผนที่',

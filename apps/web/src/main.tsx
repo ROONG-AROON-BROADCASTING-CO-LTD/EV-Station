@@ -7,6 +7,9 @@ import './styles.css'
 import { I18nProvider } from './i18n/I18nProvider'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } })
+// A different account must never inherit cached customer records.
+window.addEventListener('rbc:auth-changed', () => queryClient.clear())
+window.addEventListener('rbc:auth-expired', () => queryClient.clear())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -75,6 +75,7 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
         </div>
         <div className="auth-modal-copy"><h1 id="auth-modal-title">{mode === 'login' ? t('Sign in') : t('Sign up')}</h1><p>{mode === 'login' ? (language === 'th' ? 'กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ' : 'Enter your email and password to access your account.') : (language === 'th' ? 'สร้างบัญชีเพื่อส่งทำเลและติดตามโครงการของคุณ' : 'Create an account to submit sites and track your project.')}</p></div>
         <form className="auth-modal-form" onSubmit={submit}>
+          {searchParams.get('reason') === 'expired' ? <p role="status">{language === 'th' ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้งเพื่อกลับไปทำงานต่อ หากมีไฟล์ที่ยังไม่ได้ส่ง กรุณาเลือกไฟล์อีกครั้ง' : 'Your session expired. Sign in again to continue. Please reselect any files that were not uploaded.'}</p> : null}
           {mode === 'register' ? <label>{t('Display name')}<input required autoComplete="name" value={name} onChange={event => setName(event.target.value)} autoFocus /></label> : null}
           <label>{t('Email')}<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} autoFocus={mode === 'login'} /></label>
           <label>{t('Password')}<input required minLength={8} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} /></label>

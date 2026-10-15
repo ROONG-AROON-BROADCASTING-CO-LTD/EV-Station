@@ -37,6 +37,32 @@ func TestValidateLocation(t *testing.T) {
 	}
 }
 
+func TestCreateRequestReplayIsScopedToAuthorAndPreservesFirstInput(t *testing.T) {
+	svc := NewService(repository.NewMemory())
+	ctx := context.Background()
+	actor, key := uuid.New(), uuid.New()
+	input := domain.CreateSiteInput{Name: "First submission", Address: "Bangkok", LandSize: 100, LandSizeUnit: "sqm"}
+	first, err := svc.CreateWithRequest(ctx, input, actor, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.Name = "Changed retry payload"
+	retry, err := svc.CreateWithRequest(ctx, input, actor, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry.ID != first.ID || retry.Name != first.Name || !retry.CreatedAt.Equal(first.CreatedAt) {
+		t.Fatalf("replay changed the saved record: %+v", retry)
+	}
+	other, err := svc.CreateWithRequest(ctx, input, uuid.New(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.ID == first.ID {
+		t.Fatal("different authors shared a create request")
+	}
+}
+
 func TestServiceCreateAndUpdatePreserveIdentityAndNormalizeDefaults(t *testing.T) {
 	repo := repository.NewMemory()
 	service := NewService(repo)

@@ -1,169 +1,243 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+const root = 'http://127.0.0.1:18080/api/v1'
 const password = 'E2e-password-123!'
-const nonce = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
-const owner = { email: 'owner@e2e.local', name: 'E2E Owner' }
-const sales = { email: `sales-${nonce}@e2e.local`, name: 'E2E Sales' }
-const admin = { email: `admin-${nonce}@e2e.local`, name: 'E2E Admin' }
-const customer = { email: `customer-${nonce}@e2e.local`, name: 'E2E Customer' }
-
-async function otpFor(request: APIRequestContext, email: string) {
-  await expect.poll(async () => {
-    const response = await request.get('http://127.0.0.1:18025/api/v2/messages')
-    const body = await response.json()
-    return body.items?.find((message: { To?: Array<{ Mailbox?: string; Domain?: string }> }) => message.To?.some(recipient => `${recipient.Mailbox}@${recipient.Domain}`.toLowerCase() === email))
-  }).not.toBeUndefined()
-  const response = await request.get('http://127.0.0.1:18025/api/v2/messages')
-  const body = await response.json()
-  const message = body.items.find((candidate: { To?: Array<{ Mailbox?: string; Domain?: string }> }) => candidate.To?.some(recipient => `${recipient.Mailbox}@${recipient.Domain}`.toLowerCase() === email))
-  const match = String(message?.Content?.Body || '').match(/\b(\d{6})\b/)
-  expect(match, 'registration email must contain a six-digit OTP').toBeTruthy()
-  return match![1]
+const artifacts = join(tmpdir(), 'rbc-functional-qa')
+mkdirSync(artifacts, { recursive: true })
+const photo = readFileSync(join(process.cwd(), 'public/rbc-group-logo.png'))
+// Valid one-page PDF: objects, xref and trailer, rather than a PDF signature only.
+function fixturePDF(label = 'RBC QA site plan') {
+  let pdf = '%PDF-1.4\n'
+  const stream = `BT /F1 18 Tf 50 750 Td (${label}) Tj ET\n`
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${stream.length} >>\nstream\n${stream}endstream`]
+  const offsets = [0]
+  objects.forEach((object, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${object}\nendobj\n` })
+  const xref = Buffer.byteLength(pdf)
+  pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+  return Buffer.from(pdf)
 }
-
-async function signUp(page: Page, request: APIRequestContext, account: { email: string; name: string }) {
-  await page.goto('/login?mode=register')
-  await page.getByRole('tab', { name: 'สมัครสมาชิก' }).click()
-  await page.getByLabel('ชื่อที่แสดง').fill(account.name)
-  await page.getByLabel('อีเมล').fill(account.email)
-  await page.getByLabel('รหัสผ่าน').fill(password)
-  await page.getByRole('button', { name: 'ส่งรหัสยืนยัน' }).click()
-  await page.getByLabel('รหัสยืนยัน 6 หลัก').fill(await otpFor(request, account.email))
-  await page.getByRole('button', { name: 'สร้างบัญชีและเข้าสู่ระบบ' }).click()
-  await expect(page.getByRole('button', { name: 'ออกจากระบบ' })).toBeVisible()
+const files = [
+  { name: 'site.png', mimeType: 'image/png', buffer: photo },
+  { name: 'plan.pdf', mimeType: 'application/pdf', buffer: fixturePDF() },
+]
+async function loginAPI(request: APIRequestContext, email = 'owner@e2e.local') {
+  const response = await request.post(`${root}/auth/login`, { data: { email, password } })
+  expect(response.ok()).toBeTruthy()
+  return (await response.json()).data
 }
-
-async function signIn(page: Page, account: { email: string }) {
+async function signIn(page: Page, email = 'owner@e2e.local') {
   await page.goto('/login')
-  await page.getByLabel('อีเมล').fill(account.email)
-  await page.getByLabel('รหัสผ่าน').fill(password)
-  await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'ออกจากระบบ' })).toBeVisible()
+  await page.getByLabel('Email', { exact: true }).fill(email)
+  await page.getByLabel('Password', { exact: true }).fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
 }
-
-test.describe.serial('isolated end-to-end customer-site workflow', () => {
-  test('super admin signs up and creates sales/admin team accounts', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'full backend workflow runs once on desktop; mobile has focused smoke coverage')
-    await signIn(page, owner)
-    await page.getByRole('link', { name: 'ตั้งค่า' }).click()
-    await expect(page.getByRole('heading', { name: /สร้างบัญชีทีมงาน|Create team account/ })).toBeVisible()
-    for (const account of [sales, admin]) {
-      await page.getByLabel('ชื่อที่แสดง').last().fill(account.name)
-      await page.getByLabel('อีเมล').last().fill(account.email)
-      await page.getByLabel('รหัสผ่าน').last().fill(password)
-      await page.getByLabel('บทบาท').last().selectOption(account === sales ? 'sales' : 'admin')
-      await page.getByRole('button', { name: 'สร้างผู้ใช้' }).click()
-      await expect(page.getByText(account.email)).toBeVisible()
-    }
-  })
-
-  test('sales creates a site, uploads an image/PDF, edits it, and runs analysis', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'full backend workflow runs once on desktop; mobile has focused smoke coverage')
-    const pageErrors: string[] = []
-    const unexpectedHTTPFailures: string[] = []
-    page.on('pageerror', error => pageErrors.push(error.message))
-    page.on('response', response => {
-      if (response.status() < 400) return
-      if (response.status() === 503 && /\/analyses\/[^/]+\/ai-assessment$/.test(response.url())) return
-      unexpectedHTTPFailures.push(`${response.status()} ${response.url()}`)
-    })
-    await signIn(page, sales)
-    await page.getByRole('main').getByRole('link', { name: 'ส่งข้อมูลพื้นที่' }).click()
-    await page.getByLabel('ชื่อโครงการหรือสถานที่ตั้ง *').fill('E2E Station Candidate')
-    await page.getByLabel('ละติจูด').fill('13.7563')
-    await page.getByLabel('ลองจิจูด').fill('100.5018')
-    await page.getByLabel('ขนาดพื้นที่ *').fill('400')
-    await page.getByLabel('หน่วยพื้นที่ *').selectOption('sqwah')
-    const fileInputs = page.locator('input[type=file]')
-    await fileInputs.nth(0).setInputFiles({ name: 'site.png', mimeType: 'image/png', buffer: Buffer.from('89504e470d0a1a0a', 'hex') })
-    await fileInputs.nth(1).setInputFiles({ name: 'deed.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% E2E\n') })
-    await page.getByRole('button', { name: 'บันทึกพื้นที่' }).click()
-    await expect(page.getByRole('heading', { name: 'E2E Station Candidate' })).toBeVisible()
-    await expect(page.getByText('2 ไฟล์')).toBeVisible()
-    await page.getByRole('link', { name: 'แดชบอร์ด' }).click()
-    await expect(page).toHaveURL(/\/dashboard$/)
-    await expect(page.getByText('E2E Station Candidate', { exact: true }).first()).toBeVisible()
-    await page.getByRole('link', { name: 'ดูข้อมูลพื้นที่' }).click()
-    await expect(page.getByRole('heading', { name: 'E2E Station Candidate' })).toBeVisible()
-    await page.getByRole('link', { name: 'แดชบอร์ด' }).click()
-    await page.getByRole('link', { name: 'แก้ไข' }).click()
-    await page.getByLabel('ชื่อโครงการหรือสถานที่ตั้ง *').fill('E2E Station Updated')
-    await page.getByRole('button', { name: 'บันทึกการแก้ไข' }).click()
-    await expect(page.getByRole('heading', { name: 'E2E Station Updated' })).toBeVisible()
-    await page.route('**/api/v1/analyses/*', async route => {
-      const path = new URL(route.request().url()).pathname
-      if (route.request().method() !== 'GET' || !/\/api\/v1\/analyses\/[^/]+$/.test(path)) {
-        await route.continue()
-        return
-      }
-      const response = await route.fetch()
-      if (!response.ok()) {
-        await route.fulfill({ response })
-        return
-      }
-      const body = await response.json() as { data?: { metrics?: Array<Record<string, unknown>> } }
-      const flood = body.data?.metrics?.find(metric => metric.type === 'flood')
-      if (flood) {
-        Object.assign(flood, {
-          rawValue: {
-            assessmentType: 'administrative_district_historical_reports',
-            province: 'เชียงใหม่', district: 'เมืองเชียงใหม่',
-            periodStartYear: 2562, periodEndYear: 2567,
-            reportedFloodYears: [2562, 2564, 2567], reportedFloodYearCount: 3,
-            reportedVillageIncidents: 7, affectedSubdistrictCount: 4,
-            latestProvinceReport: { province: 'เชียงใหม่', year: 2568, geographicScope: 'province', reportedOccurrences: 40, affectedHouseholds: 1000 },
-          },
-          normalizedScore: 70,
-          status: 'estimated',
-        })
-      }
-      await route.fulfill({ response, json: body })
-    })
-    await page.getByRole('button', { name: 'เริ่มวิเคราะห์' }).click()
-    await expect(page).toHaveURL(/\/analysis\//)
-    await expect(page.getByRole('button', { name: 'ดาวน์โหลด PDF' })).toBeVisible({ timeout: 30_000 })
-    const floodSummary = page.getByText(/ประวัติน้ำท่วมระดับอำเภอ\/เขต: 3 จาก 6 ปี/)
-    await expect(floodSummary).toBeVisible()
-    await expect(page.getByText(/สรุปอุทกภัยล่าสุดระดับจังหวัด \(2568\)/)).toBeVisible()
-    await expect(page.getByText(/ไม่นำไปเพิ่มปีที่ท่วมในคะแนนระดับอำเภอ\/เขต/)).toBeVisible()
-    await floodSummary.scrollIntoViewIfNeeded()
-    await page.screenshot({ path: join(tmpdir(), 'rbc-flood-history-analysis.png') })
-    const analysisURL = page.url()
-    await page.goto('/')
-    await page.getByRole('button', { name: 'EN', exact: true }).click()
-    await page.goto(analysisURL)
-    await expect(page.getByText(/District flood history: 3 of 6 years/)).toBeVisible()
-    await expect(page.getByText(/Latest provincial flood summary \(2025\)/)).toBeVisible()
-    await expect.poll(() => pageErrors, { message: 'analysis page must not throw a browser runtime error' }).toEqual([])
-    expect(unexpectedHTTPFailures, 'the isolated flow must not return unexpected HTTP errors').toEqual([])
-  })
-
-  test('admin and customer retain their intended UI permissions', async ({ browser, request }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'full backend workflow runs once on desktop; mobile has focused smoke coverage')
-    const adminContext = await browser.newContext()
-    const adminPage = await adminContext.newPage()
-    await signIn(adminPage, admin)
-    await expect(adminPage.getByRole('link', { name: 'การใช้งาน API' })).toBeVisible()
-    await expect(adminPage.getByText('สร้างบัญชีทีมงาน')).toHaveCount(0)
-    await adminContext.close()
-
-    const customerPage = await browser.newPage()
-    await signUp(customerPage, request, customer)
-    await expect(customerPage.getByRole('link', { name: 'การใช้งาน API' })).toHaveCount(0)
-    await expect(customerPage.getByRole('link', { name: 'พื้นที่ที่ยังไม่ลงทุน' })).toHaveCount(0)
-    await customerPage.goto('/sites/new')
-    await expect(customerPage.getByRole('heading', { name: 'เพิ่มพื้นที่ใหม่' })).toBeVisible()
-    await expect(customerPage.getByLabel('ละติจูด')).toHaveCount(0)
-    await expect(customerPage.getByLabel('ลองจิจูด')).toHaveCount(0)
-  })
+async function fillSite(page: Page, name: string) {
+  await page.goto('/sites/new')
+  await page.getByLabel('Project or location name *').fill(name)
+  await page.getByLabel('Latitude', { exact: true }).fill('13.7563')
+  await page.getByLabel('Longitude', { exact: true }).fill('100.5018')
+  await page.getByLabel('Land size *', { exact: true }).fill('400')
+}
+async function attach(page: Page) {
+  await page.locator('input[type=file]').nth(0).setInputFiles(files[0])
+  await page.locator('input[type=file]').nth(1).setInputFiles(files[1])
+}
+async function noOverflow(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy()
+}
+async function completed(request: APIRequestContext, headers: Record<string, string>, siteId: string) {
+  const response = await request.post(`${root}/sites/${siteId}/analyses`, { headers, data: { radiusMeters: 3000 } })
+  expect(response.ok()).toBeTruthy()
+  let run = (await response.json()).data
+  await expect.poll(async () => {
+    run = (await (await request.get(`${root}/analyses/${run.id}`, { headers })).json()).data
+    return run.status
+  }, { timeout: 45_000 }).toBe('completed')
+  return run
+}
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { if (!localStorage.getItem('rbc-language')) localStorage.setItem('rbc-language', 'en') })
 })
 
-test('mobile login view renders the primary account controls', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile', 'mobile-only smoke coverage')
-  await page.goto('/login')
-  await expect(page.getByRole('tablist', { name: 'การเข้าใช้งานบัญชี' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'สมัครสมาชิก' })).toBeVisible()
+test('ten valid documents survive reload and retries at the file quota', async ({ page, request }) => {
+  await signIn(page)
+  await fillSite(page, 'QA ten documents ' + Date.now())
+  const documents = Array.from({ length: 10 }, (_, i) => ({ name: `plan-${i}.pdf`, mimeType: 'application/pdf', buffer: fixturePDF(`RBC QA plan ${i}`) }))
+  await page.locator('input[type=file]').nth(1).setInputFiles(documents)
+  // Selecting the same group replaces the selection; it must not count twice.
+  await page.locator('input[type=file]').nth(1).setInputFiles(documents)
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+  await expect(page.getByText('10 files', { exact: true })).toBeVisible()
+  const siteId = new URL(page.url()).pathname.split('/').pop()
+  const session = await loginAPI(request)
+  const headers = { Authorization: `Bearer ${session.token}` }
+  const replay = await request.post(`${root}/sites/${siteId}/images`, { headers, multipart: { images: { name: documents[0].name, mimeType: 'application/pdf', buffer: documents[0].buffer } } })
+  expect(replay.ok()).toBeTruthy()
+  const overQuota = await request.post(`${root}/sites/${siteId}/images`, { headers, multipart: { images: { name: 'extra.pdf', mimeType: 'application/pdf', buffer: fixturePDF('Extra document') } } })
+  expect(overQuota.status()).toBe(400)
+  await page.reload()
+  await expect(page.getByText('10 files', { exact: true })).toBeVisible()
+  await noOverflow(page)
+})
+
+test('owner uploads valid files, edits, analyzes and reopens a saved report', async ({ page, request }, info) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await signIn(page)
+  const name = `QA ${info.project.name} ${Date.now()}`
+  await fillSite(page, name)
+  await attach(page)
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+  await expect(page.getByText('2 files', { exact: true })).toBeVisible()
+  const siteURL = page.url()
+  await page.reload()
+  await expect(page.getByRole('img', { name: 'Site photo' })).toBeVisible()
+  expect(await page.getByRole('img', { name: 'Site photo' }).evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  await page.goto(`${siteURL}/edit`)
+  await page.getByLabel('Project or location name *').fill(`${name} edited`)
+  await page.reload()
+  await expect(page.getByLabel('Project or location name *')).toHaveValue(`${name} edited`)
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(page.getByRole('heading', { name: `${name} edited` })).toBeVisible()
+  await page.getByRole('button', { name: 'Run Analysis', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible({ timeout: 45_000 })
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible()
+  await noOverflow(page)
+  await page.screenshot({ path: join(artifacts, `${info.project.name}-analysis.png`), fullPage: true })
+  expect(errors).toEqual([])
+  if (info.project.name === 'desktop') {
+    await page.evaluate(() => { window.print = () => { document.body.dataset.printInvoked = 'yes' } })
+    await page.getByRole('button', { name: 'Download PDF', exact: true }).click()
+    expect(await page.locator('body').getAttribute('data-print-invoked')).toBe('yes')
+    await page.evaluate(() => document.fonts.ready)
+    await page.pdf({ path: join(artifacts, 'report-missing-data.pdf'), printBackground: true, preferCSSPageSize: true })
+    // Synthetic assumptions exercise pagination; these are not assessment data.
+    const session = await loginAPI(request)
+    const runId = new URL(page.url()).pathname.split('/').pop()
+    const response = await request.get(`${root}/analyses/${runId}`, { headers: { Authorization: `Bearer ${session.token}` } })
+    const body = await response.json()
+    for (const metric of body.data.metrics) metric.assumptions = [Array.from({ length: 12 }, (_, i) => `QA pagination paragraph ${i}: ${'Evidence requires field verification. '.repeat(8)}`).join(' ') + ' QA-END-OF-LONG-REPORT']
+    await page.route(`**/api/v1/analyses/${runId}`, route => route.fulfill({ json: body }))
+    await page.reload()
+    await expect(page.getByText('QA-END-OF-LONG-REPORT', { exact: false }).first()).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    await page.pdf({ path: join(artifacts, 'report-long.pdf'), printBackground: true, preferCSSPageSize: true })
+  }
+})
+
+for (const failure of ['create-response-lost', 'upload-response-lost', 'upload-rejected'] as const) {
+  test(`retry ${failure} produces one site and one copy of each file`, async ({ page, request }) => {
+    await signIn(page)
+    const name = `QA ${failure} ${Date.now()}`
+    await fillSite(page, name)
+    await attach(page)
+    let failed = false
+    await page.route('**/api/v1/sites**', async route => {
+      const path = new URL(route.request().url()).pathname
+      const target = failure === 'create-response-lost' ? path === '/api/v1/sites' : /\/sites\/[^/]+\/images$/.test(path)
+      if (failed || !target || route.request().method() !== 'POST') return route.continue()
+      failed = true
+      if (failure === 'upload-rejected') return route.fulfill({ status: 503, json: { error: { code: 'UPLOAD_FAILED', message: 'QA temporary failure' } } })
+      const accepted = await route.fetch()
+      expect(accepted.ok()).toBeTruthy()
+      await route.abort('connectionreset')
+    })
+    await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+    await expect(page.getByRole('alert').last()).toBeVisible()
+    if (failure !== 'upload-rejected') {
+      await page.reload()
+      await expect(page.getByLabel('Project or location name *')).toHaveValue(name)
+      await attach(page)
+    }
+    await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+    await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+    await expect(page.getByText('2 files', { exact: true })).toBeVisible()
+    const session = await loginAPI(request)
+    const result = await request.get(`${root}/sites`, { headers: { Authorization: `Bearer ${session.token}` } })
+    expect((await result.json()).data.filter((site: { name: string }) => site.name === name)).toHaveLength(1)
+  })
+}
+
+test('offline, reload and expired sessions preserve the unfinished form', async ({ page, context }) => {
+  await signIn(page)
+  const name = `QA recovery ${Date.now()}`
+  await fillSite(page, name)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Saving…', exact: true })).toBeDisabled()
+  await context.setOffline(false)
+  await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+  await fillSite(page, name + ' draft')
+  await page.reload()
+  await expect(page.getByLabel('Project or location name *')).toHaveValue(name + ' draft')
+  await page.route('**/api/v1/sites', route => route.request().method() === 'POST' ? route.fulfill({ status: 401, json: { error: { code: 'INVALID_TOKEN' } } }) : route.continue())
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page).toHaveURL(/\/login\?reason=expired/)
+  await expect(page.getByRole('status')).toContainText('session expired')
+  await page.unroute('**/api/v1/sites')
+  await page.getByLabel('Email', { exact: true }).fill('owner@e2e.local')
+  await page.getByLabel('Password', { exact: true }).fill(password)
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/sites\/new$/)
+  await expect(page.getByLabel('Project or location name *')).toHaveValue(name + ' draft')
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+})
+
+test('sales and customer access is enforced by the API and reports reopen', async ({ page, request }, info) => {
+  const owner = await loginAPI(request)
+  const ownerHeaders = { Authorization: `Bearer ${owner.token}` }
+  const unique = `${info.project.name}-${Date.now()}`
+  const email = `sales-${unique}@e2e.local`
+  expect((await request.post(`${root}/users`, { headers: ownerHeaders, data: { email, displayName: 'QA Sales', password, role: 'sales' } })).ok()).toBeTruthy()
+  await signIn(page, email)
+  await fillSite(page, `QA Sales ${unique}`)
+  await attach(page)
+  await page.getByRole('button', { name: 'Save Site', exact: true }).click()
+  await expect(page).toHaveURL(/\/sites\/[0-9a-f-]+$/)
+  const salesSiteId = new URL(page.url()).pathname.split('/').pop()!
+  await page.getByRole('button', { name: 'Run Analysis', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible({ timeout: 45_000 })
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible()
+  const sales = await loginAPI(request, email)
+  expect((await request.get(`${root}/users`, { headers: { Authorization: `Bearer ${sales.token}` } })).status()).toBe(403)
+  const customerEmail = `customer-${unique}@e2e.local`
+  expect((await request.post(`${root}/auth/register/request-otp`, { data: { email: customerEmail } })).ok()).toBeTruthy()
+  let otp = ''
+  await expect.poll(async () => {
+    const mail = await (await request.get('http://127.0.0.1:18025/api/v2/messages')).json()
+    const message = mail.items.find((item: { To: { Mailbox: string; Domain: string }[] }) => item.To.some(to => `${to.Mailbox}@${to.Domain}` === customerEmail))
+    otp = String(message?.Content?.Body || '').match(/\b\d{6}\b/)?.[0] || ''
+    return otp
+  }).toMatch(/^\d{6}$/)
+  expect((await request.post(`${root}/auth/register`, { data: { email: customerEmail, displayName: 'QA Customer', password, otp } })).ok()).toBeTruthy()
+  const customer = await loginAPI(request, customerEmail)
+  const headers = { Authorization: `Bearer ${customer.token}` }
+  expect((await request.get(`${root}/sites/${salesSiteId}`, { headers })).status()).toBe(403)
+  expect((await request.get(`${root}/users`, { headers })).status()).toBe(403)
+  const site = await request.post(`${root}/sites`, { headers, data: { name: 'พื้นที่ทดสอบรายงานภาษาไทย ' + 'สถานีชาร์จรถยนต์ไฟฟ้า '.repeat(5), latitude: 13.7563, longitude: 100.5018, landSize: 400, landSizeUnit: 'sqm' } })
+  expect(site.ok()).toBeTruthy()
+  const siteId = (await site.json()).data.id
+  expect((await request.post(`${root}/sites/${siteId}/analyses`, { headers, data: { radiusMeters: 3000 } })).status()).toBe(403)
+  const run = await completed(request, ownerHeaders, siteId)
+  await page.evaluate(session => { localStorage.setItem('rbc-session', JSON.stringify(session)); localStorage.setItem('rbc-session-token', session.token) }, customer)
+  await page.goto(`/analysis/${run.id}`)
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Run new analysis', exact: true })).toHaveCount(0)
+  await noOverflow(page)
+  if (info.project.name === 'desktop') {
+    await page.evaluate(() => localStorage.setItem('rbc-language', 'th'))
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'ดาวน์โหลด PDF', exact: true })).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    await page.pdf({ path: join(artifacts, 'report-customer.pdf'), printBackground: true, preferCSSPageSize: true })
+  }
 })

@@ -483,7 +483,18 @@ func (h *Handler) CreateSite(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
 		return
 	}
-	result, err := h.sites.Create(c.Request.Context(), input)
+	var result domain.Site
+	var err error
+	if key := c.GetHeader("X-Request-ID"); key != "" {
+		requestID, parseErr := uuid.Parse(key)
+		if parseErr != nil {
+			writeError(c, http.StatusBadRequest, "INVALID_INPUT", "X-Request-ID must be a UUID.")
+			return
+		}
+		result, err = h.sites.CreateWithRequest(c.Request.Context(), input, userID, requestID)
+	} else {
+		result, err = h.sites.Create(c.Request.Context(), input)
+	}
 	if errors.Is(err, site.ErrInvalidLocation) {
 		writeError(c, http.StatusBadRequest, "INVALID_LOCATION", err.Error())
 		return
@@ -588,23 +599,9 @@ func (h *Handler) UploadSiteImages(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "Upload between 1 and 10 images.")
 		return
 	}
-	existing, err := h.repo.ListSiteImages(c.Request.Context(), id)
-	if errors.Is(err, repository.ErrNotFound) {
-		writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
-		return
-	}
-	if err != nil {
-		writeError(c, http.StatusInternalServerError, "SITE_IMAGE_LOAD_FAILED", "Unable to prepare site image upload.")
-		return
-	}
-	if len(existing)+len(files) > maxSiteImages {
-		writeError(c, http.StatusBadRequest, "INVALID_SITE_IMAGES", "A site can have no more than 10 images. Remove existing images or upload fewer images.")
-		return
-	}
 	var existingBytes int64
-	for _, image := range existing {
-		existingBytes += image.SizeBytes
-	}
+	// Persistent quota checks and duplicate detection run together under the
+	// repository's parent-site lock, including retries at an already-full quota.
 	images := make([]domain.SiteImage, 0, len(files))
 	for fileIndex, file := range files {
 		if file.Size <= 0 || file.Size > maxSitePDFBytes {

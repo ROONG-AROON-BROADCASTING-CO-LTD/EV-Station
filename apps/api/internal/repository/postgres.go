@@ -212,7 +212,7 @@ func scanSite(row pgx.Row) (domain.Site, error) {
 func (p *Postgres) CreateSite(ctx context.Context, site domain.Site) (domain.Site, error) {
 	query := `INSERT INTO sites (id,name,contact_name,contact_phone,address,latitude,longitude,location,land_size,land_size_unit,google_maps_url,notes,internet_available,internet_supports_24ghz,land_leveling_required,frontage_meters,electrical_extension_km,electrical_supply_type,input_status,created_at,updated_at)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-	RETURNING ` + siteColumns
+	ON CONFLICT (id) DO UPDATE SET id=sites.id RETURNING ` + siteColumns
 	return scanSite(p.pool.QueryRow(ctx, query, site.ID, site.Name, site.ContactName, site.ContactPhone, site.Address, site.Latitude, site.Longitude, site.LandSize, site.LandSizeUnit, site.GoogleMapsURL, site.Notes, site.InternetAvailable, site.InternetSupports24GHz, site.LandLevelingRequired, site.FrontageMeters, site.ElectricalExtensionKM, site.ElectricalSupplyType, site.InputStatus, site.CreatedAt, site.UpdatedAt))
 }
 
@@ -281,6 +281,25 @@ func (p *Postgres) AddSiteImages(ctx context.Context, siteID uuid.UUID, images [
 	}
 	var existingCount int
 	var existingBytes int64
+	seen := map[string]bool{}
+	rows, err := tx.Query(ctx, `SELECT mime_type || ':' || encode(digest(image_data,'sha256'),'hex') FROM site_images WHERE site_id=$1`, siteID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var key string
+		if err = rows.Scan(&key); err != nil {
+			rows.Close()
+			return err
+		}
+		seen[key] = true
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	images = uniqueEvidence(seen, images)
 	if err = tx.QueryRow(ctx, `SELECT count(*),COALESCE(sum(octet_length(image_data)),0) FROM site_images WHERE site_id=$1`, siteID).Scan(&existingCount, &existingBytes); err != nil {
 		return err
 	}

@@ -122,7 +122,7 @@ export const api = {
 	getLatestAnalysisForSite: (id: string) => request<AnalysisRun | null>(`/sites/${id}/latest-analysis`),
 	listSiteImages: (id: string) => request<SiteAttachment[]>(`/sites/${id}/images`),
 	downloadSiteImage: (siteID: string, imageID: string) => download(`/sites/${siteID}/images/${imageID}`),
-  createSite: (input: CreateSiteInput) => request<Site>('/sites', { method: 'POST', body: JSON.stringify(input) }),
+  createSite: (input: CreateSiteInput, requestId?: string) => request<Site>('/sites', { method: 'POST', body: JSON.stringify(input), headers: requestId ? { 'X-Request-ID': requestId } : undefined }),
 	createLiffSite: (input: CreateSiteInput, idToken: string, requestId: string) => liffRequest<{ site: Site }>('/liff/sites', idToken, { method: 'POST', body: JSON.stringify({ ...input, requestId }) }),
 	getLiffCustomerProfile: (idToken: string) => liffRequest<{ profile: LineCustomerProfile | null }>('/liff/customer-profile', idToken).then(result => result.profile),
 	completeLiffSite: (id: string, idToken: string) => liffRequest<{ notificationAccepted: boolean }>(`/liff/sites/${id}/complete`, idToken, { method: 'POST' }),

@@ -21,6 +21,13 @@ func (s *Service) Create(ctx context.Context, input domain.CreateSiteInput) (dom
 	return s.save(ctx, uuid.New(), input, time.Now().UTC(), true)
 }
 
+// A retried browser submission gets the same ID, scoped to its authenticated
+// author. A dropped HTTP response must not create a second customer record.
+func (s *Service) CreateWithRequest(ctx context.Context, input domain.CreateSiteInput, author, requestID uuid.UUID) (domain.Site, error) {
+	id := uuid.NewSHA1(author, []byte("web-site:"+requestID.String()))
+	return s.save(ctx, id, input, time.Now().UTC(), true)
+}
+
 func (s *Service) Update(ctx context.Context, id uuid.UUID, input domain.CreateSiteInput) (domain.Site, error) {
 	existing, err := s.repo.GetSite(ctx, id)
 	if err != nil {

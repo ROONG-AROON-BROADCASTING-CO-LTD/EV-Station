@@ -97,6 +97,9 @@ describe('App access boundaries', () => {
 
     window.dispatchEvent(new Event('rbc:auth-expired'))
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+    expect(screen.getByRole('status').textContent).toContain('session expired')
+    fireEvent.click(screen.getByRole('button', { name: 'Close sign-in dialog' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 })

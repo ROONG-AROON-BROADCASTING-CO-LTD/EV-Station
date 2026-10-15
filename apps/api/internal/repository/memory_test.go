@@ -43,7 +43,7 @@ func TestMemorySiteEvidenceQuota(t *testing.T) {
 	}
 	images := make([]domain.SiteImage, MaxSiteEvidenceFiles)
 	for i := range images {
-		images[i] = domain.SiteImage{ID: uuid.New(), SiteID: siteID, Data: []byte("photo")}
+		images[i] = domain.SiteImage{ID: uuid.New(), SiteID: siteID, Data: []byte{byte(i)}}
 	}
 	if err := repo.AddSiteImages(ctx, siteID, images); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,30 @@ func TestMemorySiteEvidenceQuota(t *testing.T) {
 	if err := repo.AddSiteImages(ctx, otherSiteID, []domain.SiteImage{{ID: uuid.New(), SiteID: otherSiteID, Data: large}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.AddSiteImages(ctx, otherSiteID, []domain.SiteImage{{ID: uuid.New(), SiteID: otherSiteID, Data: large}}); !errors.Is(err, ErrSiteEvidenceLimit) {
+	different := append([]byte(nil), large...)
+	different[0] = 1
+	if err := repo.AddSiteImages(ctx, otherSiteID, []domain.SiteImage{{ID: uuid.New(), SiteID: otherSiteID, Data: different}}); !errors.Is(err, ErrSiteEvidenceLimit) {
 		t.Fatalf("byte overage: got %v, want quota error", err)
+	}
+}
+
+func TestEvidenceRetriesDoNotConsumeQuota(t *testing.T) {
+	repo := NewMemory()
+	ctx := context.Background()
+	id := uuid.New()
+	repo.CreateSite(ctx, domain.Site{ID: id})
+	images := []domain.SiteImage{}
+	for i := range MaxSiteEvidenceFiles {
+		images = append(images, domain.SiteImage{ID: uuid.New(), SiteID: id, MIMEType: "image/png", Data: []byte{byte(i)}})
+	}
+	if err := repo.AddSiteImages(ctx, id, images); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddSiteImages(ctx, id, images); err != nil {
+		t.Fatal("retry at full quota failed", err)
+	}
+	stored, _ := repo.GetSiteImages(ctx, id)
+	if len(stored) != MaxSiteEvidenceFiles {
+		t.Fatal("duplicate evidence retained", len(stored))
 	}
 }

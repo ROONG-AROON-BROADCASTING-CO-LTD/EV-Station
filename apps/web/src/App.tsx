@@ -29,13 +29,22 @@ export default function App() {
   const { t } = useI18n()
   const { pathname, search } = useLocation()
   const [session, setSession] = useState<AuthSession | null>(readSession)
-  const authenticate = (next: AuthSession) => { saveSession(next); setSession(next) }
-  const logout = () => { clearSession(); setSession(null) }
+  const [expiredReturnTo, setExpiredReturnTo] = useState<string>()
+  const authenticate = (next: AuthSession) => {
+    window.dispatchEvent(new Event('rbc:auth-changed'))
+    setExpiredReturnTo(undefined)
+    saveSession(next); setSession(next)
+  }
+  const logout = () => { clearSession(); window.dispatchEvent(new Event('rbc:auth-changed')); setExpiredReturnTo(undefined); setSession(null) }
   useEffect(() => {
-    const handleExpiredSession = () => setSession(null)
+    const handleExpiredSession = () => {
+      setSession(null)
+      setExpiredReturnTo(pathname + search)
+    }
     window.addEventListener('rbc:auth-expired', handleExpiredSession)
     return () => window.removeEventListener('rbc:auth-expired', handleExpiredSession)
-  }, [])
+  }, [pathname, search])
+  if (!session && expiredReturnTo && /^\/(dashboard|sites|analysis|analyses|settings|api-usage|not-investing|data-sources|guide\/admin)(\/|$)/.test(pathname)) return <Navigate to={`/login?reason=expired&returnTo=${encodeURIComponent(expiredReturnTo)}`} replace />
   if (pathname === '/liff/site-submission') {
     const query = new URLSearchParams(search)
     const liffState = query.get('liff.state')
@@ -48,6 +57,10 @@ export default function App() {
   if (pathname === '/guide/admin' && !session) return <Navigate to="/login" replace />
   if (pathname === '/welcome') return <Navigate to="/" replace />
   if (!session) return <Routes><Route path="/" element={<LandingPage />} /><Route path="/investment" element={<InvestmentPage />} /><Route path="/branches" element={<BranchesPage />} /><Route path="/contact" element={<ContactPage />} /><Route path="/login" element={<><LandingPage /><LoginPage onAuthenticated={authenticate} /></>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>
+  if (pathname === '/login') {
+    const returnTo = new URLSearchParams(search).get('returnTo') || '/dashboard'
+    return <Navigate to={/^\/(dashboard|sites|analysis)(\/|\?|$)/.test(returnTo) ? returnTo : '/dashboard'} replace />
+  }
   if (pathname === '/') return <LandingPage authenticated accountName={session.user.displayName} onLogout={logout} />
   if (pathname === '/investment') return <InvestmentPage authenticated accountName={session.user.displayName} onLogout={logout} />
   if (pathname === '/branches') return <BranchesPage authenticated accountName={session.user.displayName} onLogout={logout} />
@@ -55,8 +68,8 @@ export default function App() {
   return <AppShell onLogout={logout} userName={session.user.displayName} role={session.user.role}><Suspense fallback={<LoadingState label={t('Loading page…')}/> }><Routes>
     <Route path="/dashboard" element={<DashboardPage role={session.user.role} />} />
     <Route path="/guide/admin" element={session.user.role === 'customer' ? <Navigate to="/dashboard" replace /> : <GuidePage audience="admin" />} />
-    <Route path="/sites/new" element={<NewSitePage role={session.user.role} />} />
-		<Route path="/sites/:id/edit" element={<NewSitePage role={session.user.role} />} />
+    <Route path="/sites/new" element={<NewSitePage key={`${session.user.id}:${pathname}`} role={session.user.role} />} />
+		<Route path="/sites/:id/edit" element={<NewSitePage key={`${session.user.id}:${pathname}`} role={session.user.role} />} />
     <Route path="/sites/:id" element={<SitePage role={session.user.role} />} />
     <Route path="/analysis/:id" element={<AnalysisPage role={session.user.role} />} />
     <Route path="/analyses" element={session.user.role === 'customer' ? <Navigate to="/" replace /> : <Placeholder title={t('Analyses')} />} />

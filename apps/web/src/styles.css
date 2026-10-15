@@ -132,13 +132,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .analysis-print-report .print-location-map-image { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; background: #eef3f7; }
   .analysis-print-report .print-location-map-unavailable { display: grid; aspect-ratio: 3 / 2; place-items: center; background: #eef3f7; color: #475569; font-size: 10pt; }
   .analysis-print-report .print-location-map figcaption { padding: 8px 10px; font-size: 9pt; color: #475569; }
-  .analysis-print-report section { break-inside: avoid; box-shadow: none !important; }
-  .analysis-print-report .print-breakable-table { break-before: page; break-inside: auto; }
+  .analysis-print-report > .grid { display: block; }
+  .analysis-print-report section { break-inside: auto; box-shadow: none !important; }
+  .analysis-print-report h2, .analysis-print-report h3 { break-after: avoid; }
+  .analysis-print-report .print-location-map { break-inside: avoid; }
+  .analysis-print-report .print-breakable-table { break-before: page; break-inside: auto; overflow: visible !important; }
   .analysis-print-report .overflow-x-auto { overflow: visible !important; }
   .analysis-print-report table { min-width: 0 !important; font-size: 9pt; }
+  .analysis-print-report .print-breakable-table table { table-layout: fixed; }
+  .analysis-print-report .print-breakable-table th:first-child { width: 24%; }
+  .analysis-print-report .print-breakable-table th:last-child { width: 18%; }
   .analysis-print-report thead { display: table-header-group; }
-  .analysis-print-report tr { break-inside: avoid; break-after: auto; }
-  .analysis-print-report th, .analysis-print-report td { padding: 8px 10px !important; }
+  .analysis-print-report tr { break-inside: auto; break-after: auto; }
+  .analysis-print-report th, .analysis-print-report td { padding: 8px 10px !important; vertical-align: top; overflow-wrap: anywhere; }
   .analysis-print-report .text-6xl { font-size: 48pt; }
   .analysis-print-report .mt-8 { margin-top: 18px; }
   .analysis-print-report .mt-6 { margin-top: 14px; }
