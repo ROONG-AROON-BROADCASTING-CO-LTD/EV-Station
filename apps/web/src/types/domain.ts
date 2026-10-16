@@ -1,4 +1,13 @@
 export type DataStatus = 'verified' | 'estimated' | 'preliminary' | 'missing'
+export interface DocumentMetadata {
+  title: string; category: 'contract' | 'proposal' | 'plan' | 'handover'; contractNumber: string; counterparty: string;
+  signedDate: string; startDate: string; endDate: string; responsible: string; summary: string;
+  status: 'draft' | 'review' | 'awaiting_signature' | 'signed' | 'active' | 'expired' | 'cancelled'; signaturesConfirmed: boolean; shared: boolean;
+}
+export interface ProjectDocument { id: string; siteId: string; siteName: string; metadata: DocumentMetadata; latestVersion: number; createdAt: string; updatedAt: string }
+export interface DocumentVersion { version: number; filename: string; size: number; sha256: string; actorId: string; createdAt: string }
+export interface DocumentTemplate { id: string; title: string; filename: string; size: number; sha256: string; createdAt: string }
+export interface DocumentEvent { id: number; actorId: string; actorName: string; action: string; detail?: { before?: Partial<DocumentMetadata>; after?: Partial<DocumentMetadata>; version?: number }; createdAt: string }
 export type UserRole = 'super_admin' | 'admin' | 'sales' | 'customer'
 export interface User { id: string; email: string; displayName: string; salesCode?: string; role: UserRole; isActive: boolean; createdAt: string }
 export interface SiteAccess { siteId: string; userId: string; role: UserRole }

@@ -15,6 +15,7 @@ import type { AuthSession } from './types/domain'
 import { clearSession, readSession, saveSession } from './services/session'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })))
+const DocumentsPage = lazy(() => import('./pages/DocumentsPage').then(module => ({ default: module.DocumentsPage })))
 const NewSitePage = lazy(() => import('./pages/NewSitePage').then(module => ({ default: module.NewSitePage })))
 const SitePage = lazy(() => import('./pages/SitePage').then(module => ({ default: module.SitePage })))
 const DataSourcesPage = lazy(() => import('./pages/DataSourcesPage').then(module => ({ default: module.DataSourcesPage })))
@@ -44,7 +45,7 @@ export default function App() {
     window.addEventListener('rbc:auth-expired', handleExpiredSession)
     return () => window.removeEventListener('rbc:auth-expired', handleExpiredSession)
   }, [pathname, search])
-  if (!session && expiredReturnTo && /^\/(dashboard|sites|analysis|analyses|settings|api-usage|not-investing|data-sources|guide\/admin)(\/|$)/.test(pathname)) return <Navigate to={`/login?reason=expired&returnTo=${encodeURIComponent(expiredReturnTo)}`} replace />
+  if (!session && expiredReturnTo && /^\/(dashboard|documents|sites|analysis|analyses|settings|api-usage|not-investing|data-sources|guide\/admin)(\/|$)/.test(pathname)) return <Navigate to={`/login?reason=expired&returnTo=${encodeURIComponent(expiredReturnTo)}`} replace />
   if (pathname === '/liff/site-submission') {
     const query = new URLSearchParams(search)
     const liffState = query.get('liff.state')
@@ -59,7 +60,7 @@ export default function App() {
   if (!session) return <Routes><Route path="/" element={<LandingPage />} /><Route path="/investment" element={<InvestmentPage />} /><Route path="/branches" element={<BranchesPage />} /><Route path="/contact" element={<ContactPage />} /><Route path="/login" element={<><LandingPage /><LoginPage onAuthenticated={authenticate} /></>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>
   if (pathname === '/login') {
     const returnTo = new URLSearchParams(search).get('returnTo') || '/dashboard'
-    return <Navigate to={/^\/(dashboard|sites|analysis)(\/|\?|$)/.test(returnTo) ? returnTo : '/dashboard'} replace />
+    return <Navigate to={/^\/(dashboard|documents|sites|analysis)(\/|\?|$)/.test(returnTo) ? returnTo : '/dashboard'} replace />
   }
   if (pathname === '/') return <LandingPage authenticated accountName={session.user.displayName} onLogout={logout} />
   if (pathname === '/investment') return <InvestmentPage authenticated accountName={session.user.displayName} onLogout={logout} />
@@ -67,6 +68,8 @@ export default function App() {
   if (pathname === '/contact') return <ContactPage authenticated accountName={session.user.displayName} onLogout={logout} />
   return <AppShell onLogout={logout} userName={session.user.displayName} role={session.user.role}><Suspense fallback={<LoadingState label={t('Loading page…')}/> }><Routes>
     <Route path="/dashboard" element={<DashboardPage role={session.user.role} />} />
+    <Route path="/documents" element={<DocumentsPage role={session.user.role} />} />
+    <Route path="/sites/:id/documents" element={<DocumentsPage key={pathname} role={session.user.role} />} />
     <Route path="/guide/admin" element={session.user.role === 'customer' ? <Navigate to="/dashboard" replace /> : <GuidePage audience="admin" />} />
     <Route path="/sites/new" element={<NewSitePage key={`${session.user.id}:${pathname}`} role={session.user.role} />} />
 		<Route path="/sites/:id/edit" element={<NewSitePage key={`${session.user.id}:${pathname}`} role={session.user.role} />} />

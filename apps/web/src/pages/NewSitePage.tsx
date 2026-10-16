@@ -1,3 +1,4 @@
+import { PreparationChecklist } from '../components/PreparationChecklist'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileImage, FileText, Info, Upload } from 'lucide-react'
@@ -141,7 +142,7 @@ export function NewSitePage({ role, liff }: { role: UserRole; liff?: LiffSubmiss
   if (siteQuery.isError) return <ErrorState error={siteQuery.error} />
   return <div><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="page-title">{t(isEditing ? 'Edit Site' : 'New Site')}</h1><p className="mt-2 text-sm text-muted">{t(isEditing ? 'Update the customer-supplied details for this site.' : 'Record customer-supplied site details before verification.')}</p></div><div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-col sm:items-end"><LanguageSwitcher/><div className="inline-flex items-center gap-2 text-sm text-muted"><Info size={16}/>{t('Saved inputs are not yet verified.')}</div></div></div>
     {draft ? <p role="status" className="mt-4 text-sm text-muted">{language === 'th' ? 'กู้คืนข้อมูลที่กรอกไว้แล้ว กรุณาตรวจสอบก่อนบันทึก' : 'Your draft was restored. Please check it before saving.'}{draft.hadFiles ? (language === 'th' ? ' กรุณาเลือกไฟล์ที่ยังไม่ได้ส่งอีกครั้ง' : ' Please reselect files that were not uploaded.') : ''}</p> : null}
-    <form onSubmit={handleSubmit(values => mutation.mutate(toSiteInput(values)))} className="mt-8 grid gap-6 pb-24 xl:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
+    <PreparationChecklist/><form onSubmit={handleSubmit(values => mutation.mutate(toSiteInput(values)))} className="mt-8 grid gap-6 pb-24 xl:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
       <section className="rounded-xl border border-line bg-white p-6 shadow-panel"><h2 className="section-title">{t('Location')}</h2><div className="mt-5 space-y-5">
 		{liff ? <><input type="hidden" {...register('contactName')} /><input type="hidden" {...register('contactPhone')} /></> : null}
         <label className="field"><span>{t('Project or location name *')}</span><input {...register('name')} placeholder={t('e.g. Bang Na Candidate')}/><p className="field-hint">{t('After the map link is confirmed, the system suggests a name from the nearest road and area. You can edit it anytime.')}</p><div className="field-meta"><FieldError message={errors.name?.message}/><SourceNote /></div></label>

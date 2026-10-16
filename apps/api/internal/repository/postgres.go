@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rbc/ev-station/apps/api/internal/domain"
 	"github.com/rbc/ev-station/apps/api/internal/roads"
@@ -258,6 +259,10 @@ func (p *Postgres) UpdateSite(ctx context.Context, site domain.Site) (domain.Sit
 func (p *Postgres) DeleteSite(ctx context.Context, id uuid.UUID) error {
 	command, err := p.pool.Exec(ctx, `DELETE FROM sites WHERE id=$1`, id)
 	if err != nil {
+		var constraint *pgconn.PgError
+		if errors.As(err, &constraint) && constraint.Code == "23503" && constraint.ConstraintName == "project_documents_site_id_fkey" {
+			return ErrDocumentRetention
+		}
 		return err
 	}
 	if command.RowsAffected() == 0 {

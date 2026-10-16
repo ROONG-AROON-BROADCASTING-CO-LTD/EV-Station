@@ -92,7 +92,7 @@ async function download(path: string): Promise<Blob> {
   return withRequestDeadline(async signal => {
     const response = await fetch(`${baseURL}${path}`, { signal, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
     if ([408, 504, 524].includes(response.status)) throw new APIError('REQUEST_TIMEOUT', 'The request timed out.', response.status)
-    if (!response.ok) throw new APIError('SITE_IMAGE_LOAD_FAILED', 'Unable to load site evidence file.', response.status)
+    if (!response.ok) await readEnvelope(response, token)
     return response.blob()
   }, 120_000)
 }
@@ -108,6 +108,21 @@ async function liffUpload<T>(path: string, idToken: string, form: FormData): Pro
 function createImageUploadForm(photos: File[], documents: File[]) { const form = new FormData(); photos.forEach(file => form.append('photos', file)); documents.forEach(file => form.append('images', file)); return form }
 
 export const api = {
+  listDocumentTemplates: () => request<import('../types/domain').DocumentTemplate[]>('/document-templates'),
+  uploadDocumentTemplate: (file: File, title: string, requestId: string) => {
+    const form=new FormData();form.append('file',file);form.append('title',title)
+    return authenticatedRequest<import('../types/domain').DocumentTemplate>('/document-templates',getSessionToken(),{method:'POST',body:form,headers:{'X-Request-ID':requestId}},{json:false})
+  },
+  documentTemplateFile: (id:string) => download(`/document-templates/${id}/file?download=1`),
+  listDocuments: (siteID?: string) => request<import('../types/domain').ProjectDocument[]>(siteID ? `/sites/${siteID}/documents` : '/documents'),
+  uploadDocument: (siteID: string, file: File, title: string, category: string, documentID?: string, requestId?: string) => {
+    const form = new FormData(); form.append('file', file); form.append('title', title); form.append('category', category)
+    return authenticatedRequest<import('../types/domain').ProjectDocument>(`/sites/${siteID}/documents${documentID ? `/${documentID}/versions` : ''}`, getSessionToken(), { method:'POST', body:form, headers: requestId ? {'X-Request-ID':requestId} : undefined }, {json:false})
+  },
+  updateDocument: (siteID: string, documentID: string, metadata: import('../types/domain').DocumentMetadata, expectedVersion: number) => request<import('../types/domain').ProjectDocument>(`/sites/${siteID}/documents/${documentID}`, { method: 'PUT', body: JSON.stringify({...metadata,expectedVersion}) }),
+  documentVersions: (siteID: string, documentID: string) => request<import('../types/domain').DocumentVersion[]>(`/sites/${siteID}/documents/${documentID}/versions`),
+  documentEvents: (siteID: string, documentID: string) => request<import('../types/domain').DocumentEvent[]>(`/sites/${siteID}/documents/${documentID}/events`),
+  documentFile: (siteID: string, documentID: string, version: number, asDownload = false) => download(`/sites/${siteID}/documents/${documentID}/versions/${version}/file${asDownload ? '?download=1' : ''}`),
   registerVisitorOrdinal: () => request<{ ordinal: number }>('/public/visitor-ordinal', { method: 'POST' }),
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   requestRegistrationOTP: (email: string) => request<{ sent: boolean }>('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),

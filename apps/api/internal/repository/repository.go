@@ -10,6 +10,8 @@ import (
 
 var ErrNotFound = errorString("not found")
 var ErrSiteEvidenceLimit = errorString("site evidence limit exceeded")
+var ErrDocumentRetention = errorString("site has retained project documents")
+var ErrDocumentConflict = errorString("document version changed")
 
 const MaxSiteEvidenceFiles = 10
 const MaxSiteEvidenceBytes = 50 << 20

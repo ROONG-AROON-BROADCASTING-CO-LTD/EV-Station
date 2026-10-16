@@ -757,6 +757,10 @@ func (h *Handler) DeleteSite(c *gin.Context) {
 		return
 	}
 	if err := h.sites.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrDocumentRetention) {
+			writeError(c, http.StatusConflict, "DOCUMENT_RETENTION", "This project has retained documents and cannot be deleted. Keep the project and archive the documents by status.")
+			return
+		}
 		if errors.Is(err, repository.ErrNotFound) {
 			writeError(c, http.StatusNotFound, "SITE_NOT_FOUND", "Site not found.")
 			return

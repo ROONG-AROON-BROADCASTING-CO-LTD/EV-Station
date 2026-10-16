@@ -2,6 +2,8 @@ export type Language = 'th' | 'en'
 
 export const translations = {
   th: {
+    'Documents & contracts': 'เอกสารและสัญญา',
+    'error.DOCUMENT_RETENTION': 'โครงการนี้มีเอกสารที่ต้องเก็บรักษา จึงลบไม่ได้ กรุณาเก็บโครงการและเปลี่ยนสถานะเอกสารแทน',
     'The site was saved. Retry to upload the selected files to the same site.': 'บันทึกพื้นที่แล้ว กรุณาลองอีกครั้งเพื่อแนบไฟล์ให้พื้นที่เดิม',
     'Local road snapshot date': 'วันที่ชุดข้อมูลถนนในระบบ',
     'Mapped one-way rule': 'กฎทางเดียวตามแผนที่',
