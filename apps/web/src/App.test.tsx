@@ -26,31 +26,43 @@ describe('App access boundaries', () => {
   beforeEach(() => {
     localStorage.clear()
     localStorage.setItem('rbc-language', 'en')
+    // jsdom does not implement the browser media APIs used by the public landing.
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })))
+    vi.stubGlobal('IntersectionObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
   })
 
-  afterEach(cleanup)
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
   it('renders the public landing page when no persisted session exists', () => {
     renderApp()
-    expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeTruthy()
   })
 
   it('opens sign in as a closable dialog over the landing page', async () => {
     renderApp('/login')
 
-    expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy()
     expect(screen.getByRole('dialog')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close sign-in dialog' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy()
   })
   it('keeps the landing page at the root route and navigates from the account logo without a reload', async () => {
     saveSession('admin')
     renderApp()
 
-    expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy()
     expect(screen.getByText('Test user')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }))
     const dashboardLink = screen.getByRole('link', { name: 'Dashboard' })
@@ -74,7 +86,7 @@ describe('App access boundaries', () => {
   it('redirects customers away from admin-only API usage to the landing page', async () => {
     saveSession('customer')
     renderApp('/api-usage')
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy())
     expect(screen.queryByText('API usage page')).toBeNull()
   })
 
@@ -87,7 +99,7 @@ describe('App access boundaries', () => {
 
     expect(localStorage.getItem('rbc-session')).toBeNull()
     expect(localStorage.getItem('rbc-session-token')).toBeNull()
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Your EV station starts here Invest in EV with RBC Group' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Power the journey\. Reimagine your space\./ })).toBeTruthy())
   })
 
   it('reacts to an API expiry event by returning to the login screen', async () => {

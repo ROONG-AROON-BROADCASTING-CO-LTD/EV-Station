@@ -1,10 +1,11 @@
 import { ChevronLeft, ChevronRight, ExternalLink, Images, MapPin, Phone, Smartphone, Store, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PublicHeader } from '../components/PublicHeader'
 import { useI18n } from '../i18n/I18nProvider'
 
 type BranchPhoto = { src: string; altTh: string; altEn: string }
-type Branch = { format: 'S' | 'M' | 'L'; planned?: boolean; nameTh: string; nameEn: string; addressTh: string; addressEn: string; phone: string; map: string; photos?: BranchPhoto[] }
+type Branch = { id: string; format: 'S' | 'M' | 'L'; planned?: boolean; nameTh: string; nameEn: string; addressTh: string; addressEn: string; phone: string; map: string; photos?: BranchPhoto[] }
 
 // Confirmed branch services, kept separate from investment estimates.
 const branchServices = {
@@ -46,7 +47,7 @@ function photoSources(src: string) {
 
 const branches: Branch[] = [
   {
-    format: 'M', nameTh: 'สาขาพิษณุโลก',
+    id: 'phitsanulok', format: 'M', nameTh: 'สาขาพิษณุโลก',
     nameEn: 'Phitsanulok branch',
     addressTh: '654/18 ถนนพระองค์ขาว ซอย 4 ตำบลในเมือง อำเภอเมืองพิษณุโลก จังหวัดพิษณุโลก 65000',
     addressEn: '654/18 Phra Ong Khao Road, Soi 4, Nai Mueang, Mueang Phitsanulok, Phitsanulok 65000',
@@ -61,7 +62,7 @@ const branches: Branch[] = [
     ],
   },
   {
-    format: 'S', nameTh: 'สาขาอยุธยา',
+    id: 'ayutthaya', format: 'S', nameTh: 'สาขาอยุธยา',
     nameEn: 'Ayutthaya branch',
     addressTh: '15/78 หมู่ 3 ถนนป่าโมก ตำบลท่าวาสุกรี อำเภอพระนครศรีอยุธยา จังหวัดพระนครศรีอยุธยา 13000',
     addressEn: '15/78 Moo 3, Pa Mok Road, Tha Wasukri, Phra Nakhon Si Ayutthaya, Phra Nakhon Si Ayutthaya 13000',
@@ -74,7 +75,7 @@ const branches: Branch[] = [
       { src: '/super-black-coffee-ayutthaya-charger-closeup.webp', altTh: 'เครื่องชาร์จ iGreen+ สาขาอยุธยา', altEn: 'iGreen+ charger at the Ayutthaya branch' },
     ],
   },
-  { format: 'L', planned: true, nameTh: 'สาขาประชาอุทิศ', nameEn: 'Pracha Uthit branch', addressTh: '1060 ซอยประชาอุทิศ 22 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพมหานคร 10310', addressEn: '1060 Soi Pracha Uthit 22, Huai Khwang, Huai Khwang, Bangkok 10310', phone: '081-825-3584', map: 'https://www.google.com/maps/search/?api=1&query=1060+Soi+Pracha+Uthit+22+Huai+Khwang+Bangkok+10310', photos: [
+  { id: 'pracha-uthit', format: 'L', planned: true, nameTh: 'สาขาประชาอุทิศ', nameEn: 'Pracha Uthit branch', addressTh: '1060 ซอยประชาอุทิศ 22 แขวงห้วยขวาง เขตห้วยขวาง กรุงเทพมหานคร 10310', addressEn: '1060 Soi Pracha Uthit 22, Huai Khwang, Huai Khwang, Bangkok 10310', phone: '081-825-3584', map: 'https://www.google.com/maps/search/?api=1&query=1060+Soi+Pracha+Uthit+22+Huai+Khwang+Bangkok+10310', photos: [
     { src: '/super-black-coffee-pracha-uthit-album-cover.png', altTh: 'ภาพแนวคิด Super Black Coffee สาขาประชาอุทิศ ยังไม่ได้ก่อสร้าง', altEn: 'Super Black Coffee Pracha Uthit concept — not yet built' },
     { src: '/pracha-uthit-ev-plan-perspective.webp', altTh: 'ภาพแบบสถานีชาร์จประชาอุทิศ มุมเฉียง ยังไม่ได้ก่อสร้าง', altEn: 'Pracha Uthit EV station design, perspective view — not yet built' },
     { src: '/pracha-uthit-ev-plan-isometric.webp', altTh: 'ภาพแบบสถานีชาร์จประชาอุทิศ มุมสูง ยังไม่ได้ก่อสร้าง', altEn: 'Pracha Uthit EV station design, isometric view — not yet built' },
@@ -89,15 +90,22 @@ const orderedBranches = [...branches].sort((a, b) => formatOrder[a.format] - for
 export function BranchesPage({ authenticated = false, accountName, onLogout }: { authenticated?: boolean; accountName?: string; onLogout?: () => void }) {
   const { language } = useI18n()
   const text = (th: string, en: string) => language === 'th' ? th : en
-  const [galleryBranch, setGalleryBranch] = useState<Branch | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const galleryBranch = branches.find(branch => branch.id === searchParams.get('album')) ?? null
   const galleryPhotos = galleryBranch?.photos ?? []
   const galleryRef = useRef<HTMLDivElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
-  const [activePhoto, setActivePhoto] = useState<number | null>(null)
-  const closeGallery = useCallback(() => { setActivePhoto(null); setGalleryBranch(null) }, [])
-  const openGallery = useCallback((branch: Branch) => { setGalleryBranch(branch); setActivePhoto(0) }, [])
-  const galleryOpen = activePhoto !== null
-  const stepPhoto = useCallback((direction: number) => setActivePhoto(index => index === null ? null : (index + direction + galleryPhotos.length) % galleryPhotos.length), [galleryPhotos.length])
+  const [activePhoto, setActivePhoto] = useState(0)
+  const closeGallery = useCallback(() => {
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.delete('album'); return next }, { replace: true })
+    setActivePhoto(0)
+  }, [setSearchParams])
+  const openGallery = useCallback((branch: Branch) => {
+    setActivePhoto(0)
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('album', branch.id); return next })
+  }, [setSearchParams])
+  const galleryOpen = galleryBranch !== null
+  const stepPhoto = useCallback((direction: number) => setActivePhoto(index => galleryPhotos.length ? (index + direction + galleryPhotos.length) % galleryPhotos.length : 0), [galleryPhotos.length])
 
   useEffect(() => {
     if (!galleryOpen) return
@@ -173,7 +181,7 @@ export function BranchesPage({ authenticated = false, accountName, onLogout }: {
           </div>
         </div>
       </section>
-      {activePhoto !== null && galleryPhotos[activePhoto] ? (
+      {galleryOpen && galleryPhotos[activePhoto] ? (
         <div ref={galleryRef} className="public-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="branch-album-title" onClick={closeGallery}>
           <div className="public-gallery-title" id="branch-album-title">Super Black Coffee · {galleryBranch ? text(galleryBranch.nameTh, galleryBranch.nameEn) : ''}<small>{galleryBranch?.planned ? text('แบบโครงการ — ยังไม่ได้ก่อสร้าง', 'Project design — not yet built') : text('อัลบั้มภาพสาขา', 'Location photo album')}</small></div>
           <button className="public-gallery-close" type="button" aria-label={text('ปิด', 'Close')} onClick={closeGallery}><X size={25} /></button>

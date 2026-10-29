@@ -20,6 +20,7 @@ function Write-RbcStatus([string]$Message) {
 function Wait-ForDocker {
     try {
         docker info *> $null
+        if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable' }
         return
     } catch {
         $dockerDesktop = $DockerDesktopCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
@@ -28,12 +29,13 @@ function Wait-ForDocker {
         }
 
         Write-RbcStatus 'Starting Docker Desktop...'
-        Start-Process -FilePath $dockerDesktop | Out-Null
+        Start-Process -FilePath $dockerDesktop -WindowStyle Hidden | Out-Null
         $deadline = (Get-Date).AddMinutes(2)
         do {
             Start-Sleep -Seconds 3
             try {
                 docker info *> $null
+                if ($LASTEXITCODE -ne 0) { throw 'Docker is not ready yet' }
                 return
             } catch {
                 # Docker Desktop is still starting.
@@ -90,9 +92,9 @@ Wait-ForDocker
 Write-RbcStatus 'Starting database, API and web...'
 Push-Location $ProjectRoot
 try {
-    docker compose up -d --build --wait
+    docker compose up -d --no-build --wait db redis api web
     if ($LASTEXITCODE -ne 0) { throw 'Core RBC services did not start.' }
-    docker compose --profile roads up -d --build --no-deps road-updater
+    docker compose --profile roads up -d --no-build --no-deps road-updater
     if ($LASTEXITCODE -ne 0) { throw 'Road refresh worker did not start.' }
     if ($LASTEXITCODE -ne 0) {
         throw 'Docker build/start failed. The updated application was not started.'

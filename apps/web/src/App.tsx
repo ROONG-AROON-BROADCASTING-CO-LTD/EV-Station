@@ -8,12 +8,12 @@ import { LandingPage } from './pages/LandingPage'
 import { InvestmentPage } from './pages/InvestmentPage'
 import { BranchesPage } from './pages/BranchesPage'
 import { ContactPage } from './pages/ContactPage'
-import { LiffSiteSubmissionPage } from './pages/LiffSiteSubmissionPage'
-import { LiffMySitesPage } from './pages/LiffMySitesPage'
-import { AnalysisPage } from './pages/AnalysisPage'
 import type { AuthSession } from './types/domain'
 import { clearSession, readSession, saveSession } from './services/session'
 
+const AnalysisPage = lazy(() => import('./pages/AnalysisPage').then(module => ({ default: module.AnalysisPage })))
+const LiffSiteSubmissionPage = lazy(() => import('./pages/LiffSiteSubmissionPage').then(module => ({ default: module.LiffSiteSubmissionPage })))
+const LiffMySitesPage = lazy(() => import('./pages/LiffMySitesPage').then(module => ({ default: module.LiffMySitesPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.DashboardPage })))
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage').then(module => ({ default: module.DocumentsPage })))
 const NewSitePage = lazy(() => import('./pages/NewSitePage').then(module => ({ default: module.NewSitePage })))
@@ -52,7 +52,7 @@ export default function App() {
     // LIFF preserves query parameters in liff.state while it redirects to the
     // configured endpoint, so accept both the direct and redirected forms.
     const stateQuery = liffState ? new URL(liffState, window.location.origin).searchParams : undefined
-    return (query.get('view') === 'my-sites' || stateQuery?.get('view') === 'my-sites') ? <LiffMySitesPage /> : <LiffSiteSubmissionPage />
+    return <Suspense fallback={<LoadingState label={t('Loading page…')} />}>{(query.get('view') === 'my-sites' || stateQuery?.get('view') === 'my-sites') ? <LiffMySitesPage /> : <LiffSiteSubmissionPage />}</Suspense>
   }
   if (pathname === '/guide/customer') return <Suspense fallback={<LoadingState label={t('Loading page…')} />}><GuidePage audience="customer" accountName={session?.user.displayName} onLogout={session ? logout : undefined} /></Suspense>
   if (pathname === '/guide/admin' && !session) return <Navigate to="/login" replace />

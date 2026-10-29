@@ -25,6 +25,7 @@ apps/web/.impeccable/
 apps/web/DESIGN.md
 apps/web/PRODUCT.md
 backups/
+output/
 *_render/
 RBC_EV_Station_*.mp4
 unicorn_cruise_*_promo_voiceover.mp4
