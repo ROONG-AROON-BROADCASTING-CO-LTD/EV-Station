@@ -1,5 +1,7 @@
 # RBC operations
 
+Scheduled jobs launch through `wscript.exe` and `Run-RBC-Hidden.vbs` so PowerShell starts hidden before it can flash a console. The wrapper waits for completion and propagates failures to Task Scheduler. Logs remain under `.runtime/operations`.
+
 Run `scripts/Install-RBC-Operations.ps1` to register Windows tasks for the current operator: monitoring every five minutes and at sign-in, backup daily at 02:00, isolated restore testing Sunday at 03:00. Tasks require the operator to be signed in. Docker Desktop is a workstation service: this does not guarantee service before Windows sign-in or while this machine is powered off. An always-on server and an independent external monitor remain needed for unattended availability.
 
 `Invoke-RBC-Operations.ps1 -Action Recover` starts existing deployed containers in dependency order, without building or migrating. Monitor checks API and public HTTPS and attempts recovery. Logs and status are in `.runtime/operations`. PostgreSQL backups are restricted to the operator and SYSTEM under `backups/automated`. Restore tests use a disposable container with no network or published ports, never the live database.
