@@ -3,6 +3,7 @@ package httpapi
 import (
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -36,6 +37,7 @@ func NewRouter(cfg config.Config, handler *Handler) *gin.Engine {
 	router.GET("/liff/site-submission", handler.LiffPage)
 	api := router.Group("/api/v1")
 	authLimits := newAuthLimiter()
+	authLimits.trustProxies(os.Getenv("AUTH_TRUSTED_PROXY_CIDRS"))
 	api.POST("/auth/register", authLimits.middleware(), handler.Register)
 	api.POST("/auth/register/request-otp", authLimits.middleware(), handler.RequestRegistrationOTP)
 	api.POST("/auth/login", authLimits.middleware(), handler.Login)

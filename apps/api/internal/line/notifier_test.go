@@ -68,7 +68,7 @@ func TestNotifierSkipsWhenNotConfigured(t *testing.T) {
 	}
 }
 
-func TestNotifierRecordsVerifiedGroupWebhook(t *testing.T) {
+func TestNotifierDoesNotDiscoverRecipientsFromVerifiedGroupWebhook(t *testing.T) {
 	store := &recipientStore{}
 	secret := "webhook-secret"
 	body := []byte(`{"events":[{"type":"message","source":{"type":"group","groupId":"C1234567890"}}]}`)
@@ -81,7 +81,7 @@ func TestNotifierRecordsVerifiedGroupWebhook(t *testing.T) {
 	if err := notifier.RecordWebhook(context.Background(), body, signature); err != nil {
 		t.Fatalf("RecordWebhook() error = %v", err)
 	}
-	if store.recipientID != "C1234567890" {
-		t.Fatalf("stored recipient = %q, want group ID", store.recipientID)
+	if store.recipientID != "" {
+		t.Fatalf("unapproved group became recipient = %q", store.recipientID)
 	}
 }

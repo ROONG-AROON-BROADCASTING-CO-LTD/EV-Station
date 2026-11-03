@@ -53,7 +53,7 @@ pnpm install
 pnpm dev:web
 ```
 
-Backend requires Go 1.23+ and PostgreSQL/PostGIS. Copy `.env.example` to `.env`, run the migration, then:
+Backend requires Go 1.26.10+ (the Docker build pins that security-patched toolchain) and PostgreSQL/PostGIS. Copy `.env.example` to `.env`, run the migration, then:
 
 ```bash
 cd apps/api

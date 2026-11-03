@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
-	"github.com/rbc/ev-station/apps/api/internal/repository"
 )
 
 const defaultAPIBaseURL = "https://api.line.me"
@@ -60,15 +59,8 @@ func (n *Notifier) NotifyCustomerSubmission(ctx context.Context, site domain.Sit
 		return nil
 	}
 	recipientID := n.recipientID
-	if n.recipients != nil {
-		storedRecipient, err := n.recipients.GetLineNotificationRecipient(ctx)
-		if err != nil && err != repository.ErrNotFound {
-			return fmt.Errorf("load LINE notification recipient: %w", err)
-		}
-		if storedRecipient != "" {
-			recipientID = storedRecipient
-		}
-	}
+	// Only an operator-configured recipient is authorized. Ignore legacy
+	// webhook-discovered recipients, which may belong to an unrelated group.
 	if recipientID == "" {
 		return nil
 	}
@@ -106,8 +98,8 @@ func (n *Notifier) NotifyCustomerSubmission(ctx context.Context, site domain.Sit
 	return nil
 }
 
-// RecordWebhook verifies a LINE webhook and remembers the group ID of the
-// group that contains this OA. Only a verified group event can replace it.
+// RecordWebhook verifies origin, not recipient authorization. Group membership
+// events must never modify where customer information is sent.
 func (n *Notifier) RecordWebhook(ctx context.Context, body []byte, signature string) error {
 	if n == nil || n.channelSecret == "" {
 		return fmt.Errorf("LINE webhook is not configured")
@@ -128,13 +120,6 @@ func (n *Notifier) RecordWebhook(ctx context.Context, body []byte, signature str
 	}
 	if err := json.Unmarshal(body, &webhook); err != nil {
 		return fmt.Errorf("decode LINE webhook: %w", err)
-	}
-	for _, event := range webhook.Events {
-		if event.Source.Type == "group" && event.Source.GroupID != "" && n.recipients != nil {
-			if err := n.recipients.SetLineNotificationRecipient(ctx, event.Source.GroupID); err != nil {
-				return fmt.Errorf("save LINE notification recipient: %w", err)
-			}
-		}
 	}
 	return nil
 }

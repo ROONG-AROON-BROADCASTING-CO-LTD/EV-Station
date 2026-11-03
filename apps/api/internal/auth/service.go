@@ -26,9 +26,10 @@ type Service struct {
 	tokenTTL time.Duration
 }
 type Claims struct {
-	Subject   string          `json:"sub"`
-	Role      domain.UserRole `json:"role"`
-	ExpiresAt int64           `json:"exp"`
+	Subject       string          `json:"sub"`
+	Role          domain.UserRole `json:"role"`
+	ExpiresAt     int64           `json:"exp"`
+	CredentialTag string          `json:"cv"`
 }
 
 // New creates an authentication service. The optional TTL keeps existing
@@ -55,7 +56,15 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Use
 	if err != nil || !user.IsActive || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		return domain.User{}, "", ErrInvalidCredentials
 	}
-	return user, s.sign(Claims{Subject: user.ID.String(), Role: user.Role, ExpiresAt: time.Now().Add(s.tokenTTL).Unix()}), nil
+	return user, s.sign(Claims{Subject: user.ID.String(), Role: user.Role, ExpiresAt: time.Now().Add(s.tokenTTL).Unix(), CredentialTag: s.credentialTag(hash)}), nil
+}
+
+// Bind sessions to the current credential without disclosing the password hash.
+// A password reset changes the hash and invalidates every previously issued token.
+func (s *Service) credentialTag(hash string) string {
+	mac := hmac.New(sha256.New, s.secret)
+	mac.Write([]byte("credential-version:" + hash))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func (s *Service) UpdateUser(ctx context.Context, user domain.User, password string) (domain.User, error) {
@@ -118,6 +127,16 @@ func (s *Service) VerifyUser(ctx context.Context, token string) (Claims, error) 
 	if err != nil {
 		return Claims{}, ErrStorageUnavailable
 	}
-	claims.Role = user.Role
+	current, hash, err := s.repo.GetUserByEmail(ctx, user.Email)
+	if errors.Is(err, repository.ErrNotFound) {
+		return Claims{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return Claims{}, ErrStorageUnavailable
+	}
+	if current.ID != user.ID || !current.IsActive || claims.CredentialTag == "" || !hmac.Equal([]byte(claims.CredentialTag), []byte(s.credentialTag(hash))) {
+		return Claims{}, ErrInvalidCredentials
+	}
+	claims.Role = current.Role
 	return claims, nil
 }

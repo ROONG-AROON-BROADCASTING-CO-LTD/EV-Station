@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,9 +19,10 @@ type authBucket struct {
 	expires time.Time
 }
 type authLimiter struct {
-	mu      sync.Mutex
-	buckets map[[32]byte]authBucket
-	now     func() time.Time
+	mu             sync.Mutex
+	buckets        map[[32]byte]authBucket
+	now            func() time.Time
+	trustedProxies []*net.IPNet
 }
 
 func newAuthLimiter() *authLimiter {
@@ -42,7 +44,15 @@ func (l *authLimiter) allow(key string, limit int, window time.Duration) bool {
 	b, exists := l.buckets[hash]
 	if !exists {
 		if len(l.buckets) >= 10000 {
-			return false
+			// Saturation must not turn one source's traffic into a global lockout.
+			var oldest [32]byte
+			var expiry time.Time
+			for key, entry := range l.buckets {
+				if expiry.IsZero() || entry.expires.Before(expiry) {
+					oldest, expiry = key, entry.expires
+				}
+			}
+			delete(l.buckets, oldest)
 		}
 		b.expires = now.Add(window)
 	}
@@ -56,9 +66,8 @@ func (l *authLimiter) allow(key string, limit int, window time.Duration) bool {
 
 func (l *authLimiter) middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// A global ceiling also bounds requests with randomized addresses. Do not
-		// trust forwarded client IP headers from a publicly reachable request.
-		if !l.allow("all", 120, time.Minute) {
+		source := l.requestSource(c.Request)
+		if !l.allow("source:"+source, 120, time.Minute) {
 			authThrottled(c)
 			return
 		}
@@ -71,15 +80,53 @@ func (l *authLimiter) middleware() gin.HandlerFunc {
 		var input struct {
 			Email string `json:"email"`
 		}
+		accountKey := ""
 		if json.Unmarshal(body, &input) == nil && strings.TrimSpace(input.Email) != "" {
 			email := strings.ToLower(strings.TrimSpace(input.Email))
-			if !l.allow(c.FullPath()+":"+email, 10, 15*time.Minute) {
+			accountKey = c.FullPath() + ":" + source + ":" + email
+			if !l.allow(accountKey, 10, 15*time.Minute) {
 				authThrottled(c)
 				return
 			}
 		}
 		c.Next()
+		// Successful logins must not accumulate a failed-attempt lockout. Keep
+		// the source-wide request budget and OTP delivery limits in place.
+		if c.FullPath() == "/api/v1/auth/login" && c.Writer.Status() == http.StatusOK && accountKey != "" {
+			l.mu.Lock()
+			delete(l.buckets, sha256.Sum256([]byte(accountKey)))
+			l.mu.Unlock()
+		}
 	}
+}
+
+func (l *authLimiter) trustProxies(cidrs string) {
+	for _, raw := range strings.Split(cidrs, ",") {
+		if _, network, err := net.ParseCIDR(strings.TrimSpace(raw)); err == nil {
+			l.trustedProxies = append(l.trustedProxies, network)
+		}
+	}
+}
+
+func (l *authLimiter) requestSource(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	peer := net.ParseIP(host)
+	// nginx overwrites this header. Trust it only from explicitly configured
+	// proxy peers; never use caller-supplied X-Forwarded-For implicitly.
+	for _, network := range l.trustedProxies {
+		if network.Contains(peer) {
+			if ip := net.ParseIP(r.Header.Get("X-RBC-Client-IP")); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	if peer != nil {
+		return peer.String()
+	}
+	return "unknown"
 }
 
 func authThrottled(c *gin.Context) {

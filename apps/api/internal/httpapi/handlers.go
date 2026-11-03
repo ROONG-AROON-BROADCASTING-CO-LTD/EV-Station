@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,16 +28,17 @@ import (
 )
 
 type Handler struct {
-	sites    *site.Service
-	analyses *analysis.Service
-	repo     repository.Repository
-	weights  map[string]float64
-	geocoder provider.Geocoder
-	advisory *advisory.Service
-	auth     *auth.Service
-	otp      *auth.OTPService
-	notifier SiteSubmissionNotifier
-	visitors *visitorCounter
+	sites               *site.Service
+	analyses            *analysis.Service
+	repo                repository.Repository
+	weights             map[string]float64
+	geocoder            provider.Geocoder
+	advisory            *advisory.Service
+	auth                *auth.Service
+	otp                 *auth.OTPService
+	notifier            SiteSubmissionNotifier
+	visitors            *visitorCounter
+	bootstrapOwnerEmail string
 }
 
 // SiteSubmissionNotifier delivers a notification after a customer submits a
@@ -47,7 +49,7 @@ type SiteSubmissionNotifier interface {
 }
 
 func NewHandler(sites *site.Service, analyses *analysis.Service, repo repository.Repository, geocoder provider.Geocoder, advisoryService *advisory.Service, authService *auth.Service, otpService *auth.OTPService, notifier SiteSubmissionNotifier, weights map[string]float64) *Handler {
-	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, otp: otpService, notifier: notifier, visitors: newVisitorCounter(200000), weights: weights}
+	return &Handler{sites: sites, analyses: analyses, repo: repo, geocoder: geocoder, advisory: advisoryService, auth: authService, otp: otpService, notifier: notifier, visitors: newVisitorCounter(200000), weights: weights, bootstrapOwnerEmail: strings.ToLower(strings.TrimSpace(os.Getenv("BOOTSTRAP_OWNER_EMAIL")))}
 }
 
 func (h *Handler) RequestRegistrationOTP(c *gin.Context) {
@@ -58,7 +60,7 @@ func (h *Handler) RequestRegistrationOTP(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_INPUT", err.Error())
 		return
 	}
-	if err := h.otp.Request(input.Email); err != nil {
+	if err := h.otp.RequestContext(c.Request.Context(), input.Email); err != nil {
 		if errors.Is(err, auth.ErrOTPNotConfigured) {
 			writeError(c, http.StatusServiceUnavailable, "OTP_NOT_CONFIGURED", "Email verification is not configured.")
 			return
@@ -99,7 +101,10 @@ func (h *Handler) Register(c *gin.Context) {
 	// Bootstrap exactly one owner. Every later public registration is a customer
 	// account, and never accepts a caller-supplied privileged role.
 	role := domain.RoleCustomer
-	if !hasOwner {
+	// Initial ownership is an explicit operator decision, never a public race.
+	// The address must also pass the email OTP above; uniqueness prevents two
+	// concurrent registrations of the configured address creating two owners.
+	if h.mayBootstrapOwner(input.Email, hasOwner) {
 		role = domain.RoleSuperAdmin
 	}
 	user, err := h.auth.Register(c.Request.Context(), input.Email, input.DisplayName, input.Password, role)
@@ -108,6 +113,10 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": user})
+}
+
+func (h *Handler) mayBootstrapOwner(email string, hasOwner bool) bool {
+	return !hasOwner && h.bootstrapOwnerEmail != "" && strings.EqualFold(strings.TrimSpace(email), h.bootstrapOwnerEmail)
 }
 
 func (h *Handler) CreateUser(c *gin.Context) {
