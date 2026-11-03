@@ -87,25 +87,16 @@ describe('scroll journey', () => {
     expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Imagine a new destination')
     expect(window.scrollTo).not.toHaveBeenCalled()
   })
-  it('mounts the film only when requested and unmounts it when closed', () => {
+  it('does not render the removed concept-film disclosure or its trigger', () => {
     const { container } = render(content(true))
     expect(container.querySelector('video')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Watch the 40-second film' }))
-    expect(container.querySelector('details')?.open).toBe(true)
-    expect(container.querySelector('video')?.getAttribute('src')).toBeNull()
-    const details = container.querySelector('details')!
-    act(() => { details.open = false; fireEvent(details, new Event('toggle')) })
-    expect(container.querySelector('video')).toBeNull()
+    expect(container.querySelector('.rbc-journey-film')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Watch the 40-second film' })).toBeNull()
+    expect(screen.queryByText('Watch the 40-second concept film')).toBeNull()
   })
-  it('returns to the film on every watch click, including when already open', () => {
-    const { container } = render(content(true))
-    const watch = screen.getByRole('button', { name: 'Watch the 40-second film' })
-    fireEvent.click(watch)
-    act(flushFrames)
-    const details = container.querySelector('details')!
-    expect(details.scrollIntoView).toHaveBeenCalledTimes(1)
-    fireEvent.click(watch)
-    expect(details.scrollIntoView).toHaveBeenCalledTimes(2)
-    expect(details.open).toBe(true)
+  it('skips directly to the next section after the film is removed', () => {
+    render(<>{content(true)}<section aria-label="Next section"/></>)
+    fireEvent.click(screen.getByRole('button', { name: 'Skip this story' }))
+    expect(screen.getByRole('region', { name: 'Next section' }).scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' })
   })
 })
