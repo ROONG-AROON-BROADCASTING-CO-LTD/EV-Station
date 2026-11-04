@@ -1,5 +1,5 @@
 import { ArrowDownRight, BarChart3, ClipboardList, MapPinned, ShieldCheck, Zap } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { PublicLink as Link } from './PublicLink'
 import { useI18n } from '../i18n/I18nProvider'
 
 const copy = (language: 'th' | 'en', th: string, en: string) => language === 'th' ? th : en

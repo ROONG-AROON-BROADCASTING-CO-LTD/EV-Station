@@ -5,6 +5,9 @@ dist/
 coverage/
 *.log
 *.tsbuildinfo
+# Vite configuration is authored in TypeScript; emitted copies can shadow it.
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
 .DS_Store
 .idea/
 .vscode/

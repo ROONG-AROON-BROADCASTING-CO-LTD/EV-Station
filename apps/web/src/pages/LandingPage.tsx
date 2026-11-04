@@ -1,5 +1,5 @@
 import { ArrowRight, ArrowUpRight, BarChart3, BatteryCharging, Building2, CarFront, ChevronDown, ClipboardCheck, MapPin, MessageCircle, Store, TrendingUp, Users, Zap } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { PublicLink as Link } from '../components/PublicLink'
 import { useI18n } from '../i18n/I18nProvider'
 import { Container } from '../components/Container'
 import { PublicHeader } from '../components/PublicHeader'

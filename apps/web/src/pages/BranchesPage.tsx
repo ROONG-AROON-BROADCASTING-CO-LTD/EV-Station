@@ -139,7 +139,7 @@ export function BranchesPage({ authenticated = false, accountName, onLogout }: {
         </figure>
         <div className="public-branches-copy">
           <div className="public-section-title">
-            <h2>{text('สาขาและผลงาน', 'Locations & Projects')}</h2>
+            <h1>{text('สาขาและผลงาน', 'Locations & Projects')}</h1>
             <p>{text('Super Black Coffee คือพื้นที่พักและบริการของ RBC Group ที่เชื่อมประสบการณ์การเดินทางเข้ากับ EV Station', 'Super Black Coffee is an RBC Group service destination that connects the travel experience with EV Station.')}</p>
           </div>
           <div className="public-branch-list">

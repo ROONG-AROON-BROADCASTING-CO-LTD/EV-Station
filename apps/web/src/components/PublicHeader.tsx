@@ -1,6 +1,7 @@
 import { ChevronDown, CircleUserRound, LayoutDashboard, LogOut, MapPin, Menu, Settings, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { PublicLink as Link } from './PublicLink'
 import { LanguageSwitcher, useI18n } from '../i18n/I18nProvider'
 import './public-header.css'
 

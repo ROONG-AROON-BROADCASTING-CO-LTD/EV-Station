@@ -1,5 +1,5 @@
 import { ArrowUp, ArrowUpRight, Check, CircleAlert, FileText, MapPin, Printer, ShieldCheck, TriangleAlert, Upload, Zap } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { PublicLink as Link } from '../components/PublicLink'
 import { PublicHeader } from '../components/PublicHeader'
 import { LanguageSwitcher, useI18n } from '../i18n/I18nProvider'
 

@@ -421,7 +421,7 @@ body {
 .public-investment { padding: clamp(70px, 8vw, 118px) clamp(24px, 7vw, 130px); background: #f4f8f8; }
 .public-investment:not(:has(.public-investment-grid)) { display: grid; grid-template-columns: minmax(0, .95fr) minmax(380px, .85fr); gap: clamp(52px, 9vw, 150px); }
 .public-investment-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(380px, .85fr); gap: clamp(52px, 9vw, 150px); }
-.public-section-title h2, .public-contact h2 { max-width: 720px; margin: 0; color: #102f53; font-size: clamp(35px, 4vw, 60px); font-weight: 800; letter-spacing: -.04em; line-height: 1.08; }
+.public-section-title :is(h1, h2), .public-contact :is(h1, h2) { max-width: 720px; margin: 0; color: #102f53; font-size: clamp(35px, 4vw, 60px); font-weight: 800; letter-spacing: -.04em; line-height: 1.08; }
 .public-section-title p { max-width: 640px; margin: 20px 0 0; color: #5d7085; font-size: 18px; line-height: 1.65; }
 .public-investment-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
 .public-investment-actions .landing-outline { margin: 0; background: transparent; }
@@ -468,7 +468,7 @@ body {
 .public-market-insight small { grid-column: 1 / -1; color: #61798d; font-size: 12px; line-height: 1.5; }
 .public-market-insight > p { margin: 0; color: #0b625e; font-size: 16px; font-weight: 750; line-height: 1.45; }
 .public-chargers { background: #102f53; }
-.public-chargers .public-section-title h2 { color: #fff; }
+.public-chargers .public-section-title :is(h1, h2) { color: #fff; }
 .public-chargers .public-section-title p { color: #c4d4dd; }
 .public-package-comparison { max-width: 1440px; margin: 36px auto 0; overflow-x: auto; }
 .public-package-comparison table { width: 100%; min-width: 640px; border-collapse: collapse; color: #fff; text-align: left; }
@@ -587,7 +587,7 @@ body {
 .public-contact { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); align-items: center; gap: clamp(40px, 7vw, 110px); padding: clamp(50px, 6vw, 88px) clamp(24px, 7vw, 130px); background: #007d7f; color: #fff; }
 .public-contact > * { min-width: 0; }
 .public-company-contact > * { min-width: 0; overflow-wrap: anywhere; }
-.public-contact h2 { max-width: 760px; color: #fff; font-size: clamp(32px, 3.6vw, 54px); }
+.public-contact :is(h1, h2) { max-width: 760px; color: #fff; font-size: clamp(32px, 3.6vw, 54px); }
 .public-contact p { max-width: 720px; margin: 16px 0 0; color: #e4f3f4; font-size: 17px; line-height: 1.6; }
 .public-contact .landing-cta { display: inline-flex; margin-top: 28px; background: #ff7a59; white-space: nowrap; }
 .public-company-contact { display: grid; gap: 13px; padding: 28px; border: 1px solid rgba(255,255,255,.3); background: rgba(5, 72, 75, .34); font-style: normal; }
@@ -627,7 +627,7 @@ body {
 
 @media (max-width: 1120px) { .public-site .landing-nav { display: none; }.public-market-growth-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.public-investment, .public-about, .public-investment-grid, .public-about-grid { grid-template-columns: 1fr; gap: 46px; }.public-about-roles { grid-template-columns: repeat(3, minmax(0, 1fr)); }.public-model-grid, .public-review-grid { grid-template-columns: 1fr; }.public-warranty-heading { grid-template-columns: 1fr; }.public-model { min-height: 0; }.public-model img { height: auto; }.public-footer, .public-footer-grid { grid-template-columns: 1fr 1fr; } .public-footer-brand { grid-column: 1 / -1; } }
 @media (max-width: 820px) { .public-charger-specs { grid-template-columns: 1fr; } }
-@media (max-width: 820px) { .public-proof-strip { grid-template-columns: 1fr; padding: 12px 24px; }.public-market { padding: 64px 24px; }.public-market-growth-grid { grid-template-columns: 1fr; }.public-market-row { grid-template-columns: minmax(0, 1fr) repeat(3, auto); }.public-market-row > * { padding: 14px 10px; }.public-market-head, .public-market-row > span, .public-market-row > b { font-size: 12px; }.public-market-row > strong { font-size: 13px; }.public-market-insight { grid-template-columns: 1fr; gap: 16px; padding: 22px; }.public-market-insight > div { grid-template-columns: 1fr auto; }.public-market-bar { grid-column: 1 / -1; }.public-market-insight > p { font-size: 15px; }.public-proof-strip > div { padding: 16px 0; }.public-proof-strip > div + div { border-top: 1px solid #dfe8eb; border-left: 0; }.public-investment, .public-chargers { padding: 64px 24px; }.public-warranty { padding: 20px; }.public-section-title h2 { font-size: 37px; }.public-about-roles { grid-template-columns: 1fr; }.public-about-roles article { min-height: 0; }.public-section-title p { font-size: 16px; }.public-contact { grid-template-columns: 1fr; padding: 64px 24px; gap: 32px; }.public-company-contact { padding: 22px; }.public-contact-channels { grid-template-columns: 1fr; }.public-footer, .public-footer-grid { grid-template-columns: 1fr; gap: 30px; padding: 46px 24px; }.public-footer-brand { grid-column: auto; } }
+@media (max-width: 820px) { .public-proof-strip { grid-template-columns: 1fr; padding: 12px 24px; }.public-market { padding: 64px 24px; }.public-market-growth-grid { grid-template-columns: 1fr; }.public-market-row { grid-template-columns: minmax(0, 1fr) repeat(3, auto); }.public-market-row > * { padding: 14px 10px; }.public-market-head, .public-market-row > span, .public-market-row > b { font-size: 12px; }.public-market-row > strong { font-size: 13px; }.public-market-insight { grid-template-columns: 1fr; gap: 16px; padding: 22px; }.public-market-insight > div { grid-template-columns: 1fr auto; }.public-market-bar { grid-column: 1 / -1; }.public-market-insight > p { font-size: 15px; }.public-proof-strip > div { padding: 16px 0; }.public-proof-strip > div + div { border-top: 1px solid #dfe8eb; border-left: 0; }.public-investment, .public-chargers { padding: 64px 24px; }.public-warranty { padding: 20px; }.public-section-title :is(h1, h2) { font-size: 37px; }.public-about-roles { grid-template-columns: 1fr; }.public-about-roles article { min-height: 0; }.public-section-title p { font-size: 16px; }.public-contact { grid-template-columns: 1fr; padding: 64px 24px; gap: 32px; }.public-company-contact { padding: 22px; }.public-contact-channels { grid-template-columns: 1fr; }.public-footer, .public-footer-grid { grid-template-columns: 1fr; gap: 30px; padding: 46px 24px; }.public-footer-brand { grid-column: auto; } }
 .public-branch-points { margin-top: 0; }
 .public-branch-list { display: grid; gap: 18px; margin-top: 0; }
 .public-branch-list article { display: flex; align-items: flex-start; gap: 16px; padding: clamp(20px, 3vw, 30px); border: 1px solid #d6e3e5; border-radius: 16px; background: #fff; color: #007a78; }
@@ -909,7 +909,7 @@ body {
   .public-image-modal-dialog { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; }
 }
 @media (max-width: 420px) {
-  .public-site .public-section-title h2, .public-site .public-contact h2 { font-size: clamp(28px, 8.5vw, 35px); line-height: 1.2; }
+  .public-site .public-section-title :is(h1, h2), .public-site .public-contact :is(h1, h2) { font-size: clamp(28px, 8.5vw, 35px); line-height: 1.2; }
   .public-site .landing-brand strong { letter-spacing: .025em; }
   .public-investment-actions > a { width: 100%; padding-inline: 16px; text-align: center; }
 }

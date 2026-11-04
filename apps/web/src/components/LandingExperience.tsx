@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUpRight, Pause, Play, Zap } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { PublicLink as Link } from './PublicLink'
 import { useI18n } from '../i18n/I18nProvider'
 import { AmbientVideo } from './landing/AmbientVideo'
 import { ScrollJourney } from './landing/ScrollJourney'
