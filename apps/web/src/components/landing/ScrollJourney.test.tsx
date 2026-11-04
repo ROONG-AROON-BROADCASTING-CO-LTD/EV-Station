@@ -50,20 +50,21 @@ describe('scroll journey', () => {
   })
   it('changes scenes with scrolling in both directions, stopping work offscreen', () => {
     const { container, unmount } = render(content())
-    const section = container.querySelector('#rbc-story')!
-    const stage = container.querySelector('.rbc-journey-stage')!
-    let top = 84
-    Object.defineProperty(section, 'offsetHeight', { value: 3000 })
-    Object.defineProperty(stage, 'offsetHeight', { value: 700 })
-    vi.spyOn(section, 'getBoundingClientRect').mockImplementation(() => ({ top } as DOMRect))
+    let offset = 0
+    const centre = 84 + (window.innerHeight - 84) / 2
+    container.querySelectorAll('.rbc-journey-chapter').forEach((row, index) => {
+      vi.spyOn(row, 'getBoundingClientRect').mockImplementation(() => ({ top: centre - 150 + index * 500 - offset, height: 300 } as DOMRect))
+    })
     act(() => { observers[0].emit(true); flushFrames() })
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Share your location')
-    top = -1200
+    expect(screen.getByRole('button', { name: 'Share your location' }).getAttribute('aria-pressed')).toBe('true')
+    offset = 1000
     act(() => { window.dispatchEvent(new Event('scroll')); flushFrames() })
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Shape the project')
-    top = 84
+    expect(screen.getByRole('button', { name: 'Shape the project' }).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.rbc-journey-images .is-current')?.getAttribute('src')).toBe('/rbc-motion/chapter-3.webp')
+    offset = 0
     act(() => { window.dispatchEvent(new Event('scroll')); flushFrames() })
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Share your location')
+    expect(screen.getByRole('button', { name: 'Share your location' }).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.rbc-journey-images .is-current')?.getAttribute('src')).toBe('/rbc-motion/chapter-1.webp')
     act(() => observers[0].emit(false))
     const scheduled = vi.mocked(requestAnimationFrame).mock.calls.length
     act(() => window.dispatchEvent(new Event('scroll')))
@@ -71,21 +72,25 @@ describe('scroll journey', () => {
     unmount()
     expect(observers[0].disconnect).toHaveBeenCalledOnce()
   })
-  it('offers manual navigation without a long pinned scroll in reduced motion', () => {
+  it('keeps all chapters readable and uses instant navigation in reduced motion', () => {
     const { container } = render(content(true))
-    expect(container.querySelector('#rbc-story')?.classList.contains('is-static')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: /03 Shape the project/ }))
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Shape the project')
+    expect(container.querySelector('#rbc-story')?.classList.contains('is-quiet')).toBe(true)
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(4)
+    fireEvent.click(screen.getByRole('button', { name: 'Shape the project' }))
+    expect(screen.getByRole('button', { name: 'Shape the project' }).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('#rbc-story-step-3')?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'center' })
     expect(window.scrollTo).not.toHaveBeenCalled()
     expect(container.querySelector('video')).toBeNull()
   })
-  it('keeps short mobile screens readable with manual scenes instead of a cramped pinned stage', () => {
-    vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: query.includes('max-height'), addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList)
+  it('pairs every chapter with its own inline image for the mobile layout', () => {
     const { container } = render(content())
-    expect(container.querySelector('#rbc-story')?.classList.contains('is-static')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: /04 Imagine a new destination/ }))
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Imagine a new destination')
-    expect(window.scrollTo).not.toHaveBeenCalled()
+    expect(container.querySelectorAll('.rbc-journey-mobile-image')).toHaveLength(4)
+    container.querySelectorAll('.rbc-journey-chapter').forEach((row, index) => {
+      expect(row.querySelector('img')?.getAttribute('src')).toBe(`/rbc-motion/chapter-${index + 1}.webp`)
+      expect(row.querySelector('p')?.textContent).not.toBe('')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Imagine a new destination' }))
+    expect(container.querySelector('#rbc-story-step-4')?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
   })
   it('does not render the removed concept-film disclosure or its trigger', () => {
     const { container } = render(content(true))
