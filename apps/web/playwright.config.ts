@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 export default defineConfig({
   testDir: './e2e',
+  // Production-HTML SEO checks run separately with playwright.seo.config.ts.
+  testIgnore: 'seo.spec.ts',
   timeout: 90_000,
   retries: 0,
   workers: 1,
