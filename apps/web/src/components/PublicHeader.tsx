@@ -1,3 +1,4 @@
+import { publicHref } from '../seo/metadata'
 import { ChevronDown, CircleUserRound, LayoutDashboard, LogOut, MapPin, Menu, Settings, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -27,7 +28,7 @@ export function PublicHeader({ authenticated = false, accountName, onLogout }: P
     { href: '/guide/customer', label: text(language, 'คู่มือการใช้งาน', 'User guide') },
     { href: '/contact', label: text(language, 'ติดต่อสอบถาม', 'Contact us') },
   ]
-  const investmentLink = authenticated ? '/sites/new' : '/login?mode=register'
+  const investmentLink = publicHref('/contact#submit-site', language)
   const closeMenus = () => { setMenuOpen(false); setAccountMenuOpen(false) }
   const navLink = (item: (typeof navItems)[number], onClick?: () => void) => <Link key={item.href} to={item.href} aria-current={location.pathname === item.href ? 'page' : undefined} onClick={onClick}>{item.label}</Link>
 

@@ -128,6 +128,11 @@ export const api = {
   documentEvents: (siteID: string, documentID: string) => request<import('../types/domain').DocumentEvent[]>(`/sites/${siteID}/documents/${documentID}/events`),
   documentFile: (siteID: string, documentID: string, version: number, asDownload = false) => download(`/sites/${siteID}/documents/${documentID}/versions/${version}/file${asDownload ? '?download=1' : ''}`),
   registerVisitorOrdinal: () => request<{ ordinal: number }>('/public/visitor-ordinal', { method: 'POST' }),
+  getLiffConfig: () => withRequestDeadline(async signal => {
+    const response = await fetch(`${baseURL}/liff/config`, { signal })
+    if (!response.ok) throw new Error('error.LIFF_CONFIGURATION')
+    return response.json() as Promise<{ liffId?: string }>
+  }, 15_000),
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   requestRegistrationOTP: (email: string) => request<{ sent: boolean }>('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   register: (email: string, displayName: string, password: string, otp: string) => request<User>('/auth/register', { method: 'POST', body: JSON.stringify({ email, displayName, password, otp }) }),

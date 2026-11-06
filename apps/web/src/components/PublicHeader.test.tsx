@@ -26,7 +26,7 @@ describe('PublicHeader navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
     const menu = screen.getByRole('navigation', { name: 'Mobile navigation' })
     expect(within(menu).getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
-    expect(within(menu).getByRole('link', { name: 'Submit a site' }).getAttribute('href')).toBe('/login?mode=register')
+    expect(within(menu).getByRole('link', { name: 'Submit a site' }).getAttribute('href')).toBe('/contact?lang=en#submit-site')
   })
 
   it('keeps authenticated account actions reachable on mobile', () => {

@@ -1,3 +1,4 @@
+import { publicHref } from '../seo/metadata'
 import { PreparationChecklist } from '../components/PreparationChecklist'
 import { ArrowRight, BarChart3, Building2, ChevronDown, ChevronRight, ClipboardCheck, ExternalLink, MapPin, Maximize2, ShieldCheck, X, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -83,7 +84,7 @@ function ChargerSpecifications({ language }: { language: 'th' | 'en' }) {
 export function InvestmentPage({ authenticated = false, accountName, onLogout }: { authenticated?: boolean; accountName?: string; onLogout?: () => void }) {
   const { language } = useI18n()
   const [selectedFormat, setSelectedFormat] = useState<(typeof chargerModels)[number] | (typeof standaloneStationModels)[number] | null>(null)
-  const investmentLink = authenticated ? '/sites/new' : '/login?mode=register'
+  const investmentLink = publicHref('/contact#submit-site', language)
   useEffect(() => {
     if (!selectedFormat) return
     const previousOverflow = document.body.style.overflow

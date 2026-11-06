@@ -1,3 +1,5 @@
+import { api } from './api'
+
 export type LiffSDK = {
   init: (options: { liffId: string }) => Promise<void>
   isLoggedIn: () => boolean
@@ -25,7 +27,11 @@ export function loadLiffSDK(): Promise<LiffSDK> {
 }
 
 export async function loadLiffConfig(errorMessage = 'error.LIFF_CONFIGURATION'): Promise<{ liffId?: string }> {
-  const response = await fetch('/api/v1/liff/config')
-  if (!response.ok) throw new Error(errorMessage)
-  return response.json() as Promise<{ liffId?: string }>
+  try {
+    const config = await api.getLiffConfig()
+    if (!config.liffId || !/^\d+-[A-Za-z0-9]+$/.test(config.liffId)) throw new Error(errorMessage)
+    return config
+  } catch {
+    throw new Error(errorMessage)
+  }
 }

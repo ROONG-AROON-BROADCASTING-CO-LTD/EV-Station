@@ -1,3 +1,4 @@
+import { publicHref } from '../seo/metadata'
 import { ArrowRight, ArrowUpRight, BarChart3, BatteryCharging, Building2, CarFront, ChevronDown, ClipboardCheck, MapPin, MessageCircle, Store, TrendingUp, Users, Zap } from 'lucide-react'
 import { PublicLink as Link } from '../components/PublicLink'
 import { useI18n } from '../i18n/I18nProvider'
@@ -29,7 +30,7 @@ function SectionTitle({ title, description }: { title: string; description?: str
 
 export function LandingPage({ authenticated = false, accountName, onLogout }: { authenticated?: boolean; accountName?: string; onLogout?: () => void }) {
   const { language } = useI18n()
-  const investmentLink = authenticated ? '/sites/new' : '/login?mode=register'
+  const investmentLink = publicHref('/contact#submit-site', language)
   const marketSection = <div className="rbc-landing-support">
     <section id="market" className="public-market">
       <Container>
