@@ -1,5 +1,5 @@
 FROM node:22-alpine AS build
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 WORKDIR /src
 COPY package.json pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
