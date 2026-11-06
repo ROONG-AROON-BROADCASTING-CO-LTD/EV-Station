@@ -21,6 +21,7 @@ type Memory struct {
 	lineProfiles              map[string]domain.LineCustomerProfile
 	lineSubmissions           map[uuid.UUID]memoryLineSubmission
 	lineNotificationRecipient string
+	lineNotificationApproved  bool
 	apiUsagePlans             map[string]domain.APIUsagePlan
 	apiUsage                  map[string]int64
 }
@@ -177,6 +178,7 @@ func (m *Memory) SetLineNotificationRecipient(_ context.Context, recipientID str
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lineNotificationRecipient = recipientID
+	m.lineNotificationApproved = false
 	return nil
 }
 func (m *Memory) GetLineNotificationRecipient(_ context.Context) (string, error) {

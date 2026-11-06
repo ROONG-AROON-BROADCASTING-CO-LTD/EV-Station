@@ -44,6 +44,28 @@ func (p instrumentedProvider) Collect(ctx context.Context, site domain.Site, rad
 	status := "success"
 	if err != nil {
 		status = "error"
+	} else {
+		available := 0
+		reported := 0
+		for _, observation := range observations {
+			// Composite placeholders describe metrics outside this provider's
+			// scope and must not make every single-purpose provider "partial".
+			if observation.Source.Type == "unavailable" {
+				continue
+			}
+			reported++
+			if dataStatusStrength(observation.Status) > 0 {
+				available++
+			}
+		}
+		// Providers often return explicit missing observations with a nil error.
+		// Record evidence availability separately from transport success so an
+		// exhausted upstream deadline is not mistaken for usable data.
+		if available == 0 {
+			status = "missing"
+		} else if available < reported {
+			status = "partial"
+		}
 	}
 	p.recorder.Record(telemetry.Event{AnalysisID: telemetry.AnalysisID(ctx), Provider: p.name, Operation: "provider_collect", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Status: status, ErrorType: telemetry.ErrorType(err)})
 	return observations, err

@@ -125,7 +125,7 @@ func (p *Postgres) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	return nil
 }
 func (p *Postgres) SetLineNotificationRecipient(ctx context.Context, recipientID string) error {
-	_, err := p.pool.Exec(ctx, `INSERT INTO line_notification_recipient (id, recipient_id, updated_at) VALUES (true, $1, now()) ON CONFLICT (id) DO UPDATE SET recipient_id=EXCLUDED.recipient_id, updated_at=EXCLUDED.updated_at`, recipientID)
+	_, err := p.pool.Exec(ctx, `INSERT INTO line_notification_recipient (id, recipient_id, updated_at) VALUES (true, $1, now()) ON CONFLICT (id) DO UPDATE SET recipient_id=EXCLUDED.recipient_id, updated_at=EXCLUDED.updated_at, approved_at=NULL`, recipientID)
 	return err
 }
 func (p *Postgres) GetLineNotificationRecipient(ctx context.Context) (string, error) {

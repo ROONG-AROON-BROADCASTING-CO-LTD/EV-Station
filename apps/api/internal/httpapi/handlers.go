@@ -908,11 +908,15 @@ func (h *Handler) GenerateAIAssessment(c *gin.Context) {
 		language = "th"
 	}
 	refresh := c.Query("refresh") == "true"
+	userID, role, authenticated := requestUser(c)
+	if !authenticated {
+		return
+	}
 	expectedDecision := domain.InvestmentDecisionForScore(run.OverallScore)
 	var cached map[string]domain.AIAssessment
 	if !refresh && len(run.AIAssessments) > 0 {
 		if err := json.Unmarshal(run.AIAssessments, &cached); err == nil {
-			if assessment, ok := cached[language]; ok && assessment.Language == language && assessment.Decision == expectedDecision && assessment.DecisionPolicy == domain.InvestmentDecisionPolicyVersion {
+			if assessment, ok := cached[language]; ok && assessment.Language == language && assessment.Decision == expectedDecision && assessment.DecisionPolicy == domain.InvestmentDecisionPolicyVersion && !h.cachedFallbackRetryDue(c.Request.Context(), run.SiteID, userID, assessment, role, time.Now()) {
 				c.JSON(http.StatusOK, gin.H{"data": assessment})
 				return
 			}

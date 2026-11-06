@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rbc/ev-station/apps/api/internal/domain"
@@ -29,8 +30,13 @@ type Notifier struct {
 		SetLineNotificationRecipient(context.Context, string) error
 		GetLineNotificationRecipient(context.Context) (string, error)
 	}
-	apiBaseURL string
-	client     *http.Client
+	apiBaseURL     string
+	client         *http.Client
+	setupMu        sync.Mutex
+	pairingHash    [32]byte
+	pairingExpires time.Time
+	lastDelivery   *DeliveryStatus
+	now            func() time.Time
 }
 
 func NewNotifier(channelAccessToken, channelSecret, recipientID, apiBaseURL string, recipients interface {
@@ -50,6 +56,7 @@ func NewNotifier(channelAccessToken, channelSecret, recipientID, apiBaseURL stri
 		recipients:         recipients,
 		apiBaseURL:         strings.TrimRight(strings.TrimSpace(apiBaseURL), "/"),
 		client:             client,
+		now:                time.Now,
 	}
 }
 
@@ -58,12 +65,19 @@ func (n *Notifier) NotifyCustomerSubmission(ctx context.Context, site domain.Sit
 	if n == nil || n.channelAccessToken == "" {
 		return nil
 	}
-	recipientID := n.recipientID
-	// Only an operator-configured recipient is authorized. Ignore legacy
-	// webhook-discovered recipients, which may belong to an unrelated group.
+	recipientID, err := n.notificationRecipient(ctx)
+	if err != nil {
+		return err
+	}
+	// Only explicit operator configuration or owner-approved pairing is valid.
 	if recipientID == "" {
 		return nil
 	}
+	return n.pushText(ctx, recipientID, customerSubmissionText(site))
+}
+
+func (n *Notifier) pushText(ctx context.Context, recipientID, text string) (err error) {
+	defer func() { n.recordDelivery(err) }()
 	payload := struct {
 		To       string `json:"to"`
 		Messages []struct {
@@ -74,7 +88,7 @@ func (n *Notifier) NotifyCustomerSubmission(ctx context.Context, site domain.Sit
 	payload.Messages = append(payload.Messages, struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
-	}{Type: "text", Text: customerSubmissionText(site)})
+	}{Type: "text", Text: text})
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -92,8 +106,8 @@ func (n *Notifier) NotifyCustomerSubmission(ctx context.Context, site domain.Sit
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
-		return fmt.Errorf("LINE push message returned HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 2048))
+		return fmt.Errorf("LINE push message returned HTTP %d", response.StatusCode)
 	}
 	return nil
 }
@@ -108,23 +122,24 @@ func (n *Notifier) RecordWebhook(ctx context.Context, body []byte, signature str
 	_, _ = mac.Write(body)
 	expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(signature), []byte(expected)) {
-		return errInvalidSignature
+		return ErrInvalidSignature
 	}
 	var webhook struct {
-		Events []struct {
-			Source struct {
-				Type    string `json:"type"`
-				GroupID string `json:"groupId"`
-			} `json:"source"`
-		} `json:"events"`
+		Events []pairingEvent `json:"events"`
 	}
 	if err := json.Unmarshal(body, &webhook); err != nil {
-		return fmt.Errorf("decode LINE webhook: %w", err)
+		return fmt.Errorf("%w: %v", ErrInvalidWebhookPayload, err)
+	}
+	for _, event := range webhook.Events {
+		if err := n.acceptPairing(ctx, event); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-var errInvalidSignature = fmt.Errorf("invalid LINE webhook signature")
+var ErrInvalidSignature = fmt.Errorf("invalid LINE webhook signature")
+var ErrInvalidWebhookPayload = fmt.Errorf("invalid LINE webhook payload")
 
 func customerSubmissionText(site domain.Site) string {
 	location := site.Name

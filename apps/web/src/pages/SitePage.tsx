@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Database, FileImage, FileText, MapPin, Play } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DataStatus } from '../components/DataStatus'
 import { MapPanel, RadiusLabel, RadiusSelector } from '../components/MapPanel'
@@ -14,15 +14,30 @@ export function SitePage({ role }: { role: UserRole }) {
 	const { id = '' } = useParams()
 	const navigate = useNavigate()
   const [radiusMeters, setRadiusMeters] = useState(3000)
+  const pollUntil = useRef(Date.now() + 5 * 60_000)
+  useEffect(() => { pollUntil.current = Date.now() + 5 * 60_000 }, [id])
   const site = useQuery({ queryKey: ['site', id], queryFn: () => api.getSite(id), enabled: Boolean(id) })
   const attachments = useQuery({ queryKey: ['site-images', id], queryFn: () => api.listSiteImages(id), enabled: Boolean(id) })
+	const latestAnalysis = useQuery({
+    queryKey: ['latest-analysis', id], queryFn: () => api.getLatestAnalysisForSite(id), enabled: Boolean(id), retry: false,
+    refetchInterval: query => {
+      if (query.state.status === 'error' || Date.now() >= pollUntil.current) return false
+      if (query.state.data?.status === 'pending' || query.state.data?.status === 'running') return 3000
+      // The current endpoint returns null until the first completed report exists.
+      return query.state.data === null ? 30_000 : false
+    },
+  })
 	const analysis = useMutation({ mutationFn: () => api.runAnalysis(id, radiusMeters), onSuccess: run => navigate(`/analysis/${run.id}`) })
   if (site.isLoading) return <LoadingState label={t('Loading site…')} />
   if (site.isError || !site.data) return <ErrorState error={site.error} message="error.SITE_NOT_FOUND" />
   const value = site.data
   const canRunAnalysis = role === 'super_admin' || role === 'admin' || role === 'sales'
   return <div><Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink"><ArrowLeft size={16}/>{t('Dashboard')}</Link><div className="mt-5 flex flex-wrap items-start justify-between gap-5"><div><h1 className="page-title">{value.name}</h1><div className="mt-3 flex flex-wrap items-center gap-4"><DataStatus status={value.inputStatus}/><span className="text-sm text-muted">{t('Customer-supplied inputs have not been independently verified.')}</span></div></div>{canRunAnalysis ? <button className="button-primary" onClick={() => analysis.mutate()} disabled={analysis.isPending}><Play size={17}/>{t(analysis.isPending ? 'Running…' : 'Run Analysis')}</button> : null}</div>
-    {canRunAnalysis ? <div className="mt-6 rounded-xl border border-line bg-slate-50 p-4"><p className="text-sm font-bold text-ink">{t('Analysis radius')}</p><p className="mt-1 text-xs leading-5 text-muted">{t('Choose the distance around this site used to collect area data.')}</p><div className="mt-3"><RadiusSelector value={radiusMeters} onChange={setRadiusMeters} /></div></div> : <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm leading-6 text-emerald-900">{t('The RBC team will review your information and begin the site analysis when it is ready.')}</div>}
+    {canRunAnalysis ? <div className="mt-6 rounded-xl border border-line bg-slate-50 p-4"><p className="text-sm font-bold text-ink">{t('Analysis radius')}</p><p className="mt-1 text-xs leading-5 text-muted">{t('Choose the distance around this site used to collect area data.')}</p><div className="mt-3"><RadiusSelector value={radiusMeters} onChange={setRadiusMeters} /></div></div> : null}
+    <section className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm leading-6 text-emerald-900" aria-label={t('Report status')}>
+      {latestAnalysis.isPending ? <p role="status">{t('Checking report status…')}</p> : latestAnalysis.isError ? <p role="alert">{t('Unable to check the report status. Please try again.')}</p> : latestAnalysis.data?.status === 'completed' ? <><p>{t('Your analysis report is ready.')}</p><Link className="button-primary mt-3 inline-flex" to={`/analysis/${latestAnalysis.data.id}`}>{t('View analysis report')}</Link></> : latestAnalysis.data?.status === 'pending' || latestAnalysis.data?.status === 'running' ? <><p role="status">{t('The site analysis is in progress. Your report will appear here when it is ready.')}</p><p className="mt-1 text-xs">{t('Automatic updates pause after five minutes. Use Check report status to continue.')}</p></> : latestAnalysis.data?.status === 'failed' ? <p role="status">{t('The last analysis could not be completed. The RBC team needs to retry it.')}</p> : <p>{t('The RBC team will review your information and begin the site analysis when it is ready.')}</p>}
+      <button type="button" className="button-secondary mt-3" disabled={latestAnalysis.isFetching} onClick={() => { pollUntil.current = Date.now() + 5 * 60_000; void latestAnalysis.refetch() }}>{t(latestAnalysis.isFetching ? 'Checking report status…' : 'Check report status')}</button>
+    </section>
     <div className="mt-6 grid gap-5 xl:mt-8 xl:grid-cols-[0.72fr_1.28fr]"><section className="rounded-xl border border-line p-4 shadow-panel sm:p-6"><h2 className="section-title">{t('Site record')}</h2><dl className="mt-5 space-y-4 sm:mt-6 sm:space-y-5"><Detail icon={MapPin} label={t('Location')} value={value.address || `${value.latitude}, ${value.longitude}`}/><Detail icon={Database} label={t('Land size')} value={`${value.landSize.toLocaleString()} ${t(value.landSizeUnit)}`}/></dl><div className="mt-6 border-t border-line pt-4 sm:mt-7 sm:pt-5"><h3 className="text-sm font-bold">{t('Input provenance')}</h3><p className="mt-2 text-sm leading-6 text-muted">{t('Source: User supplied')}<br/>{t('Status: Preliminary')}<br/>{t('Verification: Not completed')}</p></div></section><section><div className="mb-3 flex items-center justify-between"><h2 className="section-title">{t('Map')}</h2><RadiusLabel meters={radiusMeters}/></div><MapPanel latitude={value.latitude} longitude={value.longitude} radiusMeters={radiusMeters} className="min-h-[280px] sm:min-h-[480px]"/></section></div>
     <div className="mt-6"><Link className="button-secondary inline-flex" to={`/sites/${id}/documents`}>{t('Documents & contracts')}</Link></div><SiteEvidence siteID={id} attachments={attachments.data || []} loading={attachments.isLoading} failed={attachments.isError} t={t}/>
     {analysis.isError && <div className="mt-6"><ErrorState error={analysis.error}/></div>}

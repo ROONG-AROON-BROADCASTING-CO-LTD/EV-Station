@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -156,6 +157,11 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 	if radius <= 0 {
 		radius = 3000
 	}
+	// Include the local lookup in the same budget as its remote fallback.
+	// Starting a new full budget after a slow lookup would extend collection.
+	collectionCtx, cancel := context.WithTimeout(ctx, p.config.RequestBudget)
+	defer cancel()
+	const competitionRadius = 1000
 
 	type queryResult struct {
 		kind        string
@@ -168,26 +174,49 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 	results := make(chan queryResult, 2)
 	var wait sync.WaitGroup
 	for kind, query := range map[string]string{
-		"context": buildOverpassContextQuery(*site.Latitude, *site.Longitude, radius),
+		"context": buildOverpassContextQuery(*site.Latitude, *site.Longitude, competitionRadius),
 		"roads":   buildOverpassRoadQuery(*site.Latitude, *site.Longitude, radius),
 	} {
 		wait.Add(1)
 		go func(kind, query string) {
 			defer wait.Done()
-			ctx := ctx
+			queryCtx := collectionCtx
 			if kind == "context" && p.config.LocalRoads != nil {
-				limited, cancel := context.WithTimeout(ctx, 9*time.Second)
+				limited, cancel := context.WithTimeout(queryCtx, 9*time.Second)
 				defer cancel()
-				ctx = limited
+				queryCtx = limited
 			}
-			if kind == "roads" && p.config.LocalRoads != nil {
-				local, err := p.config.LocalRoads.Nearby(ctx, *site.Latitude, *site.Longitude, radius)
+			if kind == "roads" {
+				started := p.now().UTC()
+				var local roads.Result
+				err := roads.ErrUnavailable
+				status, errorType, fallbackReason := "missing", "", "local_roads_not_configured"
+				if p.config.LocalRoads != nil {
+					local, err = p.config.LocalRoads.Nearby(queryCtx, *site.Latitude, *site.Longitude, radius)
+					switch {
+					case err == nil:
+						status, fallbackReason = "success", ""
+					case errors.Is(err, roads.ErrUnavailable):
+						errorType, fallbackReason = "unavailable", "local_snapshot_unavailable"
+					default:
+						status, errorType = "error", telemetry.ErrorType(err)
+						fallbackReason = "local_lookup_" + errorType
+					}
+				}
+				finished := p.now().UTC()
+				// Record before fallback so a slow remote request can be traced back
+				// to missing coverage, a database failure, or a local lookup timeout.
+				telemetry.Record(queryCtx, telemetry.Event{
+					Provider: "osm", Operation: "local_road_lookup", Category: "road_accessibility",
+					StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(),
+					Status: status, ErrorType: errorType, FallbackTriggered: err != nil, FallbackReason: fallbackReason,
+				})
 				if err == nil {
 					results <- queryResult{kind: kind, local: &local}
 					return
 				}
 			}
-			payload, err := p.fetch(telemetry.WithOperation(ctx, "overpass_"+kind), query)
+			payload, err := p.fetch(telemetry.WithOperation(queryCtx, "overpass_"+kind), query)
 			result := queryResult{kind: kind, payload: payload, err: err}
 			if kind == "roads" && err == nil {
 				if snapshot, ok := p.roadSnapshot(ctx, query); ok {
@@ -255,7 +284,6 @@ func (p *OSMProvider) Collect(ctx context.Context, site domain.Site, radius int)
 			continue
 		}
 		chargers := classifyOSMChargingStations(response.Elements)
-		competitionRadius := 1000
 		nearbyChargers := make([]osmPlace, 0, len(chargers))
 		for _, charger := range chargers {
 			if haversineMeters(*site.Latitude, *site.Longitude, charger.Latitude, charger.Longitude) <= float64(competitionRadius) {

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowLeft, LogIn, UserPlus, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api } from '../services/api'
+import { api, APIError } from '../services/api'
 import { useI18n } from '../i18n/I18nProvider'
 import type { AuthSession } from '../types/domain'
 
@@ -19,9 +19,15 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOTP] = useState('')
-  const [otpSent, setOTPSent] = useState(false)
+  const [delivery, setDelivery] = useState<{ email: string; sentAt: number }>()
+  const [resendAvailableAt, setResendAvailableAt] = useState(0)
+  const [now, setNow] = useState(Date.now)
+  const requestInFlight = useRef(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const normalizedEmail = email.trim().toLowerCase()
+  const otpSent = delivery?.email === normalizedEmail
+  const resendSeconds = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000))
   const close = useCallback(() => { if (onClose) onClose(); else navigate('/') }, [navigate, onClose])
   const closeLabel = language === 'th' ? 'ปิดหน้าต่างเข้าสู่ระบบ' : 'Close sign-in dialog'
 
@@ -35,29 +41,68 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
     }
   }, [close])
 
+  useEffect(() => {
+    if (resendAvailableAt <= Date.now()) return
+    const timer = window.setInterval(() => {
+      const next = Date.now()
+      setNow(next)
+      if (next >= resendAvailableAt) window.clearInterval(timer)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resendAvailableAt])
+
+  const requestCode = async () => {
+    // This UI cooldown prevents accidental repeat sends; the server remains the rate-limit authority.
+    if (requestInFlight.current || Date.now() < resendAvailableAt) return
+    requestInFlight.current = true
+    setBusy(true)
+    setError('')
+    setOTP('')
+    try {
+      const response = await api.requestRegistrationOTP(normalizedEmail)
+      if (!response.sent) throw new Error('OTP was not sent')
+      const sentAt = Date.now()
+      setDelivery({ email: normalizedEmail, sentAt })
+      setNow(sentAt)
+      setResendAvailableAt(sentAt + 60_000)
+    } catch (requestError) {
+      if (requestError instanceof APIError && requestError.code === 'AUTH_RATE_LIMITED') {
+        const limitedAt = Date.now()
+        setNow(limitedAt)
+        setResendAvailableAt(limitedAt + 15 * 60_000)
+        setError(t('Too many attempts. Please wait 15 minutes before trying again.'))
+      } else setError(t('Unable to send verification code. Please try again.'))
+    } finally {
+      requestInFlight.current = false
+      setBusy(false)
+    }
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (requestInFlight.current) return
+    if (mode === 'register' && !otpSent) { await requestCode(); return }
+    requestInFlight.current = true
     setBusy(true)
     setError('')
     try {
-      if (mode === 'register' && !otpSent) {
-        await api.requestRegistrationOTP(email)
-        setOTPSent(true)
-        return
-      }
-      if (mode === 'register') await api.register(email, name, password, otp)
-      const session = await api.login(email, password)
+      if (mode === 'register') await api.register(normalizedEmail, name, password, otp)
+      const session = await api.login(normalizedEmail, password)
       onAuthenticated(session)
-    } catch {
-      setError(t(mode === 'login' ? 'Email or password is incorrect.' : 'Unable to create the account. Please check the details or use another email.'))
+    } catch (submitError) {
+      if (submitError instanceof APIError && submitError.code === 'OTP_INVALID') setError(t('The verification code is invalid or expired. Request a new code and try again.'))
+      else if (submitError instanceof APIError && submitError.code === 'AUTH_RATE_LIMITED') setError(t('Too many attempts. Please wait 15 minutes before trying again.'))
+      else setError(t(mode === 'login' ? 'Email or password is incorrect.' : 'Unable to create the account. Please check the details or use another email.'))
     } finally {
+      requestInFlight.current = false
       setBusy(false)
     }
   }
 
   const switchMode = (nextMode: 'login' | 'register') => {
+    if (requestInFlight.current) return
     setMode(nextMode)
-    setOTPSent(false)
+    setDelivery(undefined)
     setOTP('')
     setError('')
   }
@@ -70,18 +115,19 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
       </header>
       <div className="auth-modal-body">
         <div className="auth-modal-tabs" role="tablist" aria-label={t('Account access')}>
-          <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>{t('Sign in')}</button>
-          <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>{t('Sign up')}</button>
+          <button type="button" role="tab" disabled={busy} aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>{t('Sign in')}</button>
+          <button type="button" role="tab" disabled={busy} aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>{t('Sign up')}</button>
         </div>
         <div className="auth-modal-copy"><h1 id="auth-modal-title">{mode === 'login' ? t('Sign in') : t('Sign up')}</h1><p>{mode === 'login' ? (language === 'th' ? 'กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ' : 'Enter your email and password to access your account.') : (language === 'th' ? 'สร้างบัญชีเพื่อส่งทำเลและติดตามโครงการของคุณ' : 'Create an account to submit sites and track your project.')}</p></div>
         <form className="auth-modal-form" onSubmit={submit}>
           {searchParams.get('reason') === 'expired' ? <p role="status">{language === 'th' ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้งเพื่อกลับไปทำงานต่อ หากมีไฟล์ที่ยังไม่ได้ส่ง กรุณาเลือกไฟล์อีกครั้ง' : 'Your session expired. Sign in again to continue. Please reselect any files that were not uploaded.'}</p> : null}
-          {mode === 'register' ? <label>{t('Display name')}<input required autoComplete="name" value={name} onChange={event => setName(event.target.value)} autoFocus /></label> : null}
-          <label>{t('Email')}<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} autoFocus={mode === 'login'} /></label>
-          <label>{t('Password')}<input required minLength={8} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} /></label>
-          {mode === 'register' && otpSent ? <label>{t('Verification code')}<input required inputMode="numeric" maxLength={6} value={otp} onChange={event => setOTP(event.target.value)} autoFocus /></label> : null}
+          {mode === 'register' ? <label>{t('Display name')}<input required disabled={busy} autoComplete="name" value={name} onChange={event => setName(event.target.value)} autoFocus /></label> : null}
+          <label>{t('Email')}<input required disabled={busy} type="email" autoComplete="email" value={email} onChange={event => { setEmail(event.target.value); setDelivery(undefined); setOTP(''); setError('') }} autoFocus={mode === 'login'} /></label>
+          <label>{t('Password')}<input required disabled={busy} minLength={8} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} /></label>
+          {mode === 'register' && otpSent && delivery ? <><div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-900"><p className="break-all">{t('Verification code sent to')} <strong>{delivery.email}</strong></p><p>{t('Sent at')} <time dateTime={new Date(delivery.sentAt).toISOString()}>{new Date(delivery.sentAt).toLocaleTimeString(language === 'th' ? 'th-TH' : 'en-GB')}</time></p><p>{t('Use the newest code. Check your inbox and spam folder.')}</p></div><label>{t('Verification code')}<input required disabled={busy} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={event => setOTP(event.target.value.replace(/\D/g, ''))} autoFocus /></label><button type="button" className="button-secondary" disabled={busy || resendSeconds > 0} onClick={() => void requestCode()}>{t('Resend verification code')}</button></> : null}
+          {mode === 'register' && resendSeconds > 0 ? <p className="text-sm text-muted">{t('Send again in')} {resendSeconds} {t('seconds')}</p> : null}
           {error ? <p role="alert" className="auth-modal-error">{error}</p> : null}
-          <button disabled={busy} className="auth-modal-submit" type="submit">{mode === 'login' ? <LogIn size={19}/> : <UserPlus size={19}/>} {busy ? t('Continue') : mode === 'login' ? t('Sign in') : otpSent ? t('Create account and sign in') : t('Send verification code')}</button>
+          <button disabled={busy || (mode === 'register' && !otpSent && resendSeconds > 0)} className="auth-modal-submit" type="submit">{mode === 'login' ? <LogIn size={19}/> : <UserPlus size={19}/>} {busy ? t(mode === 'register' && !otpSent ? 'Sending verification code…' : 'Continue') : mode === 'login' ? t('Sign in') : otpSent ? t('Create account and sign in') : t('Send verification code')}</button>
         </form>
         <p className="auth-modal-note">{t('Customer accounts can access only the areas submitted by their own account.')}</p>
         <button type="button" className="auth-modal-return" onClick={close}><ArrowLeft size={17}/>{language === 'th' ? 'กลับหน้าแรก' : 'Back to home'}</button>

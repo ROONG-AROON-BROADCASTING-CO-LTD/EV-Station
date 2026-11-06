@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -82,9 +83,10 @@ type generatedMetricScore struct {
 }
 
 type generatedSiteSurface struct {
+	AssessmentStatus        string                  `json:"assessmentStatus"`
 	Summary                 string                  `json:"summary"`
 	Suitability             string                  `json:"suitability"`
-	Score                   float64                 `json:"score"`
+	Score                   *float64                `json:"score"`
 	SurfaceTypes            []string                `json:"surfaceTypes"`
 	ObservedRisks           []string                `json:"observedRisks"`
 	RecommendedImprovements []string                `json:"recommendedImprovements"`
@@ -167,24 +169,9 @@ func (s *Service) Generate(ctx context.Context, run domain.AnalysisRun, language
 	if err != nil {
 		return domain.AIAssessment{}, err
 	}
-	endpoint := strings.TrimRight(s.config.BaseURL, "/") + "/models/" + url.PathEscape(s.config.Model) + ":generateContent"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	responseBody, err := s.generateNarrativeContent(ctx, body)
 	if err != nil {
 		return domain.AIAssessment{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-goog-api-key", s.config.APIKey)
-	response, err := s.client.Do(req)
-	if err != nil {
-		return domain.AIAssessment{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
-	}
-	defer response.Body.Close()
-	responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if readErr != nil {
-		return domain.AIAssessment{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return domain.AIAssessment{}, fmt.Errorf("%w: Gemini returned HTTP %d", ErrUnavailable, response.StatusCode)
 	}
 	var generated geminiResponse
 	if err = json.Unmarshal(responseBody, &generated); err != nil || len(generated.Candidates) == 0 || len(generated.Candidates[0].Content.Parts) == 0 {
@@ -263,7 +250,7 @@ func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteIm
 		language = "th"
 	}
 	languageName := map[string]string{"th": "Thai", "en": "English"}[language]
-	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze the supplied customer evidence together: site photos, map captures, and PDF documents such as a title deed or parcel plan. Assess visible ground surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. A PDF title deed or parcel plan may support parcel shape, printed dimensions, and context only when those details are legible; do not repeat owner names, national IDs, deed numbers, or any personal information. Never claim that a document verifies a legal boundary, current road access, or ownership. Also, ONLY when a clear entrance boundary and a reasonably reliable visual scale/reference are visible across the evidence, provide entranceWidthEstimate as an approximate meter range. Never provide a single exact width; use confidence low, moderate, or high; identify visible obstructions. Omit entranceWidthEstimate when the entrance, boundaries, perspective, document scale, or map alignment are insufficient. A vehicle, a photo, or a parcel diagram alone is not confirmed scale. This estimate is not a survey, does not prove two-way access, and must never be used as engineering approval. Do NOT assess or mention electricity, traffic, population, competitors, flood maps, ROI, or the overall location score. Give a preliminary ground-surface suitability score from 0 to 100 based only on what is visible. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. If evidence is not visible, state that limitation. Return concise JSON matching the schema."
+	prompt := "You are an EV-charging-site field-condition analyst. Write in " + languageName + ". Analyze the supplied customer evidence together: site photos, map captures, and PDF documents such as a title deed or parcel plan. Assess visible ground surface materials, evenness, visible drainage/water-ponding indicators, and likely construction preparation. A PDF title deed or parcel plan may support parcel shape, printed dimensions, and context only when those details are legible; do not repeat owner names, national IDs, deed numbers, or any personal information. Never claim that a document verifies a legal boundary, current road access, or ownership. First determine whether the supplied evidence actually shows enough ground-surface detail to assess this site. Logos, test text, unreadable images, or a title deed/parcel diagram alone are insufficient ground evidence. When ground evidence is insufficient, set assessmentStatus to insufficient_evidence, suitability to not_assessable, and score to null; explain what evidence is missing and request clear current photos of the site and entrance. Never use score 0 or suitability low to represent missing evidence. Omit entranceWidthEstimate and do not invent surface types, visible risks, or construction findings in that case. Only when evidence is sufficient, set assessmentStatus to assessed and give a preliminary ground-surface suitability score from 0 to 100 based only on visible evidence; an actual score of 0 is allowed for visibly unsuitable ground. Also, ONLY when assessmentStatus is assessed and a clear entrance boundary and a reasonably reliable visual scale/reference are visible across the evidence, provide entranceWidthEstimate as an approximate meter range. Never provide a single exact width; use confidence low, moderate, or high; identify visible obstructions. Omit entranceWidthEstimate when the entrance, boundaries, perspective, document scale, or map alignment are insufficient. A vehicle, a photo, or a parcel diagram alone is not confirmed scale. This estimate is not a survey, does not prove two-way access, and must never be used as engineering approval. Do NOT assess or mention electricity, traffic, population, competitors, flood maps, ROI, or the overall location score. Do not claim soil bearing capacity, underground conditions, or a final engineering approval. Return concise JSON matching the schema."
 	parts := make([]map[string]any, 0, len(images)+1)
 	parts = append(parts, map[string]any{"text": prompt})
 	for _, image := range images {
@@ -304,7 +291,7 @@ func (s *Service) AnalyzeSiteSurface(ctx context.Context, images []domain.SiteIm
 	if err = json.Unmarshal([]byte(generated.Candidates[0].Content.Parts[0].Text), &result); err != nil || !validSiteSurface(result) {
 		return domain.SiteSurfaceAssessment{}, ErrInvalidOutput
 	}
-	assessment := domain.SiteSurfaceAssessment{Summary: result.Summary, Suitability: result.Suitability, Score: result.Score, SurfaceTypes: result.SurfaceTypes, ObservedRisks: result.ObservedRisks, RecommendedImprovements: result.RecommendedImprovements, Disclaimer: result.Disclaimer, Model: s.config.Model}
+	assessment := domain.SiteSurfaceAssessment{AssessmentStatus: result.AssessmentStatus, Summary: result.Summary, Suitability: result.Suitability, Score: result.Score, SurfaceTypes: result.SurfaceTypes, ObservedRisks: result.ObservedRisks, RecommendedImprovements: result.RecommendedImprovements, Disclaimer: result.Disclaimer, Model: s.config.Model}
 	if validEntranceWidthEstimate(result.EntranceWidthEstimate) {
 		assessment.EntranceWidthEstimate = &domain.EntranceWidthEstimate{MinimumMeters: result.EntranceWidthEstimate.MinimumMeters, MaximumMeters: result.EntranceWidthEstimate.MaximumMeters, Confidence: result.EntranceWidthEstimate.Confidence, VisualEvidence: result.EntranceWidthEstimate.VisualEvidence, Obstructions: result.EntranceWidthEstimate.Obstructions}
 	}
@@ -381,12 +368,30 @@ func compactRunFacts(run domain.AnalysisRun) (map[string]any, error) {
 	for _, metric := range run.Metrics {
 		item := map[string]any{"type": metric.Type, "status": metric.Status, "source": metric.Source.Name, "methodology": metric.Source.Methodology, "assumptions": metric.Assumptions}
 		var raw map[string]any
-		if len(metric.RawValue) > 0 && json.Unmarshal(metric.RawValue, &raw) == nil {
+		decoded := len(metric.RawValue) > 0 && json.Unmarshal(metric.RawValue, &raw) == nil
+		if decoded {
 			delete(raw, "places")
 			delete(raw, "sources")
 			delete(raw, "latitude")
 			delete(raw, "longitude")
 			item["observedValues"] = raw
+		}
+		if metric.Type == "site_readiness" && (!decoded || !assessedSiteSurfaceFacts(raw)) {
+			// Legacy zero scores and their prose are not evidence. Do not let a new
+			// AI summary resurrect an assessment the report correctly treats as unknown.
+			status := "unconfirmed"
+			reason := "The stored ground assessment has no confirmed evidence status. No ground-surface score can be used; this does not show that the site is unsuitable."
+			if decoded && raw["assessmentStatus"] == "insufficient_evidence" {
+				status = "insufficient_evidence"
+				reason = "The supplied evidence is insufficient to assess ground conditions. No ground-surface score is available; this does not show that the site is unsuitable."
+			}
+			item["status"] = domain.DataMissing
+			item["methodology"] = "Ground assessment requires explicit assessed status and a valid evidence-based score."
+			item["assumptions"] = []string{reason}
+			item["observedValues"] = map[string]any{
+				"assessmentStatus": status, "score": nil, "suitability": "not_assessable", "summary": reason,
+				"recommendedImprovements": []string{"Provide clear current photos of the ground, drainage, entrance and frontage road, then run a new analysis."},
+			}
 		}
 		metrics = append(metrics, item)
 	}
@@ -400,6 +405,13 @@ func compactRunFacts(run domain.AnalysisRun) (map[string]any, error) {
 		}
 	}
 	return facts, nil
+}
+
+func assessedSiteSurfaceFacts(raw map[string]any) bool {
+	score, numeric := raw["score"].(float64)
+	suitability := raw["suitability"]
+	return raw["assessmentStatus"] == "assessed" && numeric && !math.IsNaN(score) && !math.IsInf(score, 0) && score >= 0 && score <= 100 &&
+		(suitability == "low" || suitability == "moderate" || suitability == "high")
 }
 
 func assessmentSchema() map[string]any {
@@ -425,13 +437,14 @@ func siteSurfaceSchema() map[string]any {
 		"obstructions":   stringArray,
 	}, "required": []string{"minimumMeters", "maximumMeters", "confidence", "visualEvidence", "obstructions"}, "additionalProperties": false}
 	return map[string]any{"type": "object", "properties": map[string]any{
-		"summary":      map[string]any{"type": "string"},
-		"suitability":  map[string]any{"type": "string", "enum": []string{"low", "moderate", "high"}},
-		"score":        map[string]any{"type": "number", "minimum": 0, "maximum": 100},
-		"surfaceTypes": stringArray, "observedRisks": stringArray, "recommendedImprovements": stringArray,
+		"assessmentStatus": map[string]any{"type": "string", "enum": []string{"assessed", "insufficient_evidence"}, "description": "Whether the supplied evidence shows sufficient visible ground conditions for a preliminary assessment."},
+		"summary":          map[string]any{"type": "string"},
+		"suitability":      map[string]any{"type": "string", "enum": []string{"low", "moderate", "high", "not_assessable"}, "description": "Use not_assessable when assessmentStatus is insufficient_evidence."},
+		"score":            map[string]any{"type": []string{"number", "null"}, "minimum": 0, "maximum": 100, "description": "A visible-evidence score only when assessed; null when evidence is insufficient. Zero must never stand for unknown."},
+		"surfaceTypes":     stringArray, "observedRisks": stringArray, "recommendedImprovements": stringArray,
 		"disclaimer":            map[string]any{"type": "string"},
 		"entranceWidthEstimate": entranceWidthEstimate,
-	}, "required": []string{"summary", "suitability", "score", "surfaceTypes", "observedRisks", "recommendedImprovements", "disclaimer"}, "additionalProperties": false}
+	}, "required": []string{"assessmentStatus", "summary", "suitability", "score", "surfaceTypes", "observedRisks", "recommendedImprovements", "disclaimer"}, "additionalProperties": false}
 }
 
 func validResult(value generatedAssessment) bool {
@@ -492,7 +505,17 @@ func validScoringResult(value generatedScoring) bool {
 }
 
 func validSiteSurface(value generatedSiteSurface) bool {
-	return strings.TrimSpace(value.Summary) != "" && (value.Suitability == "low" || value.Suitability == "moderate" || value.Suitability == "high") && value.Score >= 0 && value.Score <= 100 && strings.TrimSpace(value.Disclaimer) != ""
+	if strings.TrimSpace(value.Summary) == "" || strings.TrimSpace(value.Disclaimer) == "" {
+		return false
+	}
+	// Missing evidence is a valid outcome, not a poor-site score. Reject
+	// contradictory model output before it can enter a report or access estimate.
+	if value.AssessmentStatus == "insufficient_evidence" {
+		return value.Suitability == "not_assessable" && value.Score == nil && value.EntranceWidthEstimate == nil
+	}
+	return value.AssessmentStatus == "assessed" &&
+		(value.Suitability == "low" || value.Suitability == "moderate" || value.Suitability == "high") &&
+		value.Score != nil && !math.IsNaN(*value.Score) && !math.IsInf(*value.Score, 0) && *value.Score >= 0 && *value.Score <= 100
 }
 
 func validEntranceWidthEstimate(value *generatedEntranceWidth) bool {

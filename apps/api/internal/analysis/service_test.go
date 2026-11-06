@@ -72,7 +72,7 @@ func TestAnalysisOverlapsSitePhotosWithProviderCollection(t *testing.T) {
 		select {
 		case <-release:
 			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"Visible gravel\",\"suitability\":\"moderate\",\"score\":55,\"disclaimer\":\"Photo only\"}"}]}}]}`))
+			_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"assessmentStatus\":\"assessed\",\"summary\":\"Visible gravel\",\"suitability\":\"moderate\",\"score\":55,\"disclaimer\":\"Photo only\"}"}]}}]}`))
 		case <-request.Context().Done():
 		}
 	}))

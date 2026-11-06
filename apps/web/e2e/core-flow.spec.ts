@@ -114,10 +114,13 @@ test('owner uploads valid files, edits, analyzes and reopens a saved report', as
   expect(errors).toEqual([])
   if (info.project.name === 'desktop') {
     await page.evaluate(() => { window.print = () => { document.body.dataset.printInvoked = 'yes' } })
+    const downloadEvent = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Download PDF', exact: true }).click()
-    expect(await page.locator('body').getAttribute('data-print-invoked')).toBe('yes')
-    await page.evaluate(() => document.fonts.ready)
-    await page.pdf({ path: join(artifacts, 'report-missing-data.pdf'), printBackground: true, preferCSSPageSize: true })
+    const download = await downloadEvent
+    const reportPath = join(artifacts, 'report-missing-data.pdf')
+    await download.saveAs(reportPath)
+    expect(readFileSync(reportPath).subarray(0, 5).toString()).toBe('%PDF-')
+    expect(await page.locator('body').getAttribute('data-print-invoked')).toBeNull()
     // Synthetic assumptions exercise pagination; these are not assessment data.
     const session = await loginAPI(request)
     const runId = new URL(page.url()).pathname.split('/').pop()
@@ -127,8 +130,11 @@ test('owner uploads valid files, edits, analyzes and reopens a saved report', as
     await page.route(`**/api/v1/analyses/${runId}`, route => route.fulfill({ json: body }))
     await page.reload()
     await expect(page.getByText('QA-END-OF-LONG-REPORT', { exact: false }).first()).toBeVisible()
-    await page.evaluate(() => document.fonts.ready)
-    await page.pdf({ path: join(artifacts, 'report-long.pdf'), printBackground: true, preferCSSPageSize: true })
+    const longDownloadEvent = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download PDF', exact: true }).click()
+    const longReportPath = join(artifacts, 'report-long.pdf')
+    await (await longDownloadEvent).saveAs(longReportPath)
+    expect(readFileSync(longReportPath).subarray(0, 5).toString()).toBe('%PDF-')
   }
 })
 

@@ -3,7 +3,9 @@ package roads
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
 )
@@ -32,7 +34,10 @@ func (s *Store) Nearby(ctx context.Context, lat, lon float64, radius int) (Resul
 	var result Result
 	err := s.pool.QueryRow(ctx, `SELECT id,source_timestamp,imported_at FROM osm_road_datasets WHERE status='current' AND source_timestamp >= now()-interval '30 days'`).Scan(&result.DatasetID, &result.SourceTime, &result.ImportedAt)
 	if err != nil {
-		return result, ErrUnavailable
+		if errors.Is(err, pgx.ErrNoRows) {
+			return result, ErrUnavailable
+		}
+		return result, fmt.Errorf("query current road snapshot: %w", err)
 	}
 	result.Counts = map[string]int{}
 	rows, err := s.pool.Query(ctx, `SELECT road_class,count(*) FROM osm_roads WHERE dataset_id=$1 AND road_class IN ('motorway','trunk','primary','secondary','tertiary') AND ST_DWithin(geom::geography,ST_SetSRID(ST_MakePoint($2,$3),4326)::geography,$4) GROUP BY road_class`, result.DatasetID, lon, lat, radius)

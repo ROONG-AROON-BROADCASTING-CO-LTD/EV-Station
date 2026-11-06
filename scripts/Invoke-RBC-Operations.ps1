@@ -21,6 +21,21 @@ function SendAlert([string]$Status) {
         Invoke-RestMethod -Method Post -Uri $Config.AlertWebhook -ContentType 'application/json' -Body (@{service='RBC EV Station';status=$Status;timestamp=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json) -TimeoutSec 15 | Out-Null
     }
 }
+function GetRoadUpdaterState {
+    $name = 'ev-station-road-updater-1'
+    $existing = RunDocker @('ps','-a','--filter',"name=^/$name$",'--format','{{.Names}}')
+    # The roads profile is optional. Only recover a worker already deployed by
+    # the operator; never create a new importer or run migrations in monitoring.
+    if ($existing -notcontains $name) { return 'not-configured' }
+    $format = '{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}'
+    $worker = ((RunDocker @('inspect','--format',$format,$name)) -join '').Trim().Split('|')
+    if ($worker[0] -ne 'true') {
+        RunDocker @('start',$name) | Out-Null
+        $worker = ((RunDocker @('inspect','--format',$format,$name)) -join '').Trim().Split('|')
+    }
+    if ($worker[0] -ne 'true') { return 'stopped' }
+    return $worker[1]
+}
 function Recover {
     & docker info --format '{{.ServerVersion}}' *> $null
     if ($LASTEXITCODE -ne 0) {
@@ -46,6 +61,7 @@ function Recover {
     RunDocker @('restart','ev-station-web-1') | Out-Null
     $service = Get-Service cloudflared
     if ($service.Status -ne 'Running') { Start-Service cloudflared }
+    GetRoadUpdaterState | Out-Null
 }
 try {
     switch ($Action) {
@@ -54,6 +70,13 @@ try {
             $healthy = (Healthy 'http://127.0.0.1:8080/health') -and (Healthy 'https://www.rbcevstation.com/')
             if (-not $healthy) { Recover; $healthy = (Healthy 'http://127.0.0.1:8080/health') -and (Healthy 'https://www.rbcevstation.com/') }
             $state = if ($healthy) { 'healthy' } else { 'down' }
+            if ($healthy) {
+                $roadState = GetRoadUpdaterState
+                @{status=$roadState;checked=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content (Join-Path $StateDir 'road-worker-state.json')
+                # Old road data is a separate degradation. Restarting API/web
+                # cannot refresh it and would disrupt otherwise healthy users.
+                if ($roadState -notin @('healthy','not-configured')) { $state = 'degraded-roads' }
+            }
             $previousPath = Join-Path $StateDir 'monitor-state.txt'
             $previous = if (Test-Path $previousPath) { (Get-Content $previousPath -Raw).Trim() } else { 'unknown' }
             if ($previous -ne $state -and $Config.AlertWebhook) {

@@ -111,8 +111,11 @@ func TestGeminiServiceAnalyzesSiteSurfaceEvidence(t *testing.T) {
 		if !strings.Contains(payload, "PDF documents such as a title deed or parcel plan") || !strings.Contains(payload, "entranceWidthEstimate") || !strings.Contains(payload, "must never be used as engineering approval") {
 			t.Fatalf("expected a safeguarded multimodal prompt: %s", payload)
 		}
+		if !strings.Contains(payload, "Never use score 0 or suitability low to represent missing evidence") || !strings.Contains(payload, `"type":["number","null"]`) {
+			t.Fatalf("expected explicit insufficient-evidence instructions and a nullable score: %s", payload)
+		}
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"summary\":\"พื้นกรวดและดินปนหญ้า\",\"suitability\":\"moderate\",\"score\":55,\"surfaceTypes\":[\"กรวด\",\"ดิน\"],\"observedRisks\":[\"พื้นไม่เรียบ\"],\"recommendedImprovements\":[\"ปรับระดับและบดอัด\"],\"disclaimer\":\"ประเมินจากสิ่งที่เห็นในภาพเท่านั้น\",\"entranceWidthEstimate\":{\"minimumMeters\":5,\"maximumMeters\":6.5,\"confidence\":\"moderate\",\"visualEvidence\":\"เห็นขอบประตูทั้งสองด้าน\",\"obstructions\":[\"ประตูกั้น\"]}}"}]}}]}`))
+		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"{\"assessmentStatus\":\"assessed\",\"summary\":\"พื้นกรวดและดินปนหญ้า\",\"suitability\":\"moderate\",\"score\":55,\"surfaceTypes\":[\"กรวด\",\"ดิน\"],\"observedRisks\":[\"พื้นไม่เรียบ\"],\"recommendedImprovements\":[\"ปรับระดับและบดอัด\"],\"disclaimer\":\"ประเมินจากสิ่งที่เห็นในภาพเท่านั้น\",\"entranceWidthEstimate\":{\"minimumMeters\":5,\"maximumMeters\":6.5,\"confidence\":\"moderate\",\"visualEvidence\":\"เห็นขอบประตูทั้งสองด้าน\",\"obstructions\":[\"ประตูกั้น\"]}}"}]}}]}`))
 	}))
 	defer server.Close()
 
@@ -121,7 +124,7 @@ func TestGeminiServiceAnalyzesSiteSurfaceEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Score != 55 || result.Suitability != "moderate" || len(result.RecommendedImprovements) != 1 || result.EntranceWidthEstimate == nil || result.EntranceWidthEstimate.MinimumMeters != 5 || result.EntranceWidthEstimate.MaximumMeters != 6.5 {
+	if result.AssessmentStatus != "assessed" || result.Score == nil || *result.Score != 55 || result.Suitability != "moderate" || len(result.RecommendedImprovements) != 1 || result.EntranceWidthEstimate == nil || result.EntranceWidthEstimate.MinimumMeters != 5 || result.EntranceWidthEstimate.MaximumMeters != 6.5 {
 		t.Fatalf("unexpected surface assessment: %+v", result)
 	}
 }

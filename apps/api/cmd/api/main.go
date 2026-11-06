@@ -104,10 +104,10 @@ func main() {
 			LocalRoads: localRoads,
 			Endpoint:   cfg.OverpassURL, FallbackEndpoints: cfg.OverpassFallbackURLs,
 			UserAgent: cfg.ExternalUserAgent, CacheTTL: osmCacheTTL,
-			// Each mirror gets up to 10 seconds within a 30-second total budget.
-			// The prior 4/8-second limits discarded valid urban-road responses
-			// and could expire before the third mirror was attempted. The job
-			// runs asynchronously within the 35-second composite deadline.
+			// Roads use PostGIS first. Only an unavailable local lookup falls
+			// back to mirrors, within the same 30-second collection budget.
+			// Mapped competitors still use Overpass (1 km, at most 9 seconds
+			// when local roads are configured), independently of the road radius.
 		}, providerClientWithTimeout("osm", 12*time.Second), providerCache("osm"))
 		worldPopProvider := provider.NewWorldPopProvider(provider.WorldPopConfig{
 			Endpoint: cfg.WorldPopURL, Year: cfg.WorldPopYear, Resolution: cfg.WorldPopResolution,

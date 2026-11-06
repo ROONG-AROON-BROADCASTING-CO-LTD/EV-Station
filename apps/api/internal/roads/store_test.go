@@ -2,12 +2,28 @@ package roads
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"sort"
 	"testing"
 	"time"
 )
+
+func TestNearbyPreservesCanceledDatabaseLookup(t *testing.T) {
+	// Pool construction is lazy; the canceled query must not open a connection.
+	pool, err := pgxpool.New(context.Background(), "postgres://fixture:fixture@127.0.0.1:1/fixture?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = New(pool).Nearby(ctx, 13.7, 100.5, 3000)
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrUnavailable) {
+		t.Fatalf("database cancellation must not be misreported as a missing snapshot: %v", err)
+	}
+}
 
 func TestNationalSnapshotDatabase(t *testing.T) {
 	url := os.Getenv("ROAD_TEST_DATABASE_URL")

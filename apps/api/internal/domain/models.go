@@ -115,9 +115,10 @@ type SiteImage struct {
 // conditions. It is intentionally not a location-score input and is not an
 // engineering measurement or legal boundary verification.
 type SiteSurfaceAssessment struct {
+	AssessmentStatus        string                 `json:"assessmentStatus"`
 	Summary                 string                 `json:"summary"`
 	Suitability             string                 `json:"suitability"`
-	Score                   float64                `json:"score"`
+	Score                   *float64               `json:"score"`
 	SurfaceTypes            []string               `json:"surfaceTypes"`
 	ObservedRisks           []string               `json:"observedRisks"`
 	RecommendedImprovements []string               `json:"recommendedImprovements"`

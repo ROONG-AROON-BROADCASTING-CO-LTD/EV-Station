@@ -108,6 +108,10 @@ async function liffUpload<T>(path: string, idToken: string, form: FormData): Pro
 function createImageUploadForm(photos: File[], documents: File[]) { const form = new FormData(); photos.forEach(file => form.append('photos', file)); documents.forEach(file => form.append('images', file)); return form }
 
 export const api = {
+	getLineNotificationStatus: () => request<import('../types/domain').LineNotificationStatus>('/settings/line-notifications'),
+	startLineNotificationPairing: () => request<{ command: string; expiresAt: string }>('/settings/line-notifications/pairing', { method: 'POST' }),
+	cancelLineNotificationPairing: () => request<{ cancelled: boolean }>('/settings/line-notifications/pairing', { method: 'DELETE' }),
+	testLineNotification: () => request<{ accepted: boolean }>('/settings/line-notifications/test', { method: 'POST' }),
   listDocumentTemplates: () => request<import('../types/domain').DocumentTemplate[]>('/document-templates'),
   uploadDocumentTemplate: (file: File, title: string, requestId: string) => {
     const form=new FormData();form.append('file',file);form.append('title',title)

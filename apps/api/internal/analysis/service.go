@@ -145,7 +145,7 @@ func (s *Service) execute(ctx context.Context, site domain.Site, run domain.Anal
 		}
 		run.Metrics = append(run.Metrics, metric)
 	}
-	run.Metrics = append(run.Metrics, <-readiness)
+	run.Metrics = append(run.Metrics, waitForSiteReadiness(ctx, run.ID, readiness))
 	s.refreshSiteRequirementsMetric(&run)
 
 	result := s.scoring.EvaluatePreliminary(run.Metrics)
@@ -161,6 +161,28 @@ func (s *Service) execute(ctx context.Context, site domain.Site, run domain.Anal
 		return domain.AnalysisRun{}, err
 	}
 	return run, nil
+}
+
+func waitForSiteReadiness(ctx context.Context, runID uuid.UUID, readiness <-chan domain.Metric) domain.Metric {
+	select {
+	case metric := <-readiness:
+		return metric
+	case <-ctx.Done():
+		// Prefer an assessment already buffered at the deadline. A slow evidence
+		// lookup must not hold the worker beyond its work context or discard the
+		// independent provider evidence that has already finished.
+		select {
+		case metric := <-readiness:
+			return metric
+		default:
+		}
+	}
+	now := time.Now().UTC()
+	return domain.Metric{
+		ID: uuid.New(), AnalysisRunID: runID, Type: "site_readiness", Status: domain.DataMissing,
+		Source:      domain.DataSource{Name: "Customer / field survey — site condition", Type: "customer_supplied_site_survey", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now},
+		Assumptions: []string{"The site-condition assessment did not finish before the analysis deadline or cancellation. Any submitted evidence remains unassessed."}, CreatedAt: now,
+	}
 }
 
 // completeRun persists a terminal state even when the request deadline has
@@ -368,7 +390,7 @@ func (s *Service) siteReadinessMetric(ctx context.Context, runID, siteID uuid.UU
 		metric.Assumptions = []string{"Customer-supplied photos or PDF documents were supplied, but Gemini could not analyze them right now."}
 		return metric
 	}
-	rawValue, err := json.Marshal(map[string]any{"analysisScope": "visible_site_conditions", "imageCount": imageCount, "documentCount": documentCount, "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "entranceWidthEstimate": assessment.EntranceWidthEstimate, "model": assessment.Model})
+	rawValue, err := json.Marshal(map[string]any{"analysisScope": "visible_site_conditions", "assessmentStatus": assessment.AssessmentStatus, "imageCount": imageCount, "documentCount": documentCount, "summary": assessment.Summary, "suitability": assessment.Suitability, "score": assessment.Score, "surfaceTypes": assessment.SurfaceTypes, "observedRisks": assessment.ObservedRisks, "recommendedImprovements": assessment.RecommendedImprovements, "disclaimer": assessment.Disclaimer, "entranceWidthEstimate": assessment.EntranceWidthEstimate, "model": assessment.Model})
 	if err != nil {
 		return metric
 	}
@@ -376,6 +398,12 @@ func (s *Service) siteReadinessMetric(ctx context.Context, runID, siteID uuid.UU
 	metric.Status = domain.DataPreliminary
 	metric.Source = domain.DataSource{Name: "Customer-supplied site evidence analyzed by Gemini", Type: "customer_supplied_multimodal_analysis", Authority: "customer_supplied", GeographicScope: "plot", SiteVerification: "preliminary_map_lookup", RetrievedAt: now, Methodology: "Gemini assessed customer-supplied photos, map captures, and PDF documents together for preliminary visible site conditions and, when evidence allowed, an approximate entrance-width range."}
 	metric.Assumptions = []string{"This is a preliminary assessment from customer-supplied evidence; it is not part of the location score.", "A PDF title deed or map capture can support context, but does not verify a legal boundary, road frontage, or current right of access.", "Any entrance-width range is an image/document estimate only and requires an on-site measurement before engineering review.", "Photos and documents cannot confirm soil bearing capacity, underground conditions, drainage capacity, or engineering suitability."}
+	if assessment.AssessmentStatus == "insufficient_evidence" {
+		// A successful model response is not proof that a site can be scored.
+		// Preserve its explanation while marking the ground assessment unavailable.
+		metric.Status = domain.DataMissing
+		metric.Assumptions = []string{"The supplied files do not show enough ground-surface evidence to assess this site. Provide clear current photos of the ground, drainage, and entrance. No surface score was produced; this does not mean the site is unsuitable."}
+	}
 	return metric
 }
 

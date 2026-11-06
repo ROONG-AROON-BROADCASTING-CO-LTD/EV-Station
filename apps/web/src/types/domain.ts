@@ -226,3 +226,15 @@ export interface APIUsageSummary {
   estimatedCostThb?: number
   periodStart: string
 }
+
+export interface LineNotificationStatus {
+  tokenConfigured: boolean
+  webhookConfigured: boolean
+  recipientConfigured: boolean
+  recipientSource: '' | 'environment' | 'paired'
+  recipientType: '' | 'user' | 'group' | 'room' | 'unknown'
+  maskedRecipient: string
+  canPair: boolean
+  pairingExpiresAt?: string
+  lastDelivery?: { attemptedAt: string; succeeded: boolean }
+}
