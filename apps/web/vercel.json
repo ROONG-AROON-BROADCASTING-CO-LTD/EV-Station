@@ -1,0 +1,100 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npx --yes pnpm@11.25.0 install --frozen-lockfile",
+  "buildCommand": "VITE_API_BASE_URL=/api/v1 npm run build && npm run test:seo",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "^/.*$",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/api/v1/.*$",
+      "has": [
+        {
+          "type": "header",
+          "key": "sec-fetch-site",
+          "value": "same-origin"
+        }
+      ],
+      "transforms": [
+        {
+          "type": "request.headers",
+          "op": "delete",
+          "target": {
+            "key": "origin"
+          }
+        }
+      ],
+      "continue": true
+    },
+    {
+      "src": "^/api/v1/(.*)$",
+      "dest": "https://www.rbcevstation.com/api/v1/$1",
+      "headers": {
+        "Cache-Control": "private, no-store"
+      }
+    },
+    {
+      "src": "^/welcome/?$",
+      "status": 308,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    {
+      "src": "^/(__pages|api)(/.*)?$",
+      "dest": "/404.html",
+      "status": 404
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "query",
+          "key": "lang",
+          "value": "en"
+        }
+      ],
+      "dest": "/__pages/en/home.html"
+    },
+    {
+      "src": "^/$",
+      "dest": "/__pages/th/home.html"
+    },
+    {
+      "src": "^/(investment|branches|contact|guide/customer)/?$",
+      "has": [
+        {
+          "type": "query",
+          "key": "lang",
+          "value": "en"
+        }
+      ],
+      "dest": "/__pages/en/$1.html"
+    },
+    {
+      "src": "^/(investment|branches|contact|guide/customer)/?$",
+      "dest": "/__pages/th/$1.html"
+    },
+    {
+      "src": "^/(login|dashboard|documents|sites|analysis|analyses|settings|api-usage|not-investing|data-sources|liff|guide/admin)(/.*)?$",
+      "dest": "/index.html",
+      "headers": {
+        "Cache-Control": "private, no-store"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/.*$",
+      "dest": "/404.html",
+      "status": 404
+    }
+  ]
+}
