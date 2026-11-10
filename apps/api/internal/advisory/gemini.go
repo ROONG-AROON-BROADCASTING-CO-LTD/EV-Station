@@ -319,7 +319,9 @@ func (s *Service) buildRequest(run domain.AnalysisRun, language string) (geminiR
 		Text string `json:"text"`
 	}{{Text: prompt}}})
 	request.GenerationConfig.Temperature = 0
-	request.GenerationConfig.MaxOutputTokens = 700
+	// A live Thai QA report exceeded 700 tokens and returned truncated JSON
+	// with HTTP 200. Leave room for all structured narrative fields.
+	request.GenerationConfig.MaxOutputTokens = 1800
 	request.GenerationConfig.ResponseMimeType = "application/json"
 	request.GenerationConfig.ResponseJSONSchema = assessmentSchema()
 	return request, nil

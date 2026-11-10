@@ -96,7 +96,7 @@ export function AnalysisPage({ role }: { role: UserRole }) {
   // Keep those out of every report view, including the printed PDF and factor summary.
   const run = { ...analysis.data, metrics: (analysis.data.metrics ?? []).map(metric => metric.type === 'site_readiness' && getSiteSurface(metric.rawValue)?.assessmentStatus !== 'assessed' ? { ...metric, status: 'missing' as const, normalizedScore: undefined } : metric) }
 	const availableAssessments = { ...(run.aiAssessments || {}), ...(aiNotes.data?.assessments || {}) }
-	const displayedAssessment = hasUnconfirmedSurfaceEvidence ? undefined : availableAssessments[language] || availableAssessments.en
+	const displayedAssessment = hasUnconfirmedSurfaceEvidence ? undefined : availableAssessments[language]
 	const displayedAssessmentError = displayedAssessment ? undefined : aiNotes.data?.errors[language] || aiNotes.error
   const canUpdateInternet = canManageAnalysis
   const dateLocale = language === 'th' ? 'th-TH' : 'en-US'
@@ -123,7 +123,7 @@ export function AnalysisPage({ role }: { role: UserRole }) {
     {canManageAnalysis && !hasUnconfirmedSurfaceEvidence ? <StationRecommendation key={run.id} id={run.id} site={site.data} initialProposal={run.stationRecommendation} /> : null}
 	 <MetricResultsTable metrics={run.metrics} renderMetric={metric => <MetricRow key={metric.id} metric={metric} site={site.data} canUpdateInternet={canUpdateInternet} onInternetChange={updateInternet.mutate} savingInternet={updateInternet.isPending} />} saveError={updateInternet.isError} />
     <ProjectRecommendation plans={plans.data} isLoading={plans.isLoading} site={site.data} />
-    <AnalysisNotes assessment={displayedAssessment} isGenerating={aiNotes.isPending} error={displayedAssessmentError} canRegenerate={canGenerateAINotes} requiresNewAnalysis={hasUnconfirmedSurfaceEvidence} onRegenerate={() => { if (canGenerateAINotes) aiNotes.mutate({ refresh: true, languages: [language] }) }} fallback={run.recommendation} />
+    <AnalysisNotes assessment={displayedAssessment} isGenerating={aiNotes.isPending} error={displayedAssessmentError} canRegenerate={canGenerateAINotes} requiresNewAnalysis={hasUnconfirmedSurfaceEvidence} onRegenerate={() => { if (canGenerateAINotes) aiNotes.mutate({ refresh: true, languages: [language] }) }} />
   </div>
 }
 
@@ -136,6 +136,12 @@ function ScoreCard({ run, canRecalculate, isRecalculating, recalculationError, o
 }
 
 type InvestmentDecision = 'invest' | 'not_recommended'
+
+function displayAssessmentSummary(summary: string, language: 'th' | 'en') {
+  if (language !== 'th') return summary
+  return summary.replace(/(ตัดสินผลเป็น\s+)(not_recommended|invest)\b/g, (_, prefix: string, decision: string) =>
+    prefix + (decision === 'invest' ? 'แนะนำให้พิจารณาลงทุน' : 'ยังไม่แนะนำให้ลงทุน'))
+}
 
 function InvestmentRecommendation({ run, site, assessment, isGenerating }: { run: import('../types/domain').AnalysisRun; site?: Site; assessment?: AIAssessment; isGenerating: boolean }) {
   const { t, language } = useI18n()
@@ -173,10 +179,10 @@ function currentInvestmentBlockers(site: Site | undefined, score: number | undef
   return blockers
 }
 
-function AnalysisNotes({ assessment, isGenerating, error, canRegenerate, requiresNewAnalysis, onRegenerate, fallback }: { assessment?: AIAssessment; isGenerating: boolean; error: unknown; canRegenerate: boolean; requiresNewAnalysis: boolean; onRegenerate: () => void; fallback: string }) {
-  const { t } = useI18n()
+function AnalysisNotes({ assessment, isGenerating, error, canRegenerate, requiresNewAnalysis, onRegenerate }: { assessment?: AIAssessment; isGenerating: boolean; error: unknown; canRegenerate: boolean; requiresNewAnalysis: boolean; onRegenerate: () => void }) {
+  const { t, language } = useI18n()
   if (requiresNewAnalysis) return <section className="mt-6 rounded-xl border border-amber-200 bg-amber-50/60 p-6"><h2 className="section-title">{t('Notes')}</h2><p className="mt-3 text-sm leading-6 text-amber-900">{t('Saved AI commentary is hidden until a new site analysis confirms the evidence status. Ask staff to run a new analysis and regenerate the commentary.')}</p></section>
-	return <section className="mt-6 rounded-xl border border-line bg-white p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="section-title">{t('Notes')}</h2><p className="mt-1 text-sm text-muted">{t('Analysis based on the evidence in this analysis run.')}</p></div>{canRegenerate ? <button type="button" className="button-secondary min-h-10" onClick={onRegenerate} disabled={isGenerating}><RefreshCw size={16} className={isGenerating ? 'animate-spin' : undefined} />{isGenerating ? t('AI is analysing the recommendation…') : t('Regenerate AI analysis')}</button> : null}</div>{isGenerating ? <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-muted">{t('AI is summarising site potential, electrical readiness, and required checks…')}</div> : assessment ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-sm font-bold text-ink">{t('Overview')}</p><p className="mt-2 text-sm leading-6 text-muted">{assessment.summary}</p></div><div className="grid gap-4 lg:grid-cols-3"><NoteList title={t('Location strengths')} values={assessment.strengths} tone="emerald" /><NoteList title={t('Risk factors')} values={assessment.risks} tone="rose" /><NoteList title={t('Further checks required')} values={assessment.requiredChecks} tone="amber" /></div></div> : <div className="mt-5 rounded-xl border border-amber-100 bg-amber-50/60 p-4"><p className="text-sm text-amber-800">{error ? t(errorMessageKey(error)) : fallback}</p>{error && canRegenerate ? <p className="mt-2 text-xs leading-5 text-muted">{t('Try “Regenerate AI analysis” again.')}</p> : null}</div>}</section>
+	return <section className="mt-6 rounded-xl border border-line bg-white p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="section-title">{t('Notes')}</h2><p className="mt-1 text-sm text-muted">{t('Analysis based on the evidence in this analysis run.')}</p></div>{canRegenerate ? <button type="button" className="button-secondary min-h-10" onClick={onRegenerate} disabled={isGenerating}><RefreshCw size={16} className={isGenerating ? 'animate-spin' : undefined} />{isGenerating ? t('AI is analysing the recommendation…') : t('Regenerate AI analysis')}</button> : null}</div>{isGenerating ? <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-muted">{t('AI is summarising site potential, electrical readiness, and required checks…')}</div> : assessment ? <div className="mt-5 space-y-4"><div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-sm font-bold text-ink">{t(assessment.model === 'system-fallback' ? 'System summary · AI explanation unavailable' : 'AI explanation generated')}</p><p className="mt-2 text-sm leading-6 text-muted">{displayAssessmentSummary(assessment.summary, language)}</p></div><div className="grid gap-4 lg:grid-cols-3"><NoteList title={t('Location strengths')} values={assessment.strengths} tone="emerald" /><NoteList title={t('Risk factors')} values={assessment.risks} tone="rose" /><NoteList title={t('Further checks required')} values={assessment.requiredChecks} tone="amber" /></div></div> : <div className="mt-5 rounded-xl border border-amber-100 bg-amber-50/60 p-4"><p className="text-sm text-amber-800">{error ? t(errorMessageKey(error)) : t('AI could not generate an explanation for this report. The screening score and evidence remain available below.')}</p>{error && canRegenerate ? <p className="mt-2 text-xs leading-5 text-muted">{t('Try “Regenerate AI analysis” again.')}</p> : null}</div>}</section>
 }
 
 function NoteList({ title, values, tone }: { title: string; values: string[]; tone: 'emerald' | 'rose' | 'amber' }) {

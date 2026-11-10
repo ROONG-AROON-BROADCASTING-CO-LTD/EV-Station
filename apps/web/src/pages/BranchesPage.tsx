@@ -10,11 +10,11 @@ type Branch = { id: string; format: 'S' | 'M' | 'L'; planned?: boolean; nameTh: 
 // Confirmed branch services, kept separate from investment estimates.
 const branchServices = {
   S: [
-    { th: 'EV Charging 1 สถานี', en: '1 EV charging station' },
+    { th: 'เครื่องชาร์จ EV 1 ตู้', en: '1 EV charger' },
     { th: 'ร้านกาแฟ Super Black Coffee', en: 'Super Black Coffee café' },
   ],
   M: [
-    { th: 'EV Charging 2 สถานี', en: '2 EV charging stations' },
+    { th: 'เครื่องชาร์จ EV 2 ตู้', en: '2 EV chargers' },
     { th: 'ร้านกาแฟ Super Black Coffee', en: 'Super Black Coffee café' },
     { th: 'ร้านอาหารและเบเกอรี่', en: 'Restaurant & bakery' },
     { th: 'ไปรษณีย์ BPOST65 EXPRESS', en: 'BPOST65 EXPRESS postal services' },

@@ -71,7 +71,7 @@ describe('API client authentication boundary', () => {
   })
 
   it('keeps non-authentication failures mapped to a stable translation key', () => {
-    expect(errorMessageKey(new APIError('SITE_ACCESS_DENIED', 'denied', 403))).toBe('error.SITE_ACCESS_DENIED')
+    expect(errorMessageKey(new APIError('SITE_ACCESS_DENIED', 'denied', 403))).toBe('You do not have access to this site. Return to your site list and select a site you can access.')
     expect(errorMessageKey(new Error('network failed'))).toBe('error.REQUEST_FAILED')
   })
 })

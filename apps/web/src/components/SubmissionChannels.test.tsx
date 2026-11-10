@@ -14,7 +14,7 @@ describe('customer submission channels', () => {
   it('offers website registration with a return path and the configured LIFF submission/tracking links', async () => {
     vi.mocked(loadLiffConfig).mockResolvedValue({ liffId: '123-Test' })
     show()
-    expect(screen.getByRole('link', { name: 'Submit through the website' }).getAttribute('href')).toBe('/login?mode=register&returnTo=%2Fsites%2Fnew')
+    expect(screen.getByRole('link', { name: 'Submit through the website' }).getAttribute('href')).toBe('/login?mode=register&returnTo=%2Fsites%2Fnew&from=%2Fcontact%23submit-site&lang=en')
     expect(screen.getByRole('link', { name: 'Add LINE to talk to our team' }).getAttribute('href')).toBe('https://line.me/R/ti/p/@424cdtee')
     expect((await screen.findByRole('link', { name: 'Open the form in LINE' })).getAttribute('href')).toBe('https://liff.line.me/123-Test')
     expect(screen.getByRole('link', { name: 'Track submitted sites' }).getAttribute('href')).toBe('https://liff.line.me/123-Test?view=my-sites')

@@ -34,7 +34,7 @@ export function LandingExperience({ investmentLink, afterHero }: { investmentLin
         <h1 id="landing-title"><span>{t('เติมพลังให้การเดินทาง', 'Power the journey.')}</span><span>{t('เติมโอกาสให้พื้นที่คุณ', 'Reimagine your space.')}</span></h1>
         <div className="rbc-cinema-bottom">
           <p>{t('เริ่มต้นสถานีชาร์จ EV กับ RBC Group\nจากทำเลของคุณ สู่จุดหมายใหม่ของการเดินทาง', 'Start your EV station with RBC Group.\nFrom your location to a new destination.')}</p>
-          <Link className="rbc-motion-link" to={investmentLink}>{t('ส่งทำเลให้ประเมิน', 'Explore your site’s potential')}<ArrowUpRight/></Link>
+          <Link className="rbc-motion-link" to={investmentLink}>{t('ส่งทำเลให้ประเมิน', 'Submit your site for assessment')}<ArrowUpRight/></Link>
         </div>
       </div>
       <button className="rbc-film-invitation" type="button" onClick={goToStory}>

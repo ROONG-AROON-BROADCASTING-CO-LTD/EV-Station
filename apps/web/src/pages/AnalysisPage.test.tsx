@@ -56,6 +56,15 @@ beforeEach(() => { vi.mocked(downloadAnalysisPDF).mockReset().mockResolvedValue(
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('site-condition evidence status in analysis reports', () => {
+  it.each([
+    ['invest', 'แนะนำให้พิจารณาลงทุน'],
+    ['not_recommended', 'ยังไม่แนะนำให้ลงทุน'],
+  ])('shows the saved %s decision in Thai', async (decision, label) => {
+    const saved = { ...aiAssessment, language: 'th' as const, decision: decision as AIAssessment['decision'], summary: `โดยระบบได้ตัดสินผลเป็น ${decision}` }
+    await show(surface, 'th', 85, [], { aiAssessments: { th: saved } })
+    expect(await screen.findByText(`โดยระบบได้ตัดสินผลเป็น ${label}`)).toBeDefined()
+  })
+
   it.each(['pending', 'running'] as const)('renders a %s report with null metrics and opens it after completion', async status => {
     // Queued PostgreSQL records have no metric rows yet and serialize as null.
     const run = { id: 'test-run', siteId: site.id, status, analysisRadiusMeters: 1000, metrics: null, assessmentStatus: 'preliminary', startedAt: timestamp, createdAt: timestamp } as unknown as AnalysisRun
@@ -256,7 +265,7 @@ describe('site-condition evidence status in analysis reports', () => {
     const row = await show(null, language, 0, [reason])
     expect(row.textContent).toContain(language === 'th' ? 'ยังประเมินไม่ได้' : 'Unable to assess yet')
     expect(row.textContent).toContain(language === 'th' ? 'ยังไม่ได้ประเมินสภาพพื้นที่ กรุณาตรวจหลักฐานและสถานะการวิเคราะห์ด้านล่าง' : 'Site conditions have not been assessed yet. Review the evidence and analysis status below')
-    expect(row.textContent).toContain(reason)
+    expect(row.textContent).toContain(language === 'th' ? 'ได้รับไฟล์แนบแล้ว แต่บริการ AI ใช้เวลาเกินกำหนด' : reason)
     expect(row.textContent).not.toContain(language === 'th' ? 'หลักฐานหน้างานยังไม่เพียงพอ' : 'There is not enough site evidence')
     expect(row.textContent).not.toContain('/100')
   })

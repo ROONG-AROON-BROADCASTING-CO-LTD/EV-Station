@@ -25,6 +25,7 @@ function throwAPIError<T>(response: Response, body: Envelope<T> & ErrorEnvelope,
 }
 
 export function errorMessageKey(error: unknown) {
+  if (error instanceof APIError && error.code === 'SITE_ACCESS_DENIED') return 'You do not have access to this site. Return to your site list and select a site you can access.'
   if (error instanceof APIError && error.code === 'AUTH_UNAVAILABLE') return 'Sign-in verification is temporarily unavailable. Please try again.'
   if (error instanceof APIError && error.code === 'REQUEST_TIMEOUT') return 'The request took too long. Check the latest status before trying again; submitted work may still be processing.'
   return error instanceof APIError ? `error.${error.code}` : 'error.REQUEST_FAILED'

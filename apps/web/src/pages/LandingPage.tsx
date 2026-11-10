@@ -21,9 +21,11 @@ const evMarketComparison = {
   nonBevGrowth2025: '+0.81%',
   nonBevGrowth2026: '+0.91%',
   bevGrowth2025: '+45.21%',
-  bevGrowth2026: '+48.79%',
+
   shareChange: '+0.56 จุดเปอร์เซ็นต์',
 }
+const bevGrowth2026 = '+' + ((Number(evMarketComparison[2026].bev.replaceAll(',', '')) / Number(evMarketComparison[2025].bev.replaceAll(',', '')) - 1) * 100).toFixed(2) + '%'
+
 function SectionTitle({ title, description }: { title: string; description?: string }) {
   return <div className="public-section-title"><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>
 }
@@ -35,7 +37,7 @@ export function LandingPage({ authenticated = false, accountName, onLogout }: { 
     <section id="market" className="public-market">
       <Container>
         <div className="public-market-heading">
-          <SectionTitle title={copy(language, 'ตลาด EV ไทย: ภาพรวม 3 ปี', 'Thailand EV market: three-year view')} description={copy(language, 'แสดงรถจดทะเบียนสะสมและ BEV ในช่วงสิ้นปี 2567 ถึง 30 กันยายน 2569 เพื่อให้เห็นทิศทางของตลาดอย่างต่อเนื่อง โดยตัวเลขปี 2569 เป็นประมาณการตามข้อมูลที่ได้รับ', 'Shows cumulative registered vehicles and BEVs from year-end 2024 to 30 September 2026. The 2026 figures are estimates based on supplied data.')}/>
+          <SectionTitle title={copy(language, 'ตลาด EV ไทย: ภาพรวม 3 ปี', 'Thailand EV market: three-year view')} description={copy(language, 'เปรียบเทียบยอดรถจดทะเบียนสะสมและ BEV ณ สิ้นปี 2567 กันยายน 2568 และมิถุนายน 2569 ตามวันที่ของแต่ละชุดข้อมูล', 'Compares cumulative vehicle and BEV registrations at year-end 2024, September 2025 and June 2026.')}/>
         </div>
         <figure className="rbc-market-figure">
           <figcaption>{copy(language, 'รถ BEV จดทะเบียนสะสม', 'Cumulative registered BEVs')}</figcaption>
@@ -43,20 +45,32 @@ export function LandingPage({ authenticated = false, accountName, onLogout }: { 
             {[{ year: 2024, th: '2567', height: '46.3%' }, { year: 2025, th: '2568', height: '67.2%' }, { year: 2026, th: '2569', height: '100%' }].map(item => <div className="rbc-market-column" key={item.year}>
               <div className="rbc-market-column-track"><div className="rbc-market-column-fill" style={{ height: item.height }}><strong>{evMarketComparison[item.year as 2024 | 2025 | 2026].bev}</strong></div></div>
               <span>{language === 'th' ? item.th : item.year}</span>
-              <small>{item.year === 2026 ? copy(language, 'ประมาณการ · 30 ก.ย.', 'Estimate · 30 Sep') : item.year === 2025 ? copy(language, '30 ก.ย.', '30 Sep') : copy(language, '31 ธ.ค.', '31 Dec')}</small>
+              <small>{item.year === 2026 ? copy(language, '30 มิ.ย.', '30 Jun') : item.year === 2025 ? copy(language, '30 ก.ย.', '30 Sep') : copy(language, '31 ธ.ค.', '31 Dec')}</small>
             </div>)}
           </div>
         </figure>
+        <p className="mb-4 text-sm leading-6">
+          {copy(language, 'BEV คือรถไฟฟ้าแบตเตอรี่ ยอดรถจดทะเบียนทั้งหมด ณ สิ้นปี 2567 อ้างอิง ', 'BEV means battery electric vehicle. The 2024 year-end total vehicle count comes from ')}
+          <a className="underline" href="https://www.nso.go.th/public/e-book/Statistical-Yearbook/SYB-2026_webPage/File_SYB/2026/15/T_15.3_2026.pdf" target="_blank" rel="noreferrer">{copy(language, 'สำนักงานสถิติแห่งชาติ ตาราง 15.3', 'National Statistical Office, Table 15.3')}</a>
+          {copy(language, ' และยอด BEV สิ้นปี 2567 อ้างอิง ', '. The 2024 year-end BEV count comes from ')}
+          <a className="underline" href="https://www.eppo.go.th/wp-content/uploads/2026/02/EppoAnnualReport2024.pdf" target="_blank" rel="noreferrer">{copy(language, 'รายงานประจำปี 2567 ของ สนพ.', 'EPPO’s 2024 annual report')}</a>
+          {copy(language, ' ยอด BEV ณ กันยายน 2568 อ้างอิง ', '. The September 2025 BEV count comes from ')}<a className="underline" href="https://www.eppo.go.th/wp-content/uploads/2026/04/Q3_2568.pdf" target="_blank" rel="noreferrer">{copy(language, 'รายงานสถานการณ์พลังงาน 9 เดือนแรกของ สนพ.', 'EPPO’s first-nine-month energy report')}</a>{copy(language, ' และยอดรถทั้งหมด ณ 30 กันยายน 2568 อ้างอิง ', '. The total vehicle count as of 30 September 2025 comes from ')}<a className="underline" href="https://gdcatalog.dlt.go.th/dataset/ae7e8dc3-b792-4ce4-92c2-09b21b7596a0/resource/1051211c-5947-4efc-aaf3-7cff2b47dd46/download/untitled.pdf#page=90" target="_blank" rel="noreferrer">{copy(language, 'รายงานประจำปีกรมการขนส่งทางบก หน้า 82', 'DLT annual report, page 82')}</a>.
+          {' '}{copy(language, 'ยอด BEV ณ มิ.ย. 2569 อ้างอิง ', 'The June 2026 BEV count comes from ')}
+          <a className="underline" href="https://www.eppo.go.th/wp-content/uploads/2026/09/stiulationhalf2569forecast2569.pdf" target="_blank" rel="noreferrer">{copy(language, 'รายงานสถานการณ์พลังงาน 6 เดือนแรกของ สนพ.', 'EPPO’s first-half energy situation report')}</a>
+          {' '}{copy(language, 'ยอดรถรวม ณ มิ.ย. 2569 มาจากตัวเลขของกรมการขนส่งทางบกที่รายงานใน ', 'The June 2026 total uses DLT figures reported by ')}
+          <a className="underline" href="https://www.khaosod.co.th/economics/news_10332128" target="_blank" rel="noreferrer">{copy(language, 'ข่าวสด', 'Khaosod')}</a>
+          {copy(language, ' เปอร์เซ็นต์คำนวณจากยอดสะสมระหว่างวันที่ที่แสดง โดยแต่ละช่วงเปรียบเทียบมีระยะประมาณ 9 เดือน จึงไม่ใช่อัตราเติบโตเทียบปีก่อน', '. Percentages compare cumulative totals over approximately nine months for each period and are not year-over-year growth rates.')}
+        </p>
         <details className="rbc-market-details">
           <summary>{copy(language, 'ดูตัวเลขและรายละเอียดทั้งหมด', 'View all figures and details')}<ChevronDown size={20}/></summary>
         <div className="public-market-comparison" role="table" tabIndex={0} aria-label={copy(language, 'เปรียบเทียบรถจดทะเบียนสามปี', 'Three-year registered vehicle comparison')}>
-          <div className="public-market-row public-market-head" role="row"><span role="columnheader">{copy(language, 'รายการ', 'Measure')}</span><span role="columnheader">{copy(language, '2567', '2024')}<small>{copy(language, '31 ธ.ค. 67', '31 Dec 2024')}</small></span><span role="columnheader">{copy(language, '2568', '2025')}<small>{copy(language, '30 ก.ย. 68', '30 Sep 2025')}</small></span><span role="columnheader">{copy(language, '2569', '2026')}<small>{copy(language, 'ประมาณการ 30 ก.ย. 69', 'Estimated 30 Sep 2026')}</small></span></div>
+          <div className="public-market-row public-market-head" role="row"><span role="columnheader">{copy(language, 'รายการ', 'Measure')}</span><span role="columnheader">{copy(language, '2567', '2024')}<small>{copy(language, '31 ธ.ค. 67', '31 Dec 2024')}</small></span><span role="columnheader">{copy(language, '2568', '2025')}<small>{copy(language, '30 ก.ย. 68', '30 Sep 2025')}</small></span><span role="columnheader">{copy(language, '2569', '2026')}<small>{copy(language, '30 มิ.ย. 69', '30 Jun 2026')}</small></span></div>
           <div className="public-market-row" role="row"><strong role="rowheader">{copy(language, 'รถจดทะเบียนสะสมทั้งหมด', 'All registered vehicles')}</strong><span role="cell">{evMarketComparison[2024].total}</span><span role="cell">{evMarketComparison[2025].total}<small>{evMarketComparison.totalGrowth2025}</small></span><span role="cell">{evMarketComparison[2026].total}<small>{evMarketComparison.totalGrowth2026}</small></span></div>
           <div className="public-market-row" role="row"><strong role="rowheader">{copy(language, 'รถจดทะเบียนสะสมอื่น ๆ', 'Other registered vehicles')}</strong><span role="cell">{evMarketComparison[2024].nonBev}</span><span role="cell">{evMarketComparison[2025].nonBev}<small>{evMarketComparison.nonBevGrowth2025}</small></span><span role="cell">{evMarketComparison[2026].nonBev}<small>{evMarketComparison.nonBevGrowth2026}</small></span></div>
-          <div className="public-market-row public-market-bev" role="row"><strong role="rowheader"><BatteryCharging size={18}/>{copy(language, 'รถ BEV สะสม', 'Cumulative BEVs')}</strong><span role="cell">{evMarketComparison[2024].bev}</span><span role="cell">{evMarketComparison[2025].bev}<small>{evMarketComparison.bevGrowth2025}</small></span><span role="cell">{evMarketComparison[2026].bev}<small>{evMarketComparison.bevGrowth2026}</small></span></div>
+          <div className="public-market-row public-market-bev" role="row"><strong role="rowheader"><BatteryCharging size={18}/>{copy(language, 'รถ BEV สะสม', 'Cumulative BEVs')}</strong><span role="cell">{evMarketComparison[2024].bev}</span><span role="cell">{evMarketComparison[2025].bev}<small>{evMarketComparison.bevGrowth2025}</small></span><span role="cell">{evMarketComparison[2026].bev}<small>{bevGrowth2026}</small></span></div>
           <div className="public-market-row public-market-share" role="row"><strong role="rowheader">{copy(language, 'สัดส่วน BEV ต่อรถทั้งหมด', 'BEV share of all vehicles')}</strong><span role="cell">{evMarketComparison[2024].share}</span><span role="cell">{evMarketComparison[2025].share}</span><span role="cell">{evMarketComparison[2026].share}</span></div>
         </div>
-        <div className="public-market-growth-grid"><article><CarFront size={24}/><span>{copy(language, 'ตลาดรถทั้งหมด', 'All vehicle market')}</span><strong>{evMarketComparison.totalGrowth2026}</strong><small>{copy(language, 'การเติบโตจากปี 2568 ถึงตัวเลขประมาณการปี 2569', 'Growth from 2025 to the 2026 estimate')}</small></article><article><Users size={24}/><span>{copy(language, 'รถจดทะเบียนสะสมอื่น ๆ', 'Other registered vehicles')}</span><strong>{evMarketComparison.nonBevGrowth2026}</strong><small>{copy(language, 'รวมรถทุกประเภท ยกเว้นรถ BEV', 'Includes every registered vehicle category except BEVs')}</small></article><article className="public-market-growth"><TrendingUp size={24}/><span>{copy(language, 'รถ BEV', 'BEVs')}</span><strong>{evMarketComparison.bevGrowth2026}</strong><small>{copy(language, 'BEV เพิ่ม 161,154 คันจากปี 2568 สู่ตัวเลขประมาณการปี 2569', 'BEVs increase by 161,154 vehicles from 2025 to the 2026 estimate')}</small></article></div>
+        <div className="public-market-growth-grid"><article><CarFront size={24}/><span>{copy(language, 'ตลาดรถทั้งหมด', 'All vehicle market')}</span><strong>{evMarketComparison.totalGrowth2026}</strong><small>{copy(language, 'เปรียบเทียบยอดสะสม ก.ย. 2568 กับ มิ.ย. 2569 ประมาณ 9 เดือน', 'Change from September 2025 to June 2026, approximately nine months')}</small></article><article><Users size={24}/><span>{copy(language, 'รถจดทะเบียนสะสมอื่น ๆ', 'Other registered vehicles')}</span><strong>{evMarketComparison.nonBevGrowth2026}</strong><small>{copy(language, 'รวมรถทุกประเภท ยกเว้นรถ BEV', 'Includes every registered vehicle category except BEVs')}</small></article><article className="public-market-growth"><TrendingUp size={24}/><span>{copy(language, 'รถ BEV', 'BEVs')}</span><strong>{bevGrowth2026}</strong><small>{copy(language, 'ยอด BEV เพิ่ม 161,154 คันระหว่าง ก.ย. 2568 กับ มิ.ย. 2569', 'Cumulative BEVs rose by 161,154 between September 2025 and June 2026')}</small></article></div>
         <div className="public-market-insight"><div><strong>{copy(language, 'สัดส่วน BEV ต่อรถจดทะเบียนทั้งหมด', 'BEVs as a share of registered vehicles')}</strong><span>{evMarketComparison[2024].share} <ArrowRight size={22} aria-hidden="true"/> {evMarketComparison[2026].share}</span></div><p>{copy(language, 'ส่วนแบ่งเพิ่ม ' + evMarketComparison.shareChange, 'Share increases by ' + evMarketComparison.shareChange.replace('จุดเปอร์เซ็นต์', 'percentage points'))}</p></div>
         </details>
       </Container>

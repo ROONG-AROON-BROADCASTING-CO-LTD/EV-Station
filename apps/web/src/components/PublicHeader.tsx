@@ -3,6 +3,7 @@ import { ChevronDown, CircleUserRound, LayoutDashboard, LogOut, MapPin, Menu, Se
 import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { PublicLink as Link } from './PublicLink'
+import { publicLoginHref } from '../data/publicContact'
 import { LanguageSwitcher, useI18n } from '../i18n/I18nProvider'
 import './public-header.css'
 
@@ -29,6 +30,7 @@ export function PublicHeader({ authenticated = false, accountName, onLogout }: P
     { href: '/contact', label: text(language, 'ติดต่อสอบถาม', 'Contact us') },
   ]
   const investmentLink = publicHref('/contact#submit-site', language)
+  const loginLink = publicLoginHref(location.pathname + location.search + location.hash, language)
   const closeMenus = () => { setMenuOpen(false); setAccountMenuOpen(false) }
   const navLink = (item: (typeof navItems)[number], onClick?: () => void) => <Link key={item.href} to={item.href} aria-current={location.pathname === item.href ? 'page' : undefined} onClick={onClick}>{item.label}</Link>
 
@@ -85,7 +87,7 @@ export function PublicHeader({ authenticated = false, accountName, onLogout }: P
             <Link to="/settings" onClick={closeMenus}><Settings size={18} aria-hidden="true"/>{text(language, 'ตั้งค่า', 'Settings')}</Link>
             {onLogout ? <button type="button" className="landing-account-logout" onClick={logout}><LogOut size={18} aria-hidden="true"/>{text(language, 'ออกจากระบบ', 'Log out')}</button> : null}
           </nav> : null}
-        </div> : <Link className="landing-sign-in" to="/login" onClick={closeMenus}><CircleUserRound size={19} aria-hidden="true"/>{text(language, 'เข้าสู่ระบบ', 'Sign in')}</Link>}
+        </div> : <Link className="landing-sign-in" to={loginLink} onClick={closeMenus}><CircleUserRound size={19} aria-hidden="true"/>{text(language, 'เข้าสู่ระบบ', 'Sign in')}</Link>}
       </div>
       <button ref={menuTrigger} type="button" className="landing-menu-button" onClick={() => { setMenuOpen(open => !open); setAccountMenuOpen(false) }} aria-label={menuOpen ? text(language, 'ปิดเมนู', 'Close menu') : text(language, 'เปิดเมนู', 'Open menu')} aria-expanded={menuOpen} aria-controls={menuId}>{menuOpen ? <X size={22} aria-hidden="true"/> : <Menu size={22} aria-hidden="true"/>}</button>
     </div>
@@ -98,7 +100,7 @@ export function PublicHeader({ authenticated = false, accountName, onLogout }: P
           <Link to="/dashboard" onClick={closeMenus}><LayoutDashboard size={18} aria-hidden="true"/>{text(language, 'แดชบอร์ด', 'Dashboard')}</Link>
           <Link to="/settings" onClick={closeMenus}><Settings size={18} aria-hidden="true"/>{text(language, 'ตั้งค่า', 'Settings')}</Link>
           {onLogout ? <button type="button" className="landing-account-logout" onClick={logout}><LogOut size={18} aria-hidden="true"/>{text(language, 'ออกจากระบบ', 'Log out')}</button> : null}
-        </> : <Link to="/login" onClick={closeMenus}><CircleUserRound size={19} aria-hidden="true"/>{text(language, 'เข้าสู่ระบบ', 'Sign in')}</Link>}
+        </> : <Link to={loginLink} onClick={closeMenus}><CircleUserRound size={19} aria-hidden="true"/>{text(language, 'เข้าสู่ระบบ', 'Sign in')}</Link>}
       </div>
       <div className="landing-mobile-language"><LanguageSwitcher /></div>
     </nav> : null}

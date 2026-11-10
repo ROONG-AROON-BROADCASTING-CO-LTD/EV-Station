@@ -2,6 +2,7 @@ package advisory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -42,6 +43,32 @@ func TestGeminiServiceRequiresAPIKey(t *testing.T) {
 	_, err := service.Generate(context.Background(), domain.AnalysisRun{}, "th")
 	if !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("expected ErrNotConfigured, got %v", err)
+	}
+}
+
+func TestGeminiNarrativeHasRoomForLongThaiResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var payload geminiRequest
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Error(err)
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		// The captured Thai QA run needed 775 output tokens to finish its JSON.
+		if payload.GenerationConfig.MaxOutputTokens < 775 {
+			_, _ = writer.Write([]byte(`{"candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[{"text":"{\"summary\":\"สรุป"}]}}]}`))
+			return
+		}
+		complete := `{"summary":"สรุปหลักฐาน","decision":"invest","recommendation":"ตรวจหน้างาน","disclaimer":"ผลเบื้องต้น"}`
+		_ = json.NewEncoder(writer).Encode(map[string]any{"candidates": []any{
+			map[string]any{"content": map[string]any{"parts": []any{map[string]string{"text": complete}}}},
+		}})
+	}))
+	defer server.Close()
+	service := NewGeminiService(GeminiConfig{APIKey: "test-key", Model: "test-model", BaseURL: server.URL, Timeout: time.Second}, server.Client())
+	result, err := service.Generate(context.Background(), domain.AnalysisRun{}, "th")
+	if err != nil || result.Summary != "สรุปหลักฐาน" {
+		t.Fatalf("expected a complete Thai narrative, got summary %q and error %v", result.Summary, err)
 	}
 }
 

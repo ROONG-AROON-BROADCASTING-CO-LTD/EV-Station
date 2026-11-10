@@ -105,7 +105,7 @@ export function DashboardPage({ role }: { role: UserRole }) {
   const selectedAnalysis = selectedSite
     ? analysisBySite.get(selectedSite.id)
     : undefined;
-  const title = "Portfolio";
+  const title = copy(language, "รายการพื้นที่", "Portfolio");
   const subtitle = copy(
     language,
     "ติดตามโอกาสของพื้นที่ ตั้งแต่ส่งข้อมูลจนพร้อมเปิดให้บริการ",
@@ -129,7 +129,7 @@ export function DashboardPage({ role }: { role: UserRole }) {
       <header className="flex items-start justify-between gap-3 sm:flex-wrap sm:gap-5">
         <div className="min-w-0">
           <p className="hidden text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500 sm:block">
-            Sites
+            {copy(language, "พื้นที่", "Sites")}
           </p>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:mt-1 sm:text-[40px]">
             {title}

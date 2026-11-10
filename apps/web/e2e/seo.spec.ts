@@ -2,6 +2,55 @@ import { expect, test } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+test('opens the same LINE contact from the investment and contact pages in both languages', async ({ page, context }) => {
+  const lineUrl = 'https://line.me/R/ti/p/@424cdtee'
+  await context.route(lineUrl, route => route.fulfill({ contentType: 'text/plain', body: 'LINE destination' }))
+
+  for (const language of ['th', 'en']) {
+    const english = language === 'en'
+    await page.goto(english ? '/investment?lang=en' : '/investment', { waitUntil: 'domcontentloaded' })
+    const investmentUrl = page.url()
+    const lineLink = page.getByRole('link', { name: english ? 'Contact us on LINE' : 'ติดต่อสอบถามทาง LINE', exact: true })
+    const [lineTab] = await Promise.all([page.waitForEvent('popup'), lineLink.click()])
+    await expect(lineTab).toHaveURL(lineUrl)
+    await expect(page).toHaveURL(investmentUrl)
+    await lineTab.close()
+
+    await page.getByRole('link', { name: english ? 'Start site assessment' : 'เริ่มประเมินทำเล', exact: true }).click()
+    await expect(page).toHaveURL(english ? /\/contact\?lang=en#submit-site$/ : /\/contact#submit-site$/)
+    await expect(page.getByRole('link', { name: english ? 'Add LINE to talk to our team' : 'แอด LINE เพื่อคุยกับทีมงาน', exact: true })).toHaveAttribute('href', lineUrl)
+  }
+})
+
+test('returns from English sign-in to the same public page and retains language after reload', async ({ page }) => {
+  await page.goto('/investment?lang=en', { waitUntil: 'domcontentloaded' })
+  if (test.info().project.name === 'mobile') await page.getByRole('button', { name: 'Open menu', exact: true }).click()
+  await page.getByRole('link', { name: 'Sign in', exact: true }).filter({ visible: true }).first().click()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('dialog', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Need help signing in? Contact the RBC team' })).toHaveAttribute('href', 'mailto:rbcevstation@gmail.com')
+  await page.getByRole('button', { name: 'Close sign-in dialog' }).click()
+  await expect(page).toHaveURL(/\/investment\?lang=en$/)
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page).toHaveTitle(/AC\/DC Charging Solutions/)
+})
+
+test('keeps keyboard focus inside the investment image and returns it on Escape', async ({ page }) => {
+  await page.goto('/investment?lang=en', { waitUntil: 'domcontentloaded' })
+  const trigger = page.getByRole('button', { name: /view the .* plan in full size/i }).first()
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const close = page.getByRole('dialog').getByRole('button', { name: 'Close full-size image' })
+  await expect(close).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(close).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(close).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
 test('serves useful public HTML even without JavaScript, and noindex for private URLs', async ({ browser, request }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, baseURL: 'http://127.0.0.1:15273' })
   const page = await context.newPage()

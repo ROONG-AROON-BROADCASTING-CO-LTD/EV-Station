@@ -6,15 +6,16 @@ import { isPublicPath, metadataHtml, urlLanguage } from './metadata'
 export function PageSeo() {
   const { pathname, search } = useLocation()
   const { language, setLanguage } = useI18n()
-  const pageLanguage = isPublicPath(pathname) ? urlLanguage(search) : language
+  const usesUrlLanguage = isPublicPath(pathname) || (pathname === '/login' && new URLSearchParams(search).has('lang'))
+  const pageLanguage = usesUrlLanguage ? urlLanguage(search) : language
   useEffect(() => {
-    if (isPublicPath(pathname) && language !== pageLanguage) setLanguage(pageLanguage)
+    if (usesUrlLanguage && language !== pageLanguage) setLanguage(pageLanguage)
     document.documentElement.lang = pageLanguage
     document.head.querySelectorAll('[data-rbc-seo]').forEach(element => element.remove())
     // The generated tags contain only escaped, application-owned metadata.
     const template = document.createElement('template')
     template.innerHTML = metadataHtml(pathname, pageLanguage)
     document.head.append(template.content)
-  }, [pathname, pageLanguage, language, setLanguage])
+  }, [pathname, pageLanguage, language, setLanguage, usesUrlLanguage])
   return null
 }

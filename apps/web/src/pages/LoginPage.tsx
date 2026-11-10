@@ -3,6 +3,7 @@ import { ArrowLeft, LogIn, UserPlus, X } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, APIError } from '../services/api'
 import { useI18n } from '../i18n/I18nProvider'
+import { publicLoginReturn } from '../data/publicContact'
 import type { AuthSession } from '../types/domain'
 
 type LoginPageProps = {
@@ -14,6 +15,7 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
   const { language, t } = useI18n()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const displayLanguage = searchParams.get('lang') === 'en' ? 'en' : language
   const [mode, setMode] = useState<'login' | 'register'>(() => searchParams.get('mode') === 'register' ? 'register' : 'login')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -28,7 +30,8 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
   const normalizedEmail = email.trim().toLowerCase()
   const otpSent = delivery?.email === normalizedEmail
   const resendSeconds = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000))
-  const close = useCallback(() => { if (onClose) onClose(); else navigate('/') }, [navigate, onClose])
+  const returnPath = publicLoginReturn(searchParams.get('from'), displayLanguage)
+  const close = useCallback(() => { if (onClose) onClose(); else navigate(returnPath, { replace: true }) }, [navigate, onClose, returnPath])
   const closeLabel = language === 'th' ? 'ปิดหน้าต่างเข้าสู่ระบบ' : 'Close sign-in dialog'
 
   useEffect(() => {
@@ -130,7 +133,8 @@ export function LoginPage({ onAuthenticated, onClose }: LoginPageProps) {
           <button disabled={busy || (mode === 'register' && !otpSent && resendSeconds > 0)} className="auth-modal-submit" type="submit">{mode === 'login' ? <LogIn size={19}/> : <UserPlus size={19}/>} {busy ? t(mode === 'register' && !otpSent ? 'Sending verification code…' : 'Continue') : mode === 'login' ? t('Sign in') : otpSent ? t('Create account and sign in') : t('Send verification code')}</button>
         </form>
         <p className="auth-modal-note">{t('Customer accounts can access only the areas submitted by their own account.')}</p>
-        <button type="button" className="auth-modal-return" onClick={close}><ArrowLeft size={17}/>{language === 'th' ? 'กลับหน้าแรก' : 'Back to home'}</button>
+        {mode === 'login' ? <p className="auth-modal-note"><a className="underline" href="mailto:rbcevstation@gmail.com">{t('Need help signing in? Contact the RBC team')}</a></p> : <details className="auth-modal-note"><summary>{t('How RBC uses your information')}</summary><p className="mt-2">{t('RBC uses your email to verify your account. When you submit a site, the team uses the location, details and attachments you provide to assess the site and contact you about the project.')}</p><a className="underline" href="mailto:rbcevstation@gmail.com">{t('Contact RBC about your information')}</a></details>}
+        <button type="button" className="auth-modal-return" onClick={close}><ArrowLeft size={17}/>{t('Back to previous page')}</button>
       </div>
     </section>
   </div>
