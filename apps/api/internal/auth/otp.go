@@ -36,6 +36,14 @@ func (s *OTPService) Request(email string) error {
 	return s.RequestContext(context.Background(), email)
 }
 func (s *OTPService) RequestContext(ctx context.Context, email string) error {
+	return s.requestContext(ctx, email, "register")
+}
+
+func (s *OTPService) RequestPasswordReset(ctx context.Context, email string) error {
+	return s.requestContext(ctx, email, "reset")
+}
+
+func (s *OTPService) requestContext(ctx context.Context, email, purpose string) error {
 	if s.host == "" || s.port == "" || s.from == "" {
 		return ErrOTPNotConfigured
 	}
@@ -49,23 +57,28 @@ func (s *OTPService) RequestContext(ctx context.Context, email string) error {
 		return err
 	}
 	code := fmt.Sprintf("%06d", value.Int64())
+	key := purpose + ":" + email
 	s.mu.Lock()
 	for key, record := range s.codes {
 		if !time.Now().Before(record.expiresAt) {
 			delete(s.codes, key)
 		}
 	}
-	if _, exists := s.codes[email]; !exists && len(s.codes) >= maxOTPCodes {
+	if _, exists := s.codes[key]; !exists && len(s.codes) >= maxOTPCodes {
 		s.mu.Unlock()
 		return errors.New("verification temporarily unavailable")
 	}
-	s.codes[email] = otpRecord{code: code, expiresAt: time.Now().Add(s.ttl)}
+	s.codes[key] = otpRecord{code: code, expiresAt: time.Now().Add(s.ttl)}
 	s.mu.Unlock()
-	body := "To: " + email + "\r\nFrom: " + s.from + "\r\nSubject: RBC EV Station verification code\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nYour verification code is " + code
+	subject := "RBC EV Station verification code"
+	if purpose == "reset" {
+		subject = "RBC EV Station password reset code"
+	}
+	body := "To: " + email + "\r\nFrom: " + s.from + "\r\nSubject: " + subject + "\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nYour verification code is " + code
 	if err = s.send(ctx, email, []byte(body)); err != nil {
 		s.mu.Lock()
-		if current := s.codes[email]; current.code == code {
-			delete(s.codes, email)
+		if current := s.codes[key]; current.code == code {
+			delete(s.codes, key)
 		}
 		s.mu.Unlock()
 	}
@@ -124,7 +137,15 @@ func (s *OTPService) send(ctx context.Context, to string, body []byte) error {
 	return client.Quit()
 }
 func (s *OTPService) Verify(email, code string) bool {
-	email = strings.ToLower(strings.TrimSpace(email))
+	return s.verify(email, code, "register")
+}
+
+func (s *OTPService) VerifyPasswordReset(email, code string) bool {
+	return s.verify(email, code, "reset")
+}
+
+func (s *OTPService) verify(email, code, purpose string) bool {
+	email = purpose + ":" + strings.ToLower(strings.TrimSpace(email))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.codes[email]

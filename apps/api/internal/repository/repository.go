@@ -26,6 +26,7 @@ type Repository interface {
 	GetUserByID(context.Context, uuid.UUID) (domain.User, error)
 	ListUsers(context.Context) ([]domain.User, error)
 	UpdateUser(context.Context, domain.User, *string) (domain.User, error)
+	ResetPasswordByEmail(context.Context, string, string) error
 	DeleteUser(context.Context, uuid.UUID) error
 	SetLineNotificationRecipient(context.Context, string) error
 	GetLineNotificationRecipient(context.Context) (string, error)

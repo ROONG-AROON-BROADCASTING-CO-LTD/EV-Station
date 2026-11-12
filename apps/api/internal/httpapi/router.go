@@ -40,6 +40,8 @@ func NewRouter(cfg config.Config, handler *Handler) *gin.Engine {
 	authLimits.trustProxies(os.Getenv("AUTH_TRUSTED_PROXY_CIDRS"))
 	api.POST("/auth/register", authLimits.middleware(), handler.Register)
 	api.POST("/auth/register/request-otp", authLimits.middleware(), handler.RequestRegistrationOTP)
+	api.POST("/auth/password-reset/request-otp", authLimits.middleware(), handler.RequestPasswordResetOTP)
+	api.POST("/auth/password-reset", authLimits.middleware(), handler.ResetPassword)
 	api.POST("/auth/login", authLimits.middleware(), handler.Login)
 	api.POST("/public/visitor-ordinal", handler.RegisterVisitorOrdinal)
 	api.POST("/line/webhook", handler.LineWebhook)

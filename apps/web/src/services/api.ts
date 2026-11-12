@@ -136,6 +136,8 @@ export const api = {
   }, 15_000),
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   requestRegistrationOTP: (email: string) => request<{ sent: boolean }>('/auth/register/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
+  requestPasswordResetOTP: (email: string) => request<{ sent: boolean }>('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, password: string, otp: string) => request<{ reset: boolean }>('/auth/password-reset', { method: 'POST', body: JSON.stringify({ email, password, otp }) }),
   register: (email: string, displayName: string, password: string, otp: string) => request<User>('/auth/register', { method: 'POST', body: JSON.stringify({ email, displayName, password, otp }) }),
 	createUser: (email: string, displayName: string, password: string, role: UserRole) => request<User>('/users', { method: 'POST', body: JSON.stringify({ email, displayName, password, role }) }),
 	listUsers: () => request<User[]>('/users'),

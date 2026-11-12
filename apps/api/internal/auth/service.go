@@ -81,6 +81,14 @@ func (s *Service) UpdateUser(ctx context.Context, user domain.User, password str
 	}
 	return s.repo.UpdateUser(ctx, user, passwordHash)
 }
+
+func (s *Service) ResetPassword(ctx context.Context, email, password string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.repo.ResetPasswordByEmail(ctx, strings.ToLower(strings.TrimSpace(email)), string(hash))
+}
 func (s *Service) sign(claims Claims) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
 	payload, _ := json.Marshal(claims)

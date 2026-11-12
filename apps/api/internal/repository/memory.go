@@ -120,6 +120,17 @@ func (m *Memory) GetUserByEmail(_ context.Context, email string) (domain.User, s
 	}
 	return domain.User{}, "", ErrNotFound
 }
+func (m *Memory) ResetPasswordByEmail(_ context.Context, email, passwordHash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, user := range m.users {
+		if user.Email == email && user.IsActive {
+			m.passwords[id] = passwordHash
+			return nil
+		}
+	}
+	return ErrNotFound
+}
 func (m *Memory) GetUserByID(_ context.Context, id uuid.UUID) (domain.User, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

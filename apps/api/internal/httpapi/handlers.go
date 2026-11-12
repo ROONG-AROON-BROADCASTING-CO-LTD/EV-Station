@@ -71,6 +71,46 @@ func (h *Handler) RequestRegistrationOTP(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"sent": true}})
 }
 
+func (h *Handler) RequestPasswordResetOTP(c *gin.Context) {
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", "Enter a valid email.")
+		return
+	}
+	if err := h.otp.RequestPasswordReset(c.Request.Context(), input.Email); err != nil {
+		writeError(c, http.StatusServiceUnavailable, "OTP_DELIVERY_FAILED", "Unable to send verification code.")
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"sent": true}})
+}
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var input struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=8,max=72"`
+		OTP      string `json:"otp" binding:"required,len=6"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || len(input.Password) > 72 {
+		writeError(c, http.StatusBadRequest, "INVALID_INPUT", "Check your email, code, and password.")
+		return
+	}
+	if !h.otp.VerifyPasswordReset(input.Email, input.OTP) {
+		writeError(c, http.StatusBadRequest, "OTP_INVALID", "The verification code is invalid or expired.")
+		return
+	}
+	if err := h.auth.ResetPassword(c.Request.Context(), input.Email, input.Password); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(c, http.StatusBadRequest, "RESET_UNAVAILABLE", "Unable to reset password.")
+		} else {
+			writeError(c, http.StatusServiceUnavailable, "RESET_UNAVAILABLE", "Unable to reset password.")
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"reset": true}})
+}
+
 func (h *Handler) Register(c *gin.Context) {
 	var input struct {
 		Email       string `json:"email" binding:"required,email"`

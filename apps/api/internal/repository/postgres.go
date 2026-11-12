@@ -76,6 +76,16 @@ func (p *Postgres) GetUserByEmail(ctx context.Context, email string) (domain.Use
 	}
 	return user, hash, err
 }
+func (p *Postgres) ResetPasswordByEmail(ctx context.Context, email, passwordHash string) error {
+	result, err := p.pool.Exec(ctx, `UPDATE users SET password_hash=$2, updated_at=now() WHERE email=$1 AND is_active=true`, email, passwordHash)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 func (p *Postgres) GetUserByID(ctx context.Context, id uuid.UUID) (domain.User, error) {
 	var user domain.User
 	err := p.pool.QueryRow(ctx, `SELECT id,email,display_name,role,is_active,created_at FROM users WHERE id=$1`, id).Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.IsActive, &user.CreatedAt)
